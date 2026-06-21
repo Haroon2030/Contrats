@@ -97,32 +97,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
         die("طلب غير صالح");
     }
 
+    if (!$is_admin) {
+        http_response_code(403);
+        die("❌ ليس لديك صلاحية حذف طلبات الأصناف");
+    }
+
     $deleteBatch = trim((string)($_POST['batch_id'] ?? ''));
 
     if ($deleteBatch !== '') {
-        $paramsDelete = [$deleteBatch];
-        $typesDelete = "s";
-
-        $deleteScope = vcBuildInCondition('created_by', $scopedUserIds, $paramsDelete, $typesDelete);
-
-        $sqlDelete = "
+        $stmtDelete = $conn->prepare("
             DELETE FROM items
             WHERE batch_id = ?
               AND status = 'review'
-              {$deleteScope}
-        ";
-
-        $stmtDelete = $conn->prepare($sqlDelete);
+        ");
 
         if ($stmtDelete) {
-            $stmtDelete->bind_param($typesDelete, ...$paramsDelete);
+            $stmtDelete->bind_param("s", $deleteBatch);
             $stmtDelete->execute();
             $deletedCount = $stmtDelete->affected_rows;
             $stmtDelete->close();
 
             $_SESSION['under_review_items_msg'] = $deletedCount > 0
                 ? 'تم حذف طلب الأصناف رقم ' . $deleteBatch . ' بنجاح.'
-                : 'لم يتم حذف الطلب، ربما ليس تحت المراجعة أو ليس ضمن صلاحيتك.';
+                : 'لم يتم حذف الطلب، ربما ليس تحت المراجعة.';
         } else {
             $_SESSION['under_review_items_msg'] = 'تعذر تجهيز حذف الطلب.';
         }
@@ -631,7 +628,7 @@ body{
                     <th class="col-fee">إجمالي الرسوم</th>
                     <th class="col-created">تاريخ الطلب</th>
                     <th class="col-status">الحالة</th>
-                    <th class="col-view">عرض</th>
+                    <th class="col-actions">إجراءات</th>
                 </tr>
             </thead>
 
@@ -678,22 +675,22 @@ body{
                             </td>
 
                             <td>
-                                <div class="row-actions">
-                                    <a href="view_items.php?batch=<?= urlencode((string)$row['batch_id']) ?>&mode=view" class="btn btn-view">
-                                        عرض / طباعة
-                                    </a>
-
-                                    <a href="add_items.php?edit_batch=<?= urlencode((string)$row['batch_id']) ?>" class="btn btn-edit">
-                                        تعديل
-                                    </a>
-
-                                    <form method="POST" onsubmit="return confirm('تأكيد حذف طلب الأصناف رقم <?= e($row['batch_id']) ?>؟');">
-                                        <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
-                                        <input type="hidden" name="action" value="delete_review_item_batch">
-                                        <input type="hidden" name="batch_id" value="<?= e($row['batch_id']) ?>">
-                                        <button type="submit" class="btn btn-delete">حذف</button>
-                                    </form>
-                                </div>
+                                <?php
+                                vcRenderRowActions([
+                                    'view' => [
+                                        'href' => 'view_items.php?batch=' . urlencode((string)$row['batch_id']) . '&mode=view',
+                                        'label' => 'عرض / طباعة',
+                                    ],
+                                    'edit' => [
+                                        'href' => 'add_items.php?edit_batch=' . urlencode((string)$row['batch_id']),
+                                    ],
+                                    'delete' => [
+                                        'action' => 'delete_review_item_batch',
+                                        'fields' => ['batch_id' => (string)$row['batch_id']],
+                                        'confirm' => 'تأكيد حذف طلب الأصناف رقم ' . (string)$row['batch_id'] . '؟',
+                                    ],
+                                ], $csrf_token, $is_admin);
+                                ?>
                             </td>
                         </tr>
 

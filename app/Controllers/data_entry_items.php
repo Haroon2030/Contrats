@@ -216,6 +216,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'mark_
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_items_batch') {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+        die("طلب غير صالح");
+    }
+    if (!$is_admin) {
+        http_response_code(403);
+        die("❌ ليس لديك صلاحية حذف دفعات الأصناف");
+    }
+
+    $batch_id = trim((string)($_POST['batch_id'] ?? ''));
+
+    if ($batch_id !== '') {
+        $conn->begin_transaction();
+
+        try {
+            if (columnExists($conn, 'approval_withdrawals', 'target_type') && columnExists($conn, 'approval_withdrawals', 'target_id')) {
+                $stmtWithdrawals = $conn->prepare("
+                    DELETE FROM approval_withdrawals
+                    WHERE target_type = 'items'
+                    AND target_id = ?
+                ");
+                if ($stmtWithdrawals) {
+                    $stmtWithdrawals->bind_param("s", $batch_id);
+                    $stmtWithdrawals->execute();
+                    $stmtWithdrawals->close();
+                }
+            }
+
+            $stmtItems = $conn->prepare("DELETE FROM items WHERE batch_id = ?");
+            if (!$stmtItems) {
+                throw new Exception("تعذر تجهيز حذف الدفعة");
+            }
+
+            $stmtItems->bind_param("s", $batch_id);
+            $stmtItems->execute();
+            $stmtItems->close();
+
+            $conn->commit();
+        } catch (Throwable $e) {
+            $conn->rollback();
+            die("ERROR: " . $e->getMessage());
+        }
+    }
+
+    header("Location: data_entry_items.php");
+    exit();
+}
+
 
 $search = trim($_GET['search'] ?? '');
 $entry_filter = trim($_GET['entry'] ?? '');
@@ -740,7 +788,7 @@ body{
                     <th class="col-date">تاريخ الموافقة</th>
                     <th class="col-entry">حالة الإدخال</th>
                     <th class="col-entered-at">تاريخ الإدخال</th>
-                    <th class="col-view">عرض</th>
+                    <th class="col-actions">إجراءات</th>
                     <th class="col-action">إجراء</th>
                 </tr>
             </thead>
@@ -791,9 +839,21 @@ body{
                             <td><?= e($enteredAt) ?></td>
 
                             <td>
-                                <a class="btn btn-view" href="view_items.php?batch=<?= urlencode((string)$row['batch_id']) ?>">
-                                    عرض
-                                </a>
+                                <?php
+                                vcRenderRowActions([
+                                    'view' => [
+                                        'href' => 'view_items.php?batch=' . urlencode((string)$row['batch_id']),
+                                    ],
+                                    'edit' => [
+                                        'href' => 'add_items.php?edit_batch=' . urlencode((string)$row['batch_id']),
+                                    ],
+                                    'delete' => [
+                                        'action' => 'delete_items_batch',
+                                        'fields' => ['batch_id' => (string)$row['batch_id']],
+                                        'confirm' => 'تأكيد حذف دفعة الأصناف رقم ' . (string)$row['batch_id'] . '؟',
+                                    ],
+                                ], $csrf_token, $is_admin);
+                                ?>
                             </td>
 
                             <td class="actions">

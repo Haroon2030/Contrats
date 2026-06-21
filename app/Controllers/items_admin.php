@@ -1451,7 +1451,7 @@ body{
                     <th class="col-date">تاريخ الطلب</th>
                     <th class="col-user">بواسطة</th>
                     <th class="col-status">الحالة</th>
-                    <th class="col-actions">إجراء</th>
+                    <th class="col-actions">إجراءات</th>
                 </tr>
             </thead>
 
@@ -1503,27 +1503,37 @@ body{
                             </td>
 
                             <td>
-                                <div class="actions">
-
-                                    <a class="btn btn-view" href="view_items.php?batch=<?= urlencode((string)$row['batch_id']) ?>">
-                                        عرض
-                                    </a>
-
-                                    <form method="POST" onsubmit="return confirm('تأكيد الموافقة على هذه الدفعة؟')">
-                                        <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
-                                        <input type="hidden" name="batch_id" value="<?= e($row['batch_id']) ?>">
+                                <?php
+                                $approveRejectExtra = '
+                                    <form method="POST" onsubmit="return confirm(\'تأكيد الموافقة على هذه الدفعة؟\')">
+                                        <input type="hidden" name="csrf_token" value="' . e($csrf_token) . '">
+                                        <input type="hidden" name="batch_id" value="' . e($row['batch_id']) . '">
                                         <input type="hidden" name="action" value="approve">
                                         <button type="submit" class="btn btn-approve">موافقة</button>
                                     </form>
-
-                                    <form method="POST" onsubmit="return confirm('تأكيد رفض هذه الدفعة؟')">
-                                        <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
-                                        <input type="hidden" name="batch_id" value="<?= e($row['batch_id']) ?>">
+                                    <form method="POST" onsubmit="return confirm(\'تأكيد رفض هذه الدفعة؟\')">
+                                        <input type="hidden" name="csrf_token" value="' . e($csrf_token) . '">
+                                        <input type="hidden" name="batch_id" value="' . e($row['batch_id']) . '">
                                         <input type="hidden" name="action" value="reject">
                                         <button type="submit" class="btn btn-reject">رفض</button>
                                     </form>
-
-                                </div>
+                                ';
+                                vcRenderRowActions([
+                                    'view' => [
+                                        'href' => 'view_items.php?batch=' . urlencode((string)$row['batch_id']),
+                                        'label' => 'عرض',
+                                    ],
+                                    'edit' => [
+                                        'href' => 'add_items.php?edit_batch=' . urlencode((string)$row['batch_id']),
+                                    ],
+                                    'delete' => [
+                                        'action' => 'bulk_delete_items_batches',
+                                        'fields' => ['batch_ids[]' => (string)$row['batch_id']],
+                                        'confirm' => 'تأكيد حذف دفعة الأصناف رقم ' . (string)$row['batch_id'] . '؟',
+                                    ],
+                                    'extra' => $approveRejectExtra,
+                                ], $csrf_token, $is_admin);
+                                ?>
                             </td>
                         </tr>
 

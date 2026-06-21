@@ -82,6 +82,17 @@ if ($uid <= 0) {
     exit();
 }
 
+$stmtUser = $conn->prepare("SELECT is_admin, role FROM users WHERE id = ? LIMIT 1");
+$stmtUser->bind_param("i", $uid);
+$stmtUser->execute();
+$currentUser = $stmtUser->get_result()->fetch_assoc();
+$stmtUser->close();
+
+$is_admin = !empty($currentUser) && (
+    (int)($currentUser['is_admin'] ?? 0) === 1 ||
+    ($currentUser['role'] ?? '') === 'admin'
+);
+
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -153,6 +164,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 
     header("Location: finance_items.php?done=1");
+    exit();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_items_batch') {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+        die("طلب غير صالح");
+    }
+    if (!$is_admin) {
+        http_response_code(403);
+        die("❌ ليس لديك صلاحية حذف دفعات الأصناف");
+    }
+
+    $batch = trim((string)($_POST['batch_id'] ?? ''));
+
+    if ($batch !== '') {
+        $stmtItems = $conn->prepare("DELETE FROM items WHERE batch_id = ?");
+        if ($stmtItems) {
+            $stmtItems->bind_param("s", $batch);
+            $stmtItems->execute();
+            $stmtItems->close();
+        }
+    }
+
+    header("Location: finance_items.php");
     exit();
 }
 
@@ -688,7 +723,7 @@ body{
                     <th class="col-status">الحالة</th>
                     <th class="col-user">تم بواسطة</th>
                     <th class="col-date">التاريخ</th>
-                    <th class="col-view">عرض</th>
+                    <th class="col-actions">إجراءات</th>
                     <th class="col-action">إجراء</th>
                 </tr>
             </thead>
@@ -738,9 +773,21 @@ body{
                             <td><?= e($deductedAt) ?></td>
 
                             <td>
-                                <a class="btn btn-view" href="view_items.php?batch=<?= urlencode((string)$row['batch_id']) ?>">
-                                    عرض
-                                </a>
+                                <?php
+                                vcRenderRowActions([
+                                    'view' => [
+                                        'href' => 'view_items.php?batch=' . urlencode((string)$row['batch_id']),
+                                    ],
+                                    'edit' => [
+                                        'href' => 'add_items.php?edit_batch=' . urlencode((string)$row['batch_id']),
+                                    ],
+                                    'delete' => [
+                                        'action' => 'delete_items_batch',
+                                        'fields' => ['batch_id' => (string)$row['batch_id']],
+                                        'confirm' => 'تأكيد حذف دفعة الأصناف رقم ' . (string)$row['batch_id'] . '؟',
+                                    ],
+                                ], $csrf_token, $is_admin);
+                                ?>
                             </td>
 
                             <td>

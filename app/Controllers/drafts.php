@@ -213,33 +213,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (
+    (($_POST['action'] ?? '') === 'delete_draft') || isset($_POST['delete_id'])
+)) {
 
     if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
         die("طلب غير صالح");
     }
 
-    $delete_id = (int)$_POST['delete_id'];
+    if (!$is_admin) {
+        http_response_code(403);
+        die("❌ ليس لديك صلاحية حذف المسودات");
+    }
+
+    $delete_id = (int)($_POST['delete_id'] ?? 0);
 
     if ($delete_id > 0) {
-        if ($is_admin) {
-            $stmt = $conn->prepare("
-                UPDATE contracts 
-                SET status = 'deleted' 
-                WHERE id = ? AND status = 'draft'
-                LIMIT 1
-            ");
-            $stmt->bind_param("i", $delete_id);
-        } else {
-            $stmt = $conn->prepare("
-                UPDATE contracts 
-                SET status = 'deleted' 
-                WHERE id = ? AND created_by = ? AND status = 'draft'
-                LIMIT 1
-            ");
-            $stmt->bind_param("ii", $delete_id, $user_id);
-        }
-
+        $stmt = $conn->prepare("
+            UPDATE contracts 
+            SET status = 'deleted' 
+            WHERE id = ? AND status = 'draft'
+            LIMIT 1
+        ");
+        $stmt->bind_param("i", $delete_id);
         $stmt->execute();
         $stmt->close();
     }
@@ -621,7 +617,7 @@ body{
 .col-reminder{width:130px;}
 .col-status{width:120px;}
 .col-deadline{width:115px;}
-.col-actions{width:150px;}
+.col-actions{width:min(220px, 22%);}
 
 .supplier-name{
     font-weight:800;
@@ -725,16 +721,18 @@ tr.warn-now td{
     padding-right:6px !important;
 }
 
-.action-buttons{
+.action-buttons,
+.vc-row-actions{
     display:inline-flex;
     align-items:center;
     justify-content:center;
     gap:5px;
-    flex-wrap:nowrap;
-    white-space:nowrap;
+    flex-wrap:wrap;
+    white-space:normal;
 }
 
-.action-buttons form{
+.action-buttons form,
+.vc-row-actions form{
     margin:0;
     padding:0;
     display:inline-flex;
@@ -979,7 +977,7 @@ tr.warn-now td{
                     <th class="col-reminder">تاريخ التذكير</th>
                     <th class="col-deadline">مهلة الرد</th>
                     <th class="col-status">الحالة</th>
-                    <th class="col-actions">إجراء</th>
+                    <th class="col-actions">إجراءات</th>
                 </tr>
             </thead>
 
@@ -1002,8 +1000,8 @@ tr.warn-now td{
                     $rowClass = $row['_warning_class'] ?? '';
 
                     
-                    $isOwner = ((int)($row['created_by'] ?? 0) === $user_id);
-                    $canTakeDraftAction = ($is_admin || $isOwner);
+                    // أي مسودة تظهر في الجدول فالمستخدم لديه صلاحية ضمن نطاقه (own/team/all)
+                    $canTakeDraftAction = true;
                     ?>
 
                     <tr class="<?= e($rowClass) ?>" data-id="<?= (int)$row['id'] ?>">
@@ -1046,21 +1044,25 @@ tr.warn-now td{
                         </td>
 
                         <td class="actions-cell">
-                            <div class="action-buttons">
+                            <?php
+                            $draftActions = [
+                                'view' => [
+                                    'href' => $view_link,
+                                ],
+                            ];
 
-                                <a href="<?= e($view_link) ?>" class="btn btn-view">عرض</a>
+                            $draftActions['edit'] = ['href' => $edit_link];
 
-                                <?php if($canTakeDraftAction): ?>
-                                    <a href="<?= e($edit_link) ?>" class="btn btn-edit">تعديل</a>
+                            if ($is_admin) {
+                                $draftActions['delete'] = [
+                                    'action' => 'delete_draft',
+                                    'fields' => ['delete_id' => (string)(int)$row['id']],
+                                    'confirm' => 'هل أنت متأكد من حذف هذه المسودة؟',
+                                ];
+                            }
 
-                                    <form method="POST" onsubmit="return confirm('هل أنت متأكد من حذف هذه المسودة؟')">
-                                        <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
-                                        <input type="hidden" name="delete_id" value="<?= (int)$row['id'] ?>">
-                                        <button type="submit" class="btn btn-delete">حذف</button>
-                                    </form>
-                                <?php endif; ?>
-
-                            </div>
+                            vcRenderRowActions($draftActions, $csrf_token, $is_admin);
+                            ?>
                         </td>
 
                     </tr>

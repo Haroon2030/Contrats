@@ -43,6 +43,31 @@ if (!$user || (int)$user['is_admin'] !== 1) {
 }
 
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_review_contract') {
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')) {
+        die("طلب غير صالح");
+    }
+
+    $contract_id = (int)($_POST['contract_id'] ?? 0);
+
+    if ($contract_id > 0) {
+        $stmtDelete = $conn->prepare("
+            UPDATE contracts
+            SET status = 'deleted'
+            WHERE id = ? AND status = 'review'
+            LIMIT 1
+        ");
+        if ($stmtDelete) {
+            $stmtDelete->bind_param("i", $contract_id);
+            $stmtDelete->execute();
+            $stmtDelete->close();
+        }
+    }
+
+    header("Location: admin_review.php");
+    exit();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     header("Content-Type: application/json; charset=UTF-8");
@@ -551,7 +576,7 @@ body{
                     <th class="col-manager">المسؤول</th>
                     <th class="col-user">بواسطة</th>
                     <th class="col-date">تاريخ الإرسال</th>
-                    <th class="col-actions">إجراء</th>
+                    <th class="col-actions">إجراءات</th>
                 </tr>
             </thead>
 
@@ -592,25 +617,35 @@ body{
                             </td>
 
                             <td>
-                                <div class="actions">
-
-                                    <a href="view_contract.php?id=<?= (int)$row['id'] ?>" class="btn btn-view">
-                                        معاينة
-                                    </a>
-
+                                <?php
+                                $approveRejectExtra = '
                                     <button type="button"
                                             class="btn btn-approve"
-                                            onclick="updateStatus(<?= (int)$row['id'] ?>, 'approve', this)">
+                                            onclick="updateStatus(' . (int)$row['id'] . ', \'approve\', this)">
                                         موافقة
                                     </button>
-
                                     <button type="button"
                                             class="btn btn-reject"
-                                            onclick="updateStatus(<?= (int)$row['id'] ?>, 'reject', this)">
+                                            onclick="updateStatus(' . (int)$row['id'] . ', \'reject\', this)">
                                         رفض
                                     </button>
-
-                                </div>
+                                ';
+                                vcRenderRowActions([
+                                    'view' => [
+                                        'href' => 'view_contract.php?id=' . (int)$row['id'],
+                                        'label' => 'معاينة',
+                                    ],
+                                    'edit' => [
+                                        'href' => vcContractEditUrl($row),
+                                    ],
+                                    'delete' => [
+                                        'action' => 'delete_review_contract',
+                                        'fields' => ['contract_id' => (string)(int)$row['id']],
+                                        'confirm' => 'تأكيد حذف العقد رقم #' . (int)$row['id'] . '؟',
+                                    ],
+                                    'extra' => $approveRejectExtra,
+                                ], $csrf_token, true);
+                                ?>
                             </td>
 
                         </tr>

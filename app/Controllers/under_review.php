@@ -61,6 +61,11 @@ if ($user_id <= 0) {
     exit();
 }
 
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrf_token = $_SESSION['csrf_token'];
+
 
 $stmtUser = $conn->prepare("SELECT is_admin, role, job_role, is_supervisor FROM users WHERE id = ? LIMIT 1");
 $stmtUser->bind_param("i", $user_id);
@@ -96,6 +101,35 @@ if (!$showUserColumn) {
 
 if ($user_filter !== '' && !vcIsUserInScope((int)$user_filter, $scopedUserIds)) {
     $user_filter = '';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_review_contract') {
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')) {
+        die("طلب غير صالح");
+    }
+    if (!$is_admin) {
+        http_response_code(403);
+        die("❌ ليس لديك صلاحية حذف العقود");
+    }
+
+    $contract_id = (int)($_POST['contract_id'] ?? 0);
+
+    if ($contract_id > 0) {
+        $stmtDelete = $conn->prepare("
+            UPDATE contracts
+            SET status = 'deleted'
+            WHERE id = ? AND status = 'review'
+            LIMIT 1
+        ");
+        if ($stmtDelete) {
+            $stmtDelete->bind_param("i", $contract_id);
+            $stmtDelete->execute();
+            $stmtDelete->close();
+        }
+    }
+
+    header("Location: under_review.php");
+    exit();
 }
 
 $users_for_filter = [];
@@ -645,7 +679,7 @@ body.wide-table-mode .col-status{width:150px;}
                     <th class="col-created">تاريخ بدء التفاوض</th>
                     <th class="col-action-date">تاريخ الإجراء</th>
                     <th class="col-status">الحالة</th>
-                    <th class="col-view">إجراء</th>
+                    <th class="col-actions">إجراءات</th>
                 </tr>
             </thead>
 
@@ -702,9 +736,21 @@ body.wide-table-mode .col-status{width:150px;}
                             </td>
 
                             <td>
-                                <a href="view_contract.php?id=<?= (int)$row['id'] ?>" class="btn">
-                                    عرض
-                                </a>
+                                <?php
+                                vcRenderRowActions([
+                                    'view' => [
+                                        'href' => 'view_contract.php?id=' . (int)$row['id'],
+                                    ],
+                                    'edit' => [
+                                        'href' => vcContractEditUrl($row),
+                                    ],
+                                    'delete' => [
+                                        'action' => 'delete_review_contract',
+                                        'fields' => ['contract_id' => (string)(int)$row['id']],
+                                        'confirm' => 'تأكيد حذف العقد رقم #' . (int)$row['id'] . '؟',
+                                    ],
+                                ], $csrf_token, $is_admin);
+                                ?>
                             </td>
                         </tr>
 

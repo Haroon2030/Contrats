@@ -206,6 +206,7 @@
     .head-actions,
     .top-actions,
     .row-actions,
+    .vc-row-actions,
     .actions{
         flex-direction:column !important;
         align-items:stretch !important;
@@ -218,6 +219,8 @@
     .top-actions .btn,
     .row-actions .btn,
     .row-actions button,
+    .vc-row-actions .btn,
+    .vc-row-actions button,
     .actions .btn,
     .actions button{
         width:100% !important;
@@ -394,3 +397,29 @@
     font-weight:900;
     padding:0 4px;
 }
+
+.vc-row-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    align-items:center;
+    justify-content:center;
+}
+
+.vc-row-actions form{
+    display:inline;
+    margin:0;
+}
+
+.vc-row-actions .btn,
+.vc-row-actions button{
+    margin:0;
+    padding:6px 10px;
+    font-size:12px;
+    line-height:1.2;
+    white-space:nowrap;
+}
+
+.vc-act-view{background:#6d4aff;}
+.vc-act-edit{background:#f59e0b;}
+.vc-act-delete{background:#ef4444;}

@@ -49,6 +49,46 @@ function buildQuery(array $overrides = []): string {
     return '?' . http_build_query($params);
 }
 
+function vcHardDeleteContractsByIds(VcDb $conn, array $cleanIds): bool
+{
+    $cleanIds = array_values(array_unique(array_filter(array_map('intval', $cleanIds), fn($v) => $v > 0)));
+
+    if (empty($cleanIds)) {
+        return false;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
+    $bindTypes = str_repeat('i', count($cleanIds));
+
+    $conn->begin_transaction();
+
+    try {
+        foreach (['rents' => 'contract_id', 'annual_discounts' => 'contract_id', 'events' => 'contract_id', 'contract_history' => 'contract_id'] as $table => $column) {
+            if (vcColumnExists($conn, $table, $column)) {
+                $stmtDel = $conn->prepare("DELETE FROM {$table} WHERE {$column} IN ({$placeholders})");
+                if ($stmtDel) {
+                    $stmtDel->bind_param($bindTypes, ...$cleanIds);
+                    $stmtDel->execute();
+                    $stmtDel->close();
+                }
+            }
+        }
+
+        $stmtMain = $conn->prepare("DELETE FROM contracts WHERE id IN ({$placeholders})");
+        if ($stmtMain) {
+            $stmtMain->bind_param($bindTypes, ...$cleanIds);
+            $stmtMain->execute();
+            $stmtMain->close();
+        }
+
+        $conn->commit();
+        return true;
+    } catch (Throwable $e) {
+        $conn->rollback();
+        return false;
+    }
+}
+
 function statusText(string $status): string {
     $map = [
         'draft' => 'تفاوض',
@@ -167,29 +207,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_
     }
     $ids = $_POST['contract_ids'] ?? [];
     if (!is_array($ids)) { $ids = []; }
-    $cleanIds = array_values(array_unique(array_filter(array_map('intval', $ids), fn($v) => $v > 0)));
-    if (!empty($cleanIds)) {
-        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
-        $bindTypes = str_repeat('i', count($cleanIds));
-        $conn->begin_transaction();
-        try {
-            foreach (['rents'=>'contract_id','annual_discounts'=>'contract_id','events'=>'contract_id','contract_history'=>'contract_id'] as $table=>$column) {
-                if (vcColumnExists($conn, $table, $column)) {
-                    $stmtDel = $conn->prepare("DELETE FROM {$table} WHERE {$column} IN ({$placeholders})");
-                    if ($stmtDel) { $stmtDel->bind_param($bindTypes, ...$cleanIds); $stmtDel->execute(); $stmtDel->close(); }
-                }
-            }
-            $stmtMain = $conn->prepare("DELETE FROM contracts WHERE id IN ({$placeholders})");
-            if ($stmtMain) { $stmtMain->bind_param($bindTypes, ...$cleanIds); $stmtMain->execute(); $stmtMain->close(); }
-            $conn->commit();
-            $_SESSION['contracts_bulk_delete_msg'] = "تم حذف العقود المحددة.";
-        } catch (Throwable $e) {
-            $conn->rollback();
-            $_SESSION['contracts_bulk_delete_msg'] = "تعذر حذف العقود.";
-        }
+
+    if (vcHardDeleteContractsByIds($conn, $ids)) {
+        $_SESSION['contracts_bulk_delete_msg'] = "تم حذف العقود المحددة.";
+    } elseif (!empty($ids)) {
+        $_SESSION['contracts_bulk_delete_msg'] = "تعذر حذف العقود.";
     } else {
         $_SESSION['contracts_bulk_delete_msg'] = "لم يتم تحديد أي عقود للحذف.";
     }
+
+    header("Location: contracts.php");
+    exit();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_contract') {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+        die("طلب غير صالح");
+    }
+    if (!$is_admin) {
+        http_response_code(403);
+        die("❌ ليس لديك صلاحية حذف العقود");
+    }
+
+    $contract_id = (int)($_POST['contract_id'] ?? 0);
+
+    if ($contract_id > 0 && vcHardDeleteContractsByIds($conn, [$contract_id])) {
+        $_SESSION['contracts_bulk_delete_msg'] = "تم حذف العقد.";
+    } else {
+        $_SESSION['contracts_bulk_delete_msg'] = "تعذر حذف العقد.";
+    }
+
     header("Location: contracts.php");
     exit();
 }
@@ -1131,7 +1178,7 @@ mark{
                     <th class="col-user">الموظف</th>
                     <th class="col-status">الحالة</th>
                     <th class="col-date">التاريخ</th>
-                    <th class="col-view">عرض</th>
+                    <th class="col-actions">إجراءات</th>
                 </tr>
             </thead>
 
@@ -1189,9 +1236,21 @@ mark{
                             <td><?= e($dateValue) ?></td>
 
                             <td>
-                                <a class="btn btn-view" href="view_contract.php?id=<?= (int)$row['id'] ?>">
-                                    عرض
-                                </a>
+                                <?php
+                                vcRenderRowActions([
+                                    'view' => [
+                                        'href' => 'view_contract.php?id=' . (int)$row['id'],
+                                    ],
+                                    'edit' => [
+                                        'href' => vcContractEditUrl($row),
+                                    ],
+                                    'delete' => [
+                                        'action' => 'delete_contract',
+                                        'fields' => ['contract_id' => (string)(int)$row['id']],
+                                        'confirm' => 'تأكيد حذف العقد رقم #' . (int)$row['id'] . '؟',
+                                    ],
+                                ], $csrf_token, $is_admin);
+                                ?>
                             </td>
                         </tr>
                     <?php endwhile; ?>

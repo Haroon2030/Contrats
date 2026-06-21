@@ -875,7 +875,7 @@ body.wide-table-mode .user-badge{
                     <th class="col-status">الحالة</th>
                     <th class="col-paid">الخصم</th>
                     <th class="col-deducted">تم الخصم بواسطة</th>
-                    <th class="col-view">عرض</th>
+                    <th class="col-actions">إجراءات</th>
                 </tr>
             </thead>
 
@@ -954,9 +954,26 @@ body.wide-table-mode .user-badge{
                             </td>
 
                             <td>
-                                <a href="view_items.php?batch=<?= urlencode((string)$row['batch_id']) ?>" class="btn">
-                                    عرض
-                                </a>
+                                <?php
+                                $myItemActions = [
+                                    'view' => [
+                                        'href' => 'view_items.php?batch=' . urlencode((string)$row['batch_id']),
+                                    ],
+                                    'delete' => [
+                                        'action' => 'bulk_delete_item_batches',
+                                        'fields' => ['batch_ids[]' => (string)$row['batch_id']],
+                                        'confirm' => 'تأكيد حذف دفعة الأصناف رقم ' . (string)$row['batch_id'] . '؟',
+                                    ],
+                                ];
+
+                                if ($status === 'review') {
+                                    $myItemActions['edit'] = [
+                                        'href' => 'add_items.php?edit_batch=' . urlencode((string)$row['batch_id']),
+                                    ];
+                                }
+
+                                vcRenderRowActions($myItemActions, $csrf_token, $is_admin);
+                                ?>
                             </td>
                         </tr>
 
