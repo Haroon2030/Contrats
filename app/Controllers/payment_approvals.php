@@ -685,12 +685,7 @@ function pa_can_print_request(array $row, array $currentUser, int $uid, int $fin
 <meta name="twitter:title" content="اعتماد طلبات السداد | VendorCore">
 <meta name="twitter:description" content="طلب سداد">
 <title>اعتماد طلبات السداد</title>
-<style>
-body{margin:0;background:#eef2f7;font-family:"Tahoma",Arial,sans-serif;color:#172033}.container{width:min(1360px,calc(100% - 32px));margin:22px auto}.page-head{background:#fff;border-radius:22px;padding:24px;text-align:center;box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;margin-bottom:18px}.page-title{margin:0 0 8px;font-size:26px;font-weight:900}.page-subtitle{margin:0;color:#667085;font-weight:800}.alert{padding:13px 16px;border-radius:14px;margin-bottom:12px;font-weight:900}.alert-success{background:#ecfdf3;color:#166534;border:1px solid #bbf7d0}.alert-error{background:#fff1f2;color:#b42318;border:1px solid #fecdd3}.filters{background:#fff;border-radius:18px;padding:12px;display:grid;grid-template-columns:1fr 230px 110px 110px;gap:10px;margin-bottom:14px}.filters input,.filters select,.field input,.field textarea{border:1px solid #cbd5e1;background:#f8fafc;border-radius:13px;padding:0 14px;height:46px;font-weight:800;box-sizing:border-box;width:100%}.field textarea{height:46px;padding-top:12px;resize:none;line-height:1.4}.btn{height:42px;border:0;border-radius:12px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;text-decoration:none;cursor:pointer;white-space:nowrap}.primary{background:#4f46e5;color:#fff}.muted{background:#e2e8f0;color:#172033}.approve{background:#16a34a;color:#fff}.reject{background:#ef4444;color:#fff}.print{background:#0ea5e9;color:#fff}.danger{background:#ef4444;color:#fff}.table-wrap{background:#fff;border-radius:20px;overflow:visible;box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff}.table{width:100%;border-collapse:separate;border-spacing:0;min-width:0;table-layout:fixed}.table th{background:#f1f5f9;color:#334155;padding:10px 6px;text-align:center;font-size:12px;border-bottom:1px solid #dbe3ef;white-space:normal;line-height:1.45}.table td{padding:10px 6px;border-bottom:1px solid #edf2f7;font-size:12px;font-weight:800;vertical-align:middle;text-align:center;white-space:normal;line-height:1.55;word-break:break-word}.table tr.row-rejected td{background:#fff7f7}.table tr.row-approved td{background:#f7fff9}.table td:nth-child(2){text-align:right;white-space:normal}.badge{display:inline-flex;border-radius:999px;padding:7px 11px;font-weight:900;font-size:12px;white-space:nowrap;align-items:center;justify-content:center}.badge.pending{background:#fffbeb;color:#92400e}.badge.approved{background:#ecfdf3;color:#166534}.badge.rejected{background:#fff1f2;color:#b42318}.badge.paid{background:#eff6ff;color:#1d4ed8}.badge.cancelled{background:#f1f5f9;color:#475569}.view-card{background:#fff;border-radius:22px;padding:18px;margin-bottom:16px;box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff}.view-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:14px;margin-bottom:14px}.view-title{font-size:22px;font-weight:900}.meta{font-size:12px;color:#64748b;font-weight:900;margin-top:5px}.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}.amount-highlight{margin:12px 0;background:#f5f3ff;border:2px solid #8b5cf6;border-radius:16px;padding:14px;text-align:center}.amount-highlight span{display:block;font-size:12px;color:#4c1d95;font-weight:900;margin-bottom:6px}.amount-highlight b{display:block;font-size:24px;color:#4f46e5;font-weight:900}.action-final-highlight{margin:12px 0 10px;background:#f5f3ff}.two-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0}.balances-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0}.suggested-positive b{color:#16a34a!important}.suggested-negative b{color:#dc2626!important}.suggested-zero b{color:#334155!important}.info{background:#f8fafc;border:1px solid #e2e8f0;border-radius:15px;padding:11px}.info span{display:block;font-size:11px;color:#64748b;font-weight:900;margin-bottom:6px}.info b{display:block;font-size:14px;color:#172033;line-height:1.6}.important{background:#f5f3ff;border-color:#c4b5fd}.important b{color:#4f46e5;font-size:18px}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.step{background:#f8fafc;border:1px solid #e2e8f0;border-radius:15px;padding:11px}.step h4{margin:0 0 8px;font-size:14px;font-weight:900;color:#4f46e5}.step p{margin:4px 0;color:#475569;font-weight:800;font-size:12px;line-height:1.7}.note-box{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:10px;margin-top:10px;color:#9a3412;font-weight:900;line-height:1.8}.action-box{margin-top:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:12px}.rejected-status-banner{margin-top:14px;background:#fff1f2;border:2px solid #ef4444;color:#991b1b;border-radius:16px;padding:18px 20px;text-align:center;font-weight:900;font-size:18px;line-height:1.8;box-shadow:0 8px 18px rgba(239,68,68,.10)}.rejected-status-banner small{display:block;font-size:13px;color:#b42318;margin-top:4px;font-weight:900}.action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;align-items:end}
-.action-row .note-field{grid-column:1 / -1}
-.action-row .note-field textarea{height:46px;min-height:46px;resize:none;padding:12px 14px;line-height:1.4;font-size:13px;font-weight:800}.action-buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.empty{padding:28px;text-align:center;font-weight:900;color:#667085;background:#fff;border-radius:20px;border:1px solid #e2e8f0}.small{font-size:11px;color:#64748b;font-weight:900}.due-pill{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:7px 11px;font-weight:900;font-size:12px;line-height:1.4}.due-passed{background:#ecfdf3!important;color:#166534!important;border:1px solid #86efac!important}.due-future{background:#fff1f2!important;color:#b42318!important;border:1px solid #fca5a5!important}.due-empty{background:#f1f5f9!important;color:#475569!important;border:1px solid #e2e8f0!important}.due-note{display:block;margin-top:5px;font-size:11px;font-weight:900}.discount-preview{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}.discount-preview .info b{font-size:16px}.discount-net{background:#ecfdf3;border-color:#86efac}.discount-net b{color:#166534!important}.discount-save{background:#fff7ed;border-color:#fed7aa}.discount-save b{color:#c2410c!important}
-@media(max-width:900px){.filters{grid-template-columns:1fr}.grid{grid-template-columns:1fr 1fr}.two-grid{grid-template-columns:1fr}.balances-grid{grid-template-columns:1fr}.steps{grid-template-columns:1fr}.action-row{grid-template-columns:1fr}.discount-preview{grid-template-columns:1fr}}@media(max-width:560px){.grid{grid-template-columns:1fr}.view-head{flex-direction:column}}
-</style>
+<?php vcRenderPageAssets(['extra' => ['vc-payment.css']]); ?>
 </head>
 <body>
 <?php include VC_VIEWS . '/layouts/header.php'; ?>
@@ -710,8 +705,8 @@ body{margin:0;background:#eef2f7;font-family:"Tahoma",Arial,sans-serif;color:#17
             <option value="approved_final" <?= $statusFilter==='approved_final'?'selected':'' ?>>المعتمدة نهائيًا</option>
             <option value="rejected" <?= $statusFilter==='rejected'?'selected':'' ?>>المرفوضة</option>
         </select>
-        <button class="btn primary" type="submit">تطبيق</button>
-        <a class="btn muted" href="payment_approvals.php">مسح</a>
+        <button class="filter-btn" type="submit">تطبيق</button>
+        <a class="reset-btn" href="payment_approvals.php">مسح</a>
     </form>
 
     <?php if($viewId > 0 && !empty($requests)): $row = $requests[0]; ?>
@@ -849,7 +844,7 @@ body{margin:0;background:#eef2f7;font-family:"Tahoma",Arial,sans-serif;color:#17
     <?php if(empty($requests)): ?>
         <div class="empty">لا توجد طلبات سداد مطابقة حاليًا</div>
     <?php elseif($viewId <= 0): ?>
-        <div class="table-wrap">
+        <div class="table-box">
             <table class="table">
                 <colgroup>
                     <col style="width:9%">
@@ -878,20 +873,30 @@ body{margin:0;background:#eef2f7;font-family:"Tahoma",Arial,sans-serif;color:#17
                         <td><span class="badge <?= pa_e(pa_status_class($status)) ?>" title="<?= pa_e(pa_status_ar($status)) ?>"><?= pa_e(pa_status_short_ar($status)) ?></span></td>
                         <td><?= pa_date($row['created_at']) ?></td>
                         <td>
-                            <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
-                                <a class="btn primary" href="payment_approvals.php?view=<?= (int)$row['id'] ?>&status=<?= pa_e($statusFilter) ?>&q=<?= urlencode($q) ?>">عرض</a>
-                                <?php if(pa_can_print_request($row, $currentUser, $uid, $financeManagerId, $isAdmin, $isCommercialManager, $isFinanceManager)): ?>
-                                    <a class="btn print" target="_blank" href="print_payment_request.php?id=<?= (int)$row['id'] ?>">طباعة</a>
-                                <?php endif; ?>
-                                <?php if($isAdmin): ?>
-                                    <form method="POST" style="display:inline" onsubmit="return confirm('تأكيد حذف طلب السداد نهائيًا؟ لا يمكن التراجع عن الحذف.');">
-                                        <input type="hidden" name="csrf_token" value="<?= pa_e($csrf_token) ?>">
-                                        <input type="hidden" name="action" value="delete_request">
-                                        <input type="hidden" name="request_id" value="<?= (int)$row['id'] ?>">
-                                        <button class="btn danger" type="submit">حذف</button>
-                                    </form>
-                                <?php endif; ?>
-                            </div>
+                            <?php
+                            $paActions = [
+                                'view' => [
+                                    'href' => 'payment_approvals.php?view=' . (int) $row['id'] . '&status=' . pa_e($statusFilter) . '&q=' . urlencode($q),
+                                ],
+                            ];
+                            $paExtra = '';
+                            if (pa_can_print_request($row, $currentUser, $uid, $financeManagerId, $isAdmin, $isCommercialManager, $isFinanceManager)) {
+                                $paExtra .= '<a class="btn btn-pdf vc-act" target="_blank" href="print_payment_request.php?id=' . (int) $row['id'] . '">طباعة</a>';
+                            }
+                            if ($paExtra !== '') {
+                                $paActions['extra'] = $paExtra;
+                            }
+                            if ($isAdmin) {
+                                $paActions['delete'] = [
+                                    'action' => 'delete_request',
+                                    'fields' => ['request_id' => (string) (int) $row['id']],
+                                    'confirm' => 'تأكيد حذف طلب السداد نهائيًا؟ لا يمكن التراجع عن الحذف.',
+                                    'label' => 'حذف',
+                                    'icon' => false,
+                                ];
+                            }
+                            vcRenderRowActions($paActions, $csrf_token, $isAdmin);
+                            ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

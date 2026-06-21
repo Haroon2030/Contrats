@@ -4,8 +4,9 @@
 header("Content-Type: text/html; charset=UTF-8");
 
 $q = trim($_GET['q'] ?? '');
+$listAll = (($_GET['list'] ?? '') === '1');
 
-if ($q === '' || mb_strlen($q, 'UTF-8') < 2) {
+if (!$listAll && ($q === '' || mb_strlen($q, 'UTF-8') < 2)) {
     exit;
 }
 
@@ -90,23 +91,35 @@ $sqlSuppliers = "
             LIMIT 1
         ), 0) AS new_item_fee
     FROM suppliers s
+";
+
+if ($listAll) {
+    $sqlSuppliers .= "
+    ORDER BY COALESCE(NULLIF(s.company, ''), s.name) ASC, s.id DESC
+    LIMIT 40
+    ";
+} else {
+    $sqlSuppliers .= "
     WHERE s.name LIKE ?
        OR s.company LIKE ?
        {$phoneWhere}
     ORDER BY s.id DESC
     LIMIT 15
-";
+    ";
+}
 
 $stmt = $conn->prepare($sqlSuppliers);
 
 if ($stmt) {
-    if ($supplierPhoneCol) {
+    if ($listAll) {
+        $stmt->execute();
+    } elseif ($supplierPhoneCol) {
         $stmt->bind_param("sss", $like, $like, $like);
+        $stmt->execute();
     } else {
         $stmt->bind_param("ss", $like, $like);
+        $stmt->execute();
     }
-
-    $stmt->execute();
     $result = $stmt->get_result();
 
     while ($row = $result->fetch_assoc()) {
@@ -142,6 +155,7 @@ if ($stmt) {
 }
 
 
+if (!$listAll) {
 $stmt = $conn->prepare("
     SELECT 
         c.id,
@@ -211,6 +225,7 @@ if ($stmt) {
     }
 
     $stmt->close();
+}
 }
 
 if (empty($rows)) {

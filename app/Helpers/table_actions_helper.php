@@ -32,11 +32,14 @@ if (!function_exists('vcRenderRowActions')) {
 
         if ($is_admin && !empty($config['delete'])) {
             $delete = $config['delete'];
-            $label = $delete['label'] ?? 'حذف';
+            $useIcon = !array_key_exists('icon', $delete) || !empty($delete['icon']);
+            $label = $delete['label'] ?? ($useIcon ? '🗑' : 'حذف');
+            $title = $delete['title'] ?? 'حذف';
             $confirm = $delete['confirm'] ?? 'هل أنت متأكد من الحذف؟';
             $action = (string)($delete['action'] ?? '');
+            $iconClass = $useIcon ? ' vc-act-delete-icon' : '';
 
-            echo '<form method="POST" onsubmit="return confirm(' . json_encode($confirm, JSON_UNESCAPED_UNICODE) . ');">';
+            echo '<form method="POST" class="vc-delete-form" onsubmit="return confirm(' . json_encode($confirm, JSON_UNESCAPED_UNICODE) . ');">';
             echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') . '">';
             echo '<input type="hidden" name="action" value="' . htmlspecialchars($action, ENT_QUOTES, 'UTF-8') . '">';
 
@@ -45,7 +48,9 @@ if (!function_exists('vcRenderRowActions')) {
                     . htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8') . '">';
             }
 
-            echo '<button type="submit" class="btn btn-delete vc-act vc-act-delete">'
+            echo '<button type="submit" class="btn btn-delete vc-act vc-act-delete' . $iconClass . '" title="'
+                . htmlspecialchars((string)$title, ENT_QUOTES, 'UTF-8') . '" aria-label="'
+                . htmlspecialchars((string)$title, ENT_QUOTES, 'UTF-8') . '">'
                 . htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8') . '</button>';
             echo '</form>';
         }

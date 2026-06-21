@@ -1,0 +1,227 @@
+/* Items admin — summary cards + approved batches grid */
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.summary-card {
+    background: rgba(255, 255, 255, .68);
+    border: 1px solid rgba(226, 232, 240, .95);
+    border-radius: 20px;
+    padding: 16px;
+    box-shadow: 8px 8px 18px #d1d9e6, -8px -8px 18px #fff;
+    text-align: center;
+}
+
+.summary-label {
+    font-size: 13px;
+    color: #667085;
+    font-weight: 800;
+}
+
+.summary-value {
+    font-size: 24px;
+    font-weight: 900;
+    color: #4f46e5;
+    margin-top: 6px;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 22px 0 14px;
+    font-size: 17px;
+    font-weight: 900;
+    color: #172033;
+}
+
+.section-note {
+    font-size: 12px;
+    font-weight: 800;
+    color: #667085;
+}
+
+.col-batch { width: 90px; }
+.col-count { width: 90px; }
+.col-fee { width: 110px; }
+.batch-id { color: #4f46e5; font-weight: 900; }
+.money { font-weight: 900; color: #172033; }
+.btn-approve { background: #16a34a; }
+.btn-reject { background: #ef4444; }
+.btn-withdraw { background: #f59e0b; }
+
+.approved-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+}
+
+.track-card {
+    background: rgba(255, 255, 255, .72);
+    border: 1px solid rgba(226, 232, 240, .95);
+    border-radius: 22px;
+    padding: 15px;
+    box-shadow: 8px 8px 18px #d1d9e6, -8px -8px 18px #fff;
+    min-height: 245px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.track-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.track-supplier {
+    font-size: 14px;
+    font-weight: 900;
+    color: #172033;
+    line-height: 1.5;
+    text-align: right;
+}
+
+.track-id {
+    font-size: 12px;
+    font-weight: 900;
+    color: #4f46e5;
+    background: #f0edff;
+    padding: 5px 10px;
+    border-radius: 999px;
+}
+
+.track-row {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 8px;
+    align-items: center;
+}
+
+.track-label {
+    font-size: 11px;
+    font-weight: 900;
+    color: #667085;
+}
+
+.track-value {
+    font-size: 12px;
+    font-weight: 800;
+    color: #172033;
+    line-height: 1.6;
+}
+
+.combo-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 10px;
+}
+
+.combo-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.combo-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #475569;
+}
+
+.status.done {
+    background: #ecfdf3;
+    color: #166534;
+    min-width: 78px;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.status.pending {
+    background: #fffbeb;
+    color: #b45309;
+    min-width: 78px;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.track-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid #eef2f7;
+}
+
+.track-actions form {
+    margin: 0;
+    display: inline-flex;
+}
+
+.bulk-card-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 900;
+    color: #64748b;
+}
+
+.bulk-select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.bulk-clean-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 1100px) {
+    .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .approved-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 560px) {
+    .summary-grid,
+    .approved-grid {
+        grid-template-columns: 1fr;
+    }
+}

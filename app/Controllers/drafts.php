@@ -142,7 +142,13 @@ $user = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 $job_role = (string)($user['job_role'] ?? 'user');
-$is_admin = !empty($user) && ((int)($user['is_admin'] ?? 0) === 1 || ($user['role'] ?? '') === 'admin' || $job_role === 'admin' || $job_role === 'commercial_manager');
+$is_admin = !empty($user) && (
+    (int)($user['is_admin'] ?? 0) === 1
+    || ($user['role'] ?? '') === 'admin'
+    || $job_role === 'admin'
+    || $job_role === 'commercial_manager'
+);
+$can_delete_admin = vcUserCanDeleteAsAdmin($user);
 $is_section_manager = ($job_role === 'section_manager');
 $is_normal_user = ($job_role === 'user');
 $show_deadline_alerts = ($is_normal_user || $is_section_manager);
@@ -221,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (
         die("طلب غير صالح");
     }
 
-    if (!$is_admin) {
+    if (!$can_delete_admin) {
         http_response_code(403);
         die("❌ ليس لديك صلاحية حذف المسودات");
     }
@@ -316,7 +322,7 @@ if ($search !== '') {
 $pg = vcPaginationState();
 $totalRows = vcPaginationCount($conn, $fromWhere, $params, $types);
 $totalPages = vcPaginationTotalPages($totalRows, $pg['per_page']);
-$page = min($pg['page'], $totalPages);
+$paginationPage = min($pg['page'], $totalPages);
 
 $sql = "
     SELECT contracts.*, users.username
@@ -325,7 +331,7 @@ $sql = "
     LIMIT ? OFFSET ?
 ";
 
-[$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($page - 1) * $pg['per_page']);
+[$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($paginationPage - 1) * $pg['per_page']);
 
 $stmt = $conn->prepare($sql);
 
@@ -373,7 +379,7 @@ $users_result = $show_user_column ? vcGetVisibleUsersForFilter($conn, $scopedUse
 
 function statusBadge($isEdited, string $contractStatus = 'draft'): string {
     if ($contractStatus === 'review') {
-        return '<span class="badge badge-edited">تحت المراجعة</span>';
+        return '<span class="badge badge-review">تحت المراجعة</span>';
     }
 
     if ($isEdited) {
@@ -384,6 +390,9 @@ function statusBadge($isEdited, string $contractStatus = 'draft'): string {
 }
 
 $colspan = 5 + ($is_admin ? 1 : 0) + ($show_user_column ? 1 : 0);
+$colsContract = 2 + ($is_admin ? 1 : 0) + ($show_user_column ? 1 : 0);
+$colsDates = 3;
+$colsTrack = 2;
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -392,511 +401,14 @@ $colspan = 5 + ($is_admin ? 1 : 0) + ($show_user_column ? 1 : 0);
 <title>مسودات العقود</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<link rel="stylesheet" href="public/assets/css/style.css">
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-
-<style>
-*{
-    box-sizing:border-box;
-    font-family:'Cairo', Tahoma, Arial, sans-serif;
-}
-
-body{
-    margin:0;
-    background:
-        radial-gradient(circle at top right, rgba(109,74,255,.10), transparent 32%),
-        #eef1f7;
-    color:#172033;
-}
-
-.container{
-    width:min(1380px, calc(100% - 64px));
-    margin:24px auto 40px;
-}
-
-.page-head{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:14px;
-    margin-bottom:16px;
-}
-
-.title{
-    margin:0;
-    font-size:25px;
-    font-weight:900;
-    color:#172033;
-}
-
-.subtitle{
-    margin-top:5px;
-    font-size:13px;
-    color:#667085;
-    font-weight:700;
-}
-
-
-.alert{
-    padding:12px 14px;
-    border-radius:14px;
-    margin-bottom:14px;
-    font-weight:800;
-    box-shadow:0 10px 24px rgba(23,32,51,.06);
-}
-
-.alert-success{
-    background:#ecfdf3;
-    color:#166534;
-    border:1px solid #bbf7d0;
-}
-
-
-.draft-rows-notice{
-    display:grid;
-    grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
-    gap:12px;
-    margin-bottom:16px;
-}
-
-.notify-card{
-    background:rgba(255,255,255,.74);
-    border:1px solid rgba(226,232,240,.95);
-    border-radius:18px;
-    padding:14px;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-}
-
-.notify-card.warn-2{
-    border-right:6px solid #facc15;
-    background:#fffbeb;
-}
-
-.notify-card.warn-1{
-    border-right:6px solid #fb923c;
-    background:#fff7ed;
-}
-
-.notify-card.warn-now{
-    border-right:6px solid #ef4444;
-    background:#fff1f2;
-}
-
-.notify-title{
-    font-size:13px;
-    color:#172033;
-    font-weight:900;
-    line-height:1.8;
-}
-
-.notify-sub{
-    font-size:12px;
-    color:#667085;
-    font-weight:800;
-    margin-top:4px;
-}
-
-.notify-tag{
-    min-width:92px;
-    min-height:34px;
-    border-radius:999px;
-    padding:6px 10px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:12px;
-    font-weight:900;
-    white-space:nowrap;
-}
-
-.warn-2 .notify-tag{
-    background:#facc15;
-    color:#172033;
-}
-
-.warn-1 .notify-tag{
-    background:#fb923c;
-    color:#fff;
-}
-
-.warn-now .notify-tag{
-    background:#ef4444;
-    color:#fff;
-}
-
-
-.search-box{
-    background:rgba(255,255,255,.72);
-    border:1px solid rgba(226,232,240,.95);
-    border-radius:20px;
-    padding:14px;
-    display:grid;
-    grid-template-columns:1fr 160px 160px;
-    gap:12px;
-    margin-bottom:16px;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-}
-
-.search-box input,
-.search-box select{
-    width:100%;
-    min-height:46px;
-    padding:0 14px;
-    border-radius:13px;
-    border:1px solid #dfe6f0;
-    background:#eef1f7;
-    color:#172033;
-    font-size:14px;
-    outline:none;
-    box-shadow:
-        inset 2px 2px 6px #d1d9e6,
-        inset -2px -2px 6px #ffffff;
-}
-
-.search-box input:focus,
-.search-box select:focus{
-    border-color:#6d4aff;
-    box-shadow:
-        0 0 0 3px rgba(109,74,255,.12),
-        inset 2px 2px 6px #d1d9e6,
-        inset -2px -2px 6px #ffffff;
-}
-
-
-.table-box{
-    background:rgba(255,255,255,.60);
-    border:1px solid rgba(226,232,240,.95);
-    border-radius:22px;
-    padding:0;
-    overflow:hidden;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-}
-
-.table{
-    width:100%;
-    border-collapse:collapse;
-    table-layout:fixed;
-    background:#eef1f7;
-}
-
-.table th{
-    background:#6d4aff;
-    color:#fff;
-    padding:12px 7px;
-    text-align:center;
-    font-size:13px;
-    line-height:1.35;
-    font-weight:900;
-    white-space:normal;
-}
-
-.table td{
-    padding:11px 7px;
-    border-top:1px solid #dfe6f0;
-    text-align:center;
-    vertical-align:middle;
-    font-size:14px;
-    line-height:1.6;
-    color:#172033;
-}
-
-.table tr:hover td{
-    background:#f6f4ff;
-}
-
-
-.col-id{width:58px;}
-.col-supplier{width:21%;}
-.col-manager{width:11%;}
-.col-user{width:8%;}
-.col-created{width:105px;}
-.col-reminder{width:130px;}
-.col-status{width:120px;}
-.col-deadline{width:115px;}
-.col-actions{width:min(220px, 22%);}
-
-.supplier-name{
-    font-weight:800;
-    white-space:normal;
-    overflow-wrap:anywhere;
-    word-break:break-word;
-    text-align:right;
-}
-
-.manager-name,
-.user-name{
-    white-space:normal;
-    overflow-wrap:anywhere;
-    word-break:break-word;
-}
-
-
-.reminder-input{
-    width:130px;
-    min-height:34px;
-    border-radius:8px;
-    border:1px solid #cfd8e3;
-    background:#fff;
-    padding:0 8px;
-    font-size:13px;
-    text-align:center;
-}
-
-
-.deadline-pill{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    min-width:104px;
-    min-height:34px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:900;
-    padding:6px 10px;
-    background:#eef1f7;
-    color:#475569;
-}
-
-.deadline-pill.warn-2{
-    background:#facc15;
-    color:#172033;
-}
-
-.deadline-pill.warn-1{
-    background:#fb923c;
-    color:#fff;
-}
-
-.deadline-pill.warn-now{
-    background:#ef4444;
-    color:#fff;
-}
-
-
-.badge{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    width:116px;
-    min-height:36px;
-    padding:5px 10px;
-    border-radius:999px;
-    font-size:12px;
-    line-height:1.35;
-    color:#fff;
-    font-weight:900;
-    text-align:center;
-}
-
-.badge-new{
-    background:#3b82f6;
-}
-
-.badge-edited{
-    background:#f59e0b;
-}
-
-
-tr.warn-2 td{
-    background:#fffbeb !important;
-}
-
-tr.warn-1 td{
-    background:#fff7ed !important;
-}
-
-tr.warn-now td{
-    background:#fff1f2 !important;
-}
-
-
-.actions-cell{
-    text-align:center;
-    vertical-align:middle;
-    padding-left:6px !important;
-    padding-right:6px !important;
-}
-
-.action-buttons,
-.vc-row-actions{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    gap:5px;
-    flex-wrap:wrap;
-    white-space:normal;
-}
-
-.action-buttons form,
-.vc-row-actions form{
-    margin:0;
-    padding:0;
-    display:inline-flex;
-}
-
-.btn{
-    min-width:38px;
-    height:32px;
-    padding:0 7px;
-    border-radius:10px;
-    text-decoration:none;
-    font-size:12px;
-    font-weight:900;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    border:0;
-    cursor:pointer;
-    transition:.18s ease;
-    color:#fff;
-}
-
-.btn:hover{
-    transform:translateY(-1px);
-    filter:brightness(.97);
-}
-
-.btn-view{
-    background:#6d4aff;
-}
-
-.btn-edit{
-    background:#f59e0b;
-}
-
-.btn-delete{
-    background:#ef4444;
-}
-
-
-.empty{
-    padding:26px !important;
-    font-weight:900;
-    color:#667085;
-}
-
-
-#toast{
-    position:fixed;
-    bottom:20px;
-    right:20px;
-    background:#16a34a;
-    color:#fff;
-    padding:11px 16px;
-    border-radius:12px;
-    display:none;
-    box-shadow:0 12px 28px rgba(0,0,0,.16);
-    z-index:9999;
-    font-weight:900;
-}
-
-#toast.error{
-    background:#ef4444;
-}
-
-
-@media(max-width:1100px){
-    .container{
-        width:calc(100% - 28px);
-    }
-
-    .table th,
-    .table td{
-        padding:10px 6px;
-        font-size:12px;
-    }
-
-    .badge{
-        width:104px;
-        font-size:11px;
-    }
-
-    .btn{
-        min-width:36px;
-        padding:0 6px;
-        font-size:11px;
-    }
-
-    .action-buttons{
-        gap:4px;
-    }
-
-    .reminder-input{
-        width:112px;
-    }
-}
-
-@media(max-width:850px){
-    .search-box{
-        grid-template-columns:1fr;
-    }
-
-    .page-head{
-        display:block;
-    }
-
-    .table{
-        table-layout:auto;
-    }
-
-    .table-box{
-        overflow-x:auto;
-    }
-
-    .table{
-        min-width:1040px;
-    }
-}
-
-
-.table{
-    width:100% !important;
-    max-width:100% !important;
-}
-
-.table-box{
-    overflow:hidden !important;
-}
-
-.actions-cell{
-    min-width:150px !important;
-    overflow:visible !important;
-}
-
-.action-buttons{
-    width:100%;
-    justify-content:center;
-    overflow:visible !important;
-}
-
-.btn-delete,
-.btn-edit,
-.btn-view{
-    flex:0 0 auto;
-}
-
-@media(max-width:1100px){
-    .table-box{
-        overflow-x:auto !important;
-    }
-
-    .table{
-        min-width:1040px !important;
-    }
-}
-
-</style>
+<?php vcRenderPageAssets(['extra' => ['vc-drafts.css']]); ?>
 </head>
 
 <body>
 
 <?php include VC_VIEWS . '/layouts/header.php'; ?>
 
-<div class="container">
+<div class="container container--wide">
 
     <div class="page-head">
         <div>
@@ -958,24 +470,41 @@ tr.warn-now td{
 
     <div class="table-box">
 
-        <table class="table">
+        <div class="drafts-table-meta">
+            <div class="drafts-table-meta-title">قائمة المسودات — <?= (int)$totalRows ?> سجل</div>
+            <div class="drafts-table-meta-hint">
+                ترتيب حسب الأحدث
+                <span><i class="urgency-dot warn-now"></i> عاجل</span>
+                <span><i class="urgency-dot warn-1"></i> قريب</span>
+                <span><i class="urgency-dot warn-2"></i> تنبيه</span>
+            </div>
+        </div>
+
+        <div class="drafts-table-wrap">
+
+        <table class="table drafts-table">
 
             <thead>
-                <tr>
-                    <th class="col-id">رقم</th>
-                    <th class="col-supplier">المورد</th>
+                <tr class="thead-groups">
+                    <th colspan="<?= (int)$colsContract ?>" class="th-group th-group--contract">بيانات العقد</th>
+                    <th colspan="<?= (int)$colsDates ?>" class="th-group th-group--dates">المواعيد والمتابعة</th>
+                    <th colspan="<?= (int)$colsTrack ?>" class="th-group">الحالة والإجراءات</th>
+                </tr>
+                <tr class="thead-cols">
+                    <th class="col-id cell-contract">رقم</th>
+                    <th class="col-supplier cell-contract">المورد</th>
 
                     <?php if($is_admin): ?>
-                        <th class="col-manager">المسؤول</th>
+                        <th class="col-manager cell-contract">المسؤول</th>
                     <?php endif; ?>
 
                     <?php if($show_user_column): ?>
-                        <th class="col-user">بواسطة</th>
+                        <th class="col-user cell-contract">بواسطة</th>
                     <?php endif; ?>
 
-                    <th class="col-created">تاريخ التفاوض</th>
-                    <th class="col-reminder">تاريخ التذكير</th>
-                    <th class="col-deadline">مهلة الرد</th>
+                    <th class="col-created cell-dates">تاريخ التفاوض</th>
+                    <th class="col-reminder cell-dates">تاريخ التذكير</th>
+                    <th class="col-deadline cell-dates">مهلة الرد</th>
                     <th class="col-status">الحالة</th>
                     <th class="col-actions">إجراءات</th>
                 </tr>
@@ -1004,46 +533,54 @@ tr.warn-now td{
                     $canTakeDraftAction = true;
                     ?>
 
-                    <tr class="<?= e($rowClass) ?>" data-id="<?= (int)$row['id'] ?>">
+                    <tr class="draft-row <?= e($rowClass) ?>" data-id="<?= (int)$row['id'] ?>">
 
-                        <td>#<?= (int)$row['id'] ?></td>
+                        <td class="cell-contract">
+                            <span class="draft-id">#<?= (int)$row['id'] ?></span>
+                        </td>
 
-                        <td class="supplier-name"><?= e($row['supplier_name'] ?? '-') ?></td>
+                        <td class="cell-contract supplier-cell">
+                            <span class="supplier-name"><?= e($row['supplier_name'] ?? '-') ?></span>
+                        </td>
 
                         <?php if($is_admin): ?>
-                            <td class="manager-name"><?= e($row['company_name'] ?? '-') ?></td>
+                            <td class="cell-contract">
+                                <span class="meta-chip manager-name"><?= e($row['company_name'] ?? '-') ?></span>
+                            </td>
                         <?php endif; ?>
 
                         <?php if($show_user_column): ?>
-                            <td class="user-name"><?= e($row['username'] ?? '-') ?></td>
+                            <td class="cell-contract">
+                                <span class="meta-chip user-name"><?= e($row['username'] ?? '-') ?></span>
+                            </td>
                         <?php endif; ?>
 
-                        <td><?= $created ? e(date("Y-m-d", strtotime($created))) : '-' ?></td>
+                        <td class="cell-dates">
+                            <span class="date-chip"><?= $created ? e(date("Y-m-d", strtotime($created))) : '-' ?></span>
+                        </td>
 
-                        <td>
+                        <td class="cell-dates">
                             <?php if($canTakeDraftAction): ?>
                                 <input type="date"
                                        class="reminder-input"
                                        value="<?= e($row['_reminder']) ?>"
                                        onchange="updateReminder(<?= (int)$row['id'] ?>, this.value)">
                             <?php else: ?>
-                                <span class="deadline-pill">
-                                    <?= e($row['_reminder']) ?>
-                                </span>
+                                <span class="date-chip"><?= e($row['_reminder']) ?></span>
                             <?php endif; ?>
                         </td>
 
-                        <td>
+                        <td class="cell-dates">
                             <span class="deadline-pill <?= e($rowClass) ?>">
                                 <?= e($row['_reminder_text']) ?>
                             </span>
                         </td>
 
-                        <td>
+                        <td class="cell-status">
                             <?= statusBadge($isEdited, (string)($row['status'] ?? 'draft')) ?>
                         </td>
 
-                        <td class="actions-cell">
+                        <td class="cell-actions actions-cell">
                             <?php
                             $draftActions = [
                                 'view' => [
@@ -1053,7 +590,7 @@ tr.warn-now td{
 
                             $draftActions['edit'] = ['href' => $edit_link];
 
-                            if ($is_admin) {
+                            if ($can_delete_admin) {
                                 $draftActions['delete'] = [
                                     'action' => 'delete_draft',
                                     'fields' => ['delete_id' => (string)(int)$row['id']],
@@ -1061,7 +598,7 @@ tr.warn-now td{
                                 ];
                             }
 
-                            vcRenderRowActions($draftActions, $csrf_token, $is_admin);
+                            vcRenderRowActions($draftActions, $csrf_token, $can_delete_admin);
                             ?>
                         </td>
 
@@ -1081,9 +618,11 @@ tr.warn-now td{
 
         </table>
 
+        </div>
+
     </div>
 
-    <?php vcRenderPagination($page, $totalPages); ?>
+    <?php vcRenderPagination($paginationPage, $totalPages); ?>
 
 </div>
 

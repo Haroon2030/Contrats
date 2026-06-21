@@ -219,11 +219,25 @@
     .top-actions .btn,
     .row-actions .btn,
     .row-actions button,
-    .vc-row-actions .btn,
-    .vc-row-actions button,
     .actions .btn,
     .actions button{
         width:100% !important;
+    }
+
+    .drafts-table .vc-row-actions,
+    .table-box .vc-row-actions{
+        flex-direction:row !important;
+        flex-wrap:nowrap !important;
+        align-items:center !important;
+        justify-content:center !important;
+    }
+
+    .drafts-table .vc-row-actions .btn,
+    .drafts-table .vc-row-actions button,
+    .table-box .vc-row-actions .btn,
+    .table-box .vc-row-actions button{
+        width:auto !important;
+        min-width:0 !important;
     }
 
     .table-wrap,
@@ -406,9 +420,18 @@
     justify-content:center;
 }
 
-.vc-row-actions form{
+.vc-row-actions form,
+.vc-row-actions .vc-delete-form{
     display:inline;
     margin:0;
+}
+
+.vc-row-actions .vc-act-delete-icon{
+    min-width:34px !important;
+    width:34px !important;
+    padding:0 !important;
+    font-size:15px !important;
+    line-height:1;
 }
 
 .vc-row-actions .btn,

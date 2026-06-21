@@ -147,6 +147,36 @@ $is_admin = !empty($currentUser) && (
     ($currentUser['role'] ?? '') === 'admin' ||
     ($currentUser['job_role'] ?? '') === 'admin'
 );
+$can_delete_admin = vcUserCanDeleteAsAdmin($currentUser);
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrf_token = $_SESSION['csrf_token'];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_contract') {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
+        die('طلب غير صالح');
+    }
+    if (!$can_delete_admin) {
+        http_response_code(403);
+        die('❌ ليس لديك صلاحية حذف العقود');
+    }
+
+    $contract_id = (int)($_POST['contract_id'] ?? 0);
+
+    if ($contract_id > 0 && vcHardDeleteContractsByIds($conn, [$contract_id])) {
+        $_SESSION['my_contracts_delete_msg'] = 'تم حذف العقد رقم #' . $contract_id . ' بنجاح.';
+    } else {
+        $_SESSION['my_contracts_delete_msg'] = 'تعذر حذف العقد.';
+    }
+
+    header('Location: my_contracts.php');
+    exit();
+}
+
+$deleteMsg = $_SESSION['my_contracts_delete_msg'] ?? '';
+unset($_SESSION['my_contracts_delete_msg']);
 
 $myContractsScope = $is_admin ? 'all' : getUserPageScope($conn, $user_id, 'my_contracts');
 $scopedUserIds = vcGetScopedUserIds($conn, $user_id, $myContractsScope, $is_admin);
@@ -355,390 +385,7 @@ $stmtCount->close();
 
 <title>عقودي</title>
 
-<link rel="stylesheet" href="public/assets/css/style.css">
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-
-<style>
-*{
-    box-sizing:border-box;
-    font-family:'Cairo', Tahoma, Arial, sans-serif;
-}
-
-html, body{
-    direction:rtl;
-    text-align:right;
-}
-
-body{
-    margin:0;
-    background:
-        radial-gradient(circle at top right, rgba(109,74,255,.11), transparent 34%),
-        #eef1f7;
-    color:#172033;
-}
-
-.container{
-    width:min(1220px, calc(100% - 32px));
-    margin:28px auto 45px;
-}
-
-.page-head{
-    text-align:center;
-    margin-bottom:22px;
-}
-
-.page-title{
-    margin:0 0 7px;
-    font-size:28px;
-    font-weight:900;
-    color:#172033;
-    letter-spacing:-.3px;
-}
-
-.page-subtitle{
-    margin:0;
-    color:#667085;
-    font-size:15px;
-    line-height:1.9;
-    font-weight:700;
-}
-
-
-.stats{
-    display:grid;
-    grid-template-columns:repeat(5, 1fr);
-    gap:14px;
-    margin-bottom:18px;
-}
-
-.card{
-    background:rgba(255,255,255,.68);
-    border:1px solid rgba(226,232,240,.95);
-    border-radius:20px;
-    padding:16px;
-    text-align:center;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-}
-
-.num{
-    font-size:24px;
-    font-weight:900;
-    color:#4f46e5;
-    margin-bottom:6px;
-}
-
-.card-label{
-    font-size:13px;
-    color:#667085;
-    font-weight:800;
-}
-
-
-.filters{
-    background:rgba(255,255,255,.68);
-    border:1px solid rgba(226,232,240,.95);
-    border-radius:22px;
-    padding:14px;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-    margin-bottom:18px;
-    display:grid;
-    grid-template-columns:1fr 170px 170px 170px 120px 110px;
-    gap:12px;
-    align-items:center;
-}
-
-.filter-title{
-    grid-column:1 / -1;
-    color:#4f46e5;
-    font-size:14px;
-    font-weight:900;
-    padding:0 4px 2px;
-    display:flex;
-    align-items:center;
-    gap:8px;
-}
-
-.filters input,
-.filters select{
-    width:100%;
-    min-height:48px;
-    padding:0 14px;
-    border-radius:14px;
-    border:1px solid #dfe6f0;
-    background:#eef1f7;
-    color:#172033;
-    box-shadow:
-        inset 2px 2px 6px #d1d9e6,
-        inset -2px -2px 6px #ffffff;
-    font-size:14px;
-    outline:none;
-    transition:.18s ease;
-}
-
-.filters input:focus,
-.filters select:focus{
-    border-color:#6d4aff;
-    box-shadow:
-        0 0 0 3px rgba(109,74,255,.12),
-        inset 2px 2px 6px #d1d9e6,
-        inset -2px -2px 6px #ffffff;
-}
-
-.filter-btn,
-.reset-btn{
-    min-height:48px;
-    border-radius:14px;
-    border:none;
-    cursor:pointer;
-    font-weight:900;
-    text-decoration:none;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:0 14px;
-    white-space:nowrap;
-}
-
-.filter-btn{
-    background:#6d4aff;
-    color:#fff;
-    box-shadow:0 8px 18px rgba(109,74,255,.20);
-}
-
-.reset-btn{
-    background:#eef1f7;
-    color:#475569;
-    border:1px solid #dfe6f0;
-}
-
-
-.table-box{
-    background:rgba(255,255,255,.62);
-    border:1px solid rgba(226,232,240,.95);
-    border-radius:22px;
-    padding:14px;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-    overflow:hidden;
-}
-
-.table{
-    width:100%;
-    border-collapse:separate;
-    border-spacing:0;
-    table-layout:fixed;
-}
-
-.table th{
-    background:#6d4aff;
-    color:#fff;
-    padding:14px 10px;
-    text-align:center;
-    font-size:13px;
-    line-height:1.45;
-    font-weight:900;
-    white-space:nowrap;
-}
-
-.table th:first-child{
-    border-radius:0 14px 14px 0;
-}
-
-.table th:last-child{
-    border-radius:14px 0 0 14px;
-}
-
-.table td{
-    padding:13px 10px;
-    border-bottom:1px solid #dfe6f0;
-    text-align:center;
-    vertical-align:middle;
-    font-size:14px;
-    line-height:1.7;
-    color:#172033;
-}
-
-.table tr:last-child td{
-    border-bottom:none;
-}
-
-.table tr:hover td{
-    background:#f6f4ff;
-}
-
-.col-id{width:70px;}
-.col-supplier{width:24%;}
-.col-user{width:120px;}
-.col-type{width:130px;}
-.col-created{width:135px;}
-.col-action-date{width:145px;}
-.col-status{width:135px;}
-.col-signed{width:145px;}
-.col-view{width:90px;}
-
-.contract-id{
-    color:#4f46e5;
-    font-weight:900;
-}
-
-.supplier-name{
-    text-align:right;
-    font-weight:900;
-    overflow-wrap:anywhere;
-    word-break:break-word;
-}
-
-.user-badge{
-    background:#f0edff;
-    color:#4f46e5;
-    min-width:96px;
-    min-height:34px;
-    padding:6px 11px;
-    border-radius:999px;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    font-size:12px;
-    font-weight:900;
-}
-
-
-.type-badge{
-    min-width:96px;
-    min-height:34px;
-    padding:6px 11px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:900;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    color:#fff;
-}
-
-.annual-type{
-    background:#f59e0b;
-}
-
-.rent-type{
-    background:#16a34a;
-}
-
-
-.status{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    min-width:112px;
-    min-height:34px;
-    padding:6px 11px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:900;
-}
-
-.review{background:#fffbeb;color:#b45309;}
-.approved{background:#ecfdf3;color:#166534;}
-.rejected{background:#fff1f2;color:#b42318;}
-.draft{background:#f1f5f9;color:#475569;}
-
-
-.action-pill{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    min-width:118px;
-    min-height:34px;
-    padding:6px 11px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:900;
-}
-
-.action-approved{background:#ecfdf3;color:#166534;}
-.action-rejected{background:#fff1f2;color:#b42318;}
-.action-final{background:#ecfdf3;color:#166534;}
-.action-empty{background:#f1f5f9;color:#475569;}
-
-
-.signed-pill{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    min-width:104px;
-    min-height:34px;
-    padding:6px 11px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:900;
-}
-
-.signed-yes{background:#ecfdf3;color:#166534;}
-.signed-no{background:#fff7ed;color:#c2410c;}
-.signed-na{background:#f1f5f9;color:#475569;}
-
-
-.btn{
-    min-height:34px;
-    padding:0 12px;
-    border:none;
-    border-radius:11px;
-    background:#6d4aff;
-    color:#fff;
-    cursor:pointer;
-    text-decoration:none;
-    font-size:12px;
-    font-weight:900;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    transition:.18s ease;
-}
-
-.btn:hover{
-    transform:translateY(-1px);
-    filter:brightness(.98);
-}
-
-.empty{
-    padding:26px !important;
-    text-align:center;
-    color:#667085;
-    font-weight:900;
-}
-
-@media(max-width:1050px){
-    .stats{
-        grid-template-columns:repeat(2, 1fr);
-    }
-
-    .filters{
-        grid-template-columns:1fr;
-    }
-
-    .table-box{
-        overflow-x:auto;
-    }
-
-    .table{
-        min-width:1080px;
-    }
-}
-
-@media(max-width:560px){
-    .container{
-        width:calc(100% - 18px);
-        margin-top:18px;
-    }
-
-    .page-title{
-        font-size:23px;
-    }
-
-    .stats{
-        grid-template-columns:1fr;
-    }
-}
-</style>
+<?php vcRenderPageAssets(); ?>
 </head>
 
 <body>
@@ -753,6 +400,10 @@ body{
             متابعة العقود التي تم اتخاذ إجراء عليها: الموافقة أو الرفض.
         </p>
     </div>
+
+    <?php if($deleteMsg !== ''): ?>
+        <div class="alert alert-success"><?= e($deleteMsg) ?></div>
+    <?php endif; ?>
 
     <div class="stats">
         <div class="card">
@@ -839,7 +490,7 @@ body{
                     <th class="col-action-date">تاريخ الإجراء</th>
                     <th class="col-status">الحالة</th>
                     <th class="col-signed">النسخة الموقعة</th>
-                    <th class="col-view">عرض</th>
+                    <th class="col-actions">إجراءات</th>
                 </tr>
             </thead>
 
@@ -889,9 +540,18 @@ body{
                             </td>
 
                             <td>
-                                <a href="view_contract.php?id=<?= (int)$row['id'] ?>" class="btn">
-                                    عرض
-                                </a>
+                                <?php
+                                vcRenderRowActions([
+                                    'view' => [
+                                        'href' => 'view_contract.php?id=' . (int)$row['id'],
+                                    ],
+                                    'delete' => [
+                                        'action' => 'delete_contract',
+                                        'fields' => ['contract_id' => (string)(int)$row['id']],
+                                        'confirm' => 'تأكيد حذف العقد رقم #' . (int)$row['id'] . '؟',
+                                    ],
+                                ], $csrf_token, $can_delete_admin);
+                                ?>
                             </td>
                         </tr>
 

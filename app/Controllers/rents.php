@@ -573,735 +573,8 @@ if (!isset($_GET['success'])) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>إضافة عقد إيجار</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-
-<style>
-*{
-    box-sizing:border-box;
-    font-family:'Cairo', Tahoma, Arial, sans-serif;
-}
-
-html, body{
-    direction:rtl;
-    text-align:right;
-}
-
-body{
-    margin:0;
-    background:
-        radial-gradient(circle at top right, rgba(109,74,255,.11), transparent 34%),
-        #eef1f7;
-    color:#172033;
-}
-
-.container{
-    width:min(1180px, calc(100% - 28px));
-    margin:28px auto 45px;
-}
-
-.page-head{
-    text-align:center;
-    margin-bottom:24px;
-}
-
-.page-title{
-    font-size:28px;
-    font-weight:900;
-    margin:0 0 8px;
-    color:#172033;
-    letter-spacing:-.3px;
-}
-
-.page-subtitle{
-    color:#667085;
-    margin:0;
-    font-size:15px;
-    line-height:1.9;
-}
-
-.alert{
-    padding:13px 15px;
-    border-radius:14px;
-    margin-bottom:15px;
-    font-weight:800;
-    line-height:1.8;
-    box-shadow:0 10px 24px rgba(23,32,51,.06);
-}
-
-.alert-success{
-    background:#ecfdf3;
-    color:#166534;
-    border:1px solid #bbf7d0;
-}
-
-.alert-error{
-    background:#fff1f2;
-    color:#b42318;
-    border:1px solid #fecdd3;
-}
-
-.section-title{
-    background:rgba(255,255,255,.74);
-    padding:15px 18px;
-    border-radius:18px;
-    font-weight:900;
-    margin:26px 0 16px;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-    border:1px solid rgba(226,232,240,.95);
-    color:#4f46e5;
-    display:flex;
-    align-items:center;
-    gap:10px;
-}
-
-.section-title::before{
-    content:"";
-    width:9px;
-    height:24px;
-    border-radius:999px;
-    background:linear-gradient(180deg,#7c5cff,#4f46e5);
-}
-
-.box{
-    background:rgba(255,255,255,.62);
-    border-radius:20px;
-    padding:20px;
-    margin-bottom:16px;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-    border:1px solid rgba(226,232,240,.95);
-}
-
-.box-title{
-    font-weight:900;
-    margin-bottom:13px;
-    color:#172033;
-    font-size:15px;
-}
-
-.field{
-    margin-bottom:16px;
-}
-
-label,
-.option-title{
-    display:block;
-    font-size:14px;
-    font-weight:800;
-    color:#172033;
-    margin-bottom:9px;
-    line-height:1.5;
-}
-
-.hint{
-    color:#8a94a6;
-    font-size:12px;
-    font-weight:700;
-    margin-top:7px;
-}
-
-input,
-textarea,
-select{
-    width:100%;
-    min-height:48px;
-    padding:0 14px;
-    border-radius:14px;
-    border:1px solid #dfe6f0;
-    background:#eef1f7;
-    color:#172033;
-    box-shadow:
-        inset 2px 2px 6px #d1d9e6,
-        inset -2px -2px 6px #ffffff;
-    font-size:14px;
-    outline:none;
-    transition:.18s ease;
-    direction:rtl;
-    text-align:right;
-}
-
-textarea{
-    min-height:116px;
-    padding:14px;
-    line-height:1.8;
-    resize:vertical;
-}
-
-input::placeholder,
-textarea::placeholder{
-    color:#8a94a6;
-}
-
-input:focus,
-textarea:focus,
-select:focus{
-    border-color:#6d4aff;
-    box-shadow:
-        0 0 0 3px rgba(109,74,255,.12),
-        inset 2px 2px 6px #d1d9e6,
-        inset -2px -2px 6px #ffffff;
-}
-
-input[type="number"]{
-    direction:ltr;
-    text-align:center;
-}
-
-.basic-info-grid{
-    display:grid;
-    grid-template-columns:minmax(360px, 1.45fr) minmax(230px, 1fr) minmax(250px, 1fr);
-    gap:16px;
-    align-items:start;
-}
-
-.supplier-field{
-    min-width:0;
-}
-
-#supplier_search_box{
-    position:relative;
-}
-
-#supplier_name_box,
-#supplier_search_box{
-    width:100%;
-}
-
-.phone{
-    display:flex;
-    border-radius:14px;
-    overflow:hidden;
-    box-shadow:
-        inset 2px 2px 6px #d1d9e6,
-        inset -2px -2px 6px #ffffff;
-}
-
-.phone span{
-    background:#6d4aff;
-    color:#fff;
-    padding:0 15px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight:900;
-}
-
-.phone input{
-    border:none;
-    box-shadow:none;
-    border-radius:0;
-}
-
-.supplier-status{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:14px;
-    margin-bottom:16px;
-}
-
-.status-card{
-    display:block;
-    margin:0;
-    cursor:pointer;
-}
-
-.status-card input{
-    display:none;
-}
-
-.status-card .card{
-    background:rgba(255,255,255,.70);
-    border-radius:18px;
-    padding:16px;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-    border:1px solid rgba(226,232,240,.95);
-    display:flex;
-    align-items:center;
-    gap:12px;
-    min-height:88px;
-    transition:.18s ease;
-}
-
-.status-card .icon{
-    width:42px;
-    height:42px;
-    border-radius:14px;
-    background:#f0edff;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:22px;
-}
-
-.status-card strong{
-    display:block;
-    font-weight:900;
-    font-size:15px;
-    margin-bottom:4px;
-}
-
-.status-card small{
-    color:#667085;
-    font-weight:700;
-    line-height:1.6;
-}
-
-.status-card input:checked + .card{
-    background:linear-gradient(145deg,#7c5cff,#4f46e5);
-    color:#fff;
-    border-color:rgba(255,255,255,.25);
-}
-
-.status-card input:checked + .card small{
-    color:rgba(255,255,255,.82);
-}
-
-.status-card input:checked + .card .icon{
-    background:rgba(255,255,255,.18);
-}
-
-.option-buttons{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:12px;
-    margin-bottom:16px;
-}
-
-.option-buttons input{
-    display:none;
-}
-
-.option-buttons label{
-    margin:0;
-    min-height:50px;
-    padding:0 16px;
-    text-align:center;
-    background:rgba(255,255,255,.72);
-    border-radius:16px;
-    cursor:pointer;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-    border:1px solid rgba(226,232,240,.95);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight:900;
-    transition:.18s ease;
-}
-
-.option-buttons label:hover{
-    transform:translateY(-1px);
-}
-
-.option-buttons input:checked + label{
-    background:linear-gradient(145deg,#7c5cff,#4f46e5);
-    color:#fff;
-    box-shadow:0 12px 22px rgba(109,74,255,.22);
-}
-
-.table-wrap{
-    width:100%;
-    overflow:hidden;
-    border-radius:16px;
-}
-
-.table{
-    width:100%;
-    border-collapse:separate;
-    border-spacing:0;
-    margin-top:10px;
-    table-layout:fixed;
-}
-
-.table th{
-    background:#6d4aff;
-    color:#fff;
-    padding:13px 8px;
-    text-align:center;
-    font-size:13px;
-    white-space:nowrap;
-    font-weight:900;
-}
-
-.table th:first-child{
-    border-radius:0 14px 14px 0;
-}
-
-.table th:last-child{
-    border-radius:14px 0 0 14px;
-}
-
-.table td{
-    padding:9px 7px;
-    border-bottom:1px solid #dfe6f0;
-    vertical-align:middle;
-    text-align:center;
-}
-
-.table td input,
-.table td select{
-    min-height:44px;
-    font-size:13px;
-    font-weight:800;
-    padding-right:8px;
-    padding-left:8px;
-}
-
-.row-actions{
-    width:92px;
-    text-align:center;
-    white-space:nowrap;
-}
-
-#rentTable th:nth-child(1),
-#rentTable td:nth-child(1){width:15%;}
-
-#rentTable th:nth-child(2),
-#rentTable td:nth-child(2){width:14%;}
-
-#rentTable th:nth-child(3),
-#rentTable td:nth-child(3){width:9%;}
-
-#rentTable th:nth-child(4),
-#rentTable td:nth-child(4){width:14%;}
-
-#rentTable th:nth-child(5),
-#rentTable td:nth-child(5),
-#rentTable th:nth-child(6),
-#rentTable td:nth-child(6){width:13%;}
-
-#rentTable th:nth-child(7),
-#rentTable td:nth-child(7){width:12%;}
-
-#rentTable th:nth-child(8),
-#rentTable td:nth-child(8){width:10%;}
-
-.currency-field{
-    display:flex;
-    border-radius:14px;
-    overflow:hidden;
-    box-shadow:
-        inset 2px 2px 6px #d1d9e6,
-        inset -2px -2px 6px #ffffff;
-}
-
-.currency-field span{
-    background:#6d4aff;
-    color:#fff;
-    padding:0 10px;
-    min-width:50px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight:900;
-    font-size:12px;
-}
-
-.currency-field input{
-    border:none;
-    box-shadow:none;
-    border-radius:0;
-}
-
-.icon-btn{
-    min-height:38px;
-    padding:0 14px;
-    border:none;
-    border-radius:12px;
-    cursor:pointer;
-    font-weight:900;
-    font-size:13px;
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-    text-decoration:none;
-    transition:.18s ease;
-}
-
-.icon-btn:hover{
-    transform:translateY(-1px);
-    filter:brightness(.97);
-}
-
-.add-btn{
-    background:#6d4aff;
-    color:#fff;
-    margin-top:10px;
-}
-
-.remove-btn{
-    background:#8f9399;
-    color:#fff;
-    min-width:70px;
-}
-
-.submit{
-    width:100%;
-    min-height:54px;
-    padding:15px;
-    background:linear-gradient(145deg,#7c5cff,#4f46e5);
-    color:#fff;
-    border:none;
-    border-radius:16px;
-    margin-top:20px;
-    font-size:16px;
-    font-weight:900;
-    cursor:pointer;
-    box-shadow:0 14px 26px rgba(109,74,255,.24);
-    transition:.18s ease;
-}
-
-.submit:hover{
-    transform:translateY(-1px);
-    filter:brightness(.98);
-}
-
-#results{
-    position:absolute;
-    top:100%;
-    right:0;
-    left:0;
-    z-index:50;
-    background:#fff;
-    border-radius:14px;
-    box-shadow:0 14px 30px rgba(23,32,51,.13);
-    overflow:hidden;
-    margin-top:6px;
-}
-
-#results .item{
-    padding:12px;
-    cursor:pointer;
-    font-weight:800;
-}
-
-#results .item:hover{
-    background:#f1f4fa;
-}
-
-.total-box{
-    margin-top:14px;
-    background:#f8fafc;
-    border:1px solid #dfe6f0;
-    padding:14px;
-    border-radius:16px;
-    font-weight:900;
-    color:#172033;
-}
-
-.date-field{
-    position:relative;
-}
-
-.date-field input{
-    padding-left:42px;
-    cursor:pointer;
-}
-
-.date-icon{
-    position:absolute;
-    left:13px;
-    top:50%;
-    transform:translateY(-50%);
-    font-size:16px;
-    opacity:.75;
-    pointer-events:none;
-}
-
-.flatpickr-calendar{
-    direction:rtl !important;
-    border:none !important;
-    border-radius:20px !important;
-    box-shadow:0 18px 40px rgba(23,32,51,.16) !important;
-    overflow:hidden !important;
-    z-index:99999 !important;
-    font-family:'Cairo', Tahoma, Arial, sans-serif !important;
-}
-
-.flatpickr-current-month{
-    font-size:16px !important;
-    font-weight:900 !important;
-}
-
-.flatpickr-day{
-    border-radius:12px !important;
-    font-weight:800 !important;
-}
-
-.flatpickr-day.selected,
-.flatpickr-day.startRange,
-.flatpickr-day.endRange{
-    background:#6d4aff !important;
-    border-color:#6d4aff !important;
-    color:#fff !important;
-}
-
-@media(max-width:1000px){
-    .basic-info-grid,
-    .supplier-status,
-    .option-buttons{
-        grid-template-columns:1fr;
-    }
-
-    .container{
-        width:calc(100% - 18px);
-        margin-top:18px;
-    }
-
-    .box{
-        padding:16px;
-    }
-
-    .page-title{
-        font-size:23px;
-    }
-
-    .table-wrap{
-        overflow-x:auto;
-    }
-
-    .table{
-        min-width:900px;
-    }
-}
-
-
-
-.container{
-    width:min(1360px, calc(100% - 28px)) !important;
-}
-
-.table-wrap{
-    overflow:visible !important;
-}
-
-#rentTable{
-    table-layout:fixed !important;
-    width:100% !important;
-    min-width:0 !important;
-}
-
-#rentTable th{
-    font-size:12px !important;
-    padding:11px 5px !important;
-    line-height:1.25 !important;
-}
-
-#rentTable td{
-    padding:8px 5px !important;
-}
-
-#rentTable input,
-#rentTable select{
-    min-height:42px !important;
-    height:42px !important;
-    font-size:12px !important;
-    font-weight:800 !important;
-    padding-right:7px !important;
-    padding-left:7px !important;
-    border-radius:12px !important;
-}
-
-#rentTable .currency-field span{
-    min-width:42px !important;
-    padding:0 7px !important;
-    font-size:12px !important;
-}
-
-
-#rentTable th:nth-child(1),
-#rentTable td:nth-child(1){width:14% !important;}
-
-#rentTable th:nth-child(2),
-#rentTable td:nth-child(2){width:13% !important;}
-
-#rentTable th:nth-child(3),
-#rentTable td:nth-child(3){width:8% !important;}
-
-#rentTable th:nth-child(4),
-#rentTable td:nth-child(4){width:13% !important;}
-
-#rentTable th:nth-child(5),
-#rentTable td:nth-child(5){width:15% !important;}
-
-#rentTable th:nth-child(6),
-#rentTable td:nth-child(6){width:15% !important;}
-
-#rentTable th:nth-child(7),
-#rentTable td:nth-child(7){width:13% !important;}
-
-#rentTable th:nth-child(8),
-#rentTable td:nth-child(8){width:9% !important;}
-
-#rentTable input[type="date"]{
-    direction:ltr !important;
-    text-align:center !important;
-    padding:0 6px !important;
-}
-
-
-#rentTable .date-field{
-    position:static !important;
-}
-
-#rentTable .date-icon{
-    display:none !important;
-}
-
-
-.flatpickr-calendar{
-    width:330px !important;
-    min-width:330px !important;
-    direction:ltr !important;
-    border:none !important;
-    border-radius:18px !important;
-    box-shadow:0 18px 40px rgba(23,32,51,.16) !important;
-    overflow:hidden !important;
-    font-family:'Cairo', Tahoma, Arial, sans-serif !important;
-}
-
-.flatpickr-rContainer,
-.flatpickr-days,
-.dayContainer{
-    width:330px !important;
-    min-width:330px !important;
-    max-width:330px !important;
-}
-
-.flatpickr-current-month{
-    left:12.5% !important;
-    width:75% !important;
-    height:40px !important;
-    padding-top:7px !important;
-    font-size:15px !important;
-    font-weight:900 !important;
-}
-
-.flatpickr-month{
-    height:46px !important;
-}
-
-.flatpickr-weekday,
-.flatpickr-day{
-    max-width:47px !important;
-    width:47px !important;
-    height:39px !important;
-    line-height:39px !important;
-    font-size:13px !important;
-    font-weight:800 !important;
-}
-
-@media(max-width:1000px){
-    .table-wrap{
-        overflow-x:auto !important;
-    }
-
-    #rentTable{
-        min-width:900px !important;
-    }
-}
-
-</style>
+<?php vcRenderPageAssets(['forms' => true]); ?>
 </head>
 
 <body>
@@ -1321,7 +594,7 @@ input[type="number"]{
 
     <div class="page-head">
         <h1 class="page-title"><?= isset($_GET['id']) ? 'تعديل عقد إيجار' : 'إضافة عقد إيجار جديد' ?></h1>
-        <p class="page-subtitle">اختر المورد، أدخل بيانات المسؤول والجوال، ثم أضف بنود الإيجار.</p>
+        <p class="page-subtitle">كل تبويب يحتوي جزءًا من النموذج — انتقل بينها بالترتيب ثم احفظ</p>
     </div>
 
     <?php if ($success): ?>
@@ -1336,88 +609,120 @@ input[type="number"]{
         </div>
     <?php endif; ?>
 
-    <form method="POST" autocomplete="off">
+    <form method="POST" autocomplete="off" class="rent-form">
         <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token']) ?>">
         <input type="hidden" name="supplier_status" value="registered">
         <input type="hidden" name="supplier_name" id="supplier_name" value="<?= e($form['supplier_name']) ?>">
 
-        <div class="field">
-            <div class="option-title">حالة المورد</div>
-
-            <div class="supplier-status">
-                <label class="status-card">
-                    <input type="radio" name="supplier_status_view" value="registered" checked>
-                    <div class="card">
-                        <span class="icon">🏢</span>
-                        <div>
-                            <strong>مورد مسجل</strong>
-                            <small>اختار مورد موجود بالفعل</small>
-                        </div>
-                    </div>
-                </label>
+        <nav class="rent-tabs" aria-label="أقسام عقد الإيجار">
+            <div class="rent-tabs-head">
+                <p class="rent-tabs-title">خطوات عقد الإيجار</p>
+                <span class="rent-tab-progress" id="rentTabProgress">الخطوة 1 من 4</span>
             </div>
-        </div>
+            <div class="rent-tabs-inner" role="tablist">
+                <button type="button" class="rent-tab is-active" role="tab" data-target="sec-supplier" aria-selected="true"><span>1</span> المورد</button>
+                <button type="button" class="rent-tab" role="tab" data-target="sec-basic" aria-selected="false"><span>2</span> البيانات الأساسية</button>
+                <button type="button" class="rent-tab" role="tab" data-target="sec-rents" aria-selected="false"><span>3</span> البنود الإيجارية</button>
+                <button type="button" class="rent-tab" role="tab" data-target="sec-notes" aria-selected="false"><span>4</span> الملاحظات والحفظ</button>
+            </div>
+        </nav>
 
-        <div class="section-title">البيانات الأساسية</div>
+        <div class="rent-form-main">
 
-        <div class="basic-info-grid">
+        <section class="form-panel rent-tab-panel is-active" id="sec-supplier" role="tabpanel">
+            <div class="section-title"><span class="step-num">1</span> المورد</div>
+
+            <div class="field">
+                <div class="option-title">حالة المورد</div>
+                <div class="supplier-status">
+                    <label class="status-card">
+                        <input type="radio" name="supplier_status_view" value="registered" checked>
+                        <div class="card">
+                            <span class="icon">🏢</span>
+                            <div>
+                                <strong>مورد مسجل</strong>
+                                <small>ابحث باسم المورد ثم اختر من النتائج المطابقة</small>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
 
             <div class="field supplier-field">
                 <div id="supplier_search_box">
-                    <label>بحث عن المورد</label>
-                    <input type="text" id="supplier_search" placeholder="اكتب اسم المورد..." value="<?= e($form['supplier_name']) ?>">
-                    <div id="results"></div>
+                    <label for="supplier_search">اسم المورد</label>
+                    <div class="supplier-search-row">
+                        <input type="text" id="supplier_search" placeholder="اكتب اسم المورد للبحث..." value="<?= e($form['supplier_name']) ?>" autocomplete="off">
+                        <button type="button" class="btn-supplier-search" id="supplierSearchBtn">🔍 بحث</button>
+                    </div>
+                    <div class="supplier-list-hint" id="supplierListHint">اكتب حرفين على الأقل ثم اضغط بحث أو انتظر لحظات لعرض المطابقات</div>
+                    <div id="results" role="listbox" aria-label="نتائج البحث عن المورد"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="form-panel rent-tab-panel" id="sec-basic" role="tabpanel">
+            <div class="section-title"><span class="step-num">2</span> البيانات الأساسية وحالة العقد</div>
+
+            <div class="panel-subtitle">بيانات التواصل</div>
+            <div class="basic-info-grid">
+                <div class="field">
+                    <label for="company_name">اسم المسؤول</label>
+                    <input type="text" id="company_name" name="company_name" placeholder="اكتب اسم المسؤول" value="<?= e($form['company_name']) ?>" required>
+                </div>
+
+                <div class="field">
+                    <label for="supplier_phone">رقم الجوال</label>
+                    <div class="phone">
+                        <span>+966</span>
+                        <input
+                            type="text"
+                            id="supplier_phone"
+                            name="supplier_phone"
+                            placeholder="5XXXXXXXX"
+                            maxlength="9"
+                            inputmode="numeric"
+                            value="<?= e($form['supplier_phone']) ?>"
+                        >
+                    </div>
+                    <div class="hint">مثال: 5XXXXXXXX</div>
                 </div>
             </div>
 
-            <div class="field">
-                <label for="company_name">اسم المسؤول</label>
-                <input type="text" id="company_name" name="company_name" placeholder="اكتب اسم المسؤول" value="<?= e($form['company_name']) ?>" required>
-            </div>
+            <div class="panel-divider"></div>
 
+            <div class="panel-subtitle">حالة العقد</div>
             <div class="field">
-                <label for="supplier_phone">رقم الجوال</label>
-                <div class="phone">
-                    <span>+966</span>
-                    <input
-                        type="text"
-                        id="supplier_phone"
-                        name="supplier_phone"
-                        placeholder="5XXXXXXXX"
-                        maxlength="9"
-                        inputmode="numeric"
-                        value="<?= e($form['supplier_phone']) ?>"
-                    >
+                <div class="option-buttons">
+                    <input type="radio" id="status1" name="status" value="تفاوض" required <?= $status_tafawod_checked ?>>
+                    <label for="status1">تفاوض</label>
+
+                    <input type="radio" id="status2" name="status" value="نهائي" <?= $status_final_checked ?>>
+                    <label for="status2" class="<?= $is_admin ? 'final-btn' : '' ?>">
+                        <?= $is_admin ? 'إجراء نهائي' : 'إرسال للإدارة' ?>
+                    </label>
                 </div>
-                <div class="hint">مثال: 5XXXXXXXX</div>
             </div>
+        </section>
 
-        </div>
+        <section class="form-panel rent-tab-panel" id="sec-rents" role="tabpanel">
+            <div class="section-title"><span class="step-num">3</span> البنود الإيجارية</div>
 
-        <div class="field">
-            <div class="option-title">حالة العقد</div>
+            <div class="box">
+                <div class="rent-table-meta">
+                    <span>جدول البنود — الفرع، النوع، الفترة، والمبالغ</span>
+                    <span>يُحسب الإجمالي تلقائيًا</span>
+                </div>
 
-            <div class="option-buttons">
-
-                <input type="radio" id="status1" name="status" value="تفاوض" required <?= $status_tafawod_checked ?>>
-                <label for="status1">تفاوض</label>
-
-                <input type="radio" id="status2" name="status" value="نهائي" <?= $status_final_checked ?>>
-                <label for="status2" class="<?= $is_admin ? 'final-btn' : '' ?>">
-                    <?= $is_admin ? 'إجراء نهائي' : 'إرسال للإدارة' ?>
-                </label>
-
-            </div>
-        </div>
-
-        <div class="section-title">البنود الإيجارية</div>
-
-        <div class="box">
-
-            <div class="table-wrap">
+                <div class="table-wrap">
                 <table class="table" id="rentTable">
-
                     <thead>
+                        <tr>
+                            <th colspan="2" class="th-group th-group--item">بيانات البند</th>
+                            <th colspan="2" class="th-group th-group--period">الكمية والسعر</th>
+                            <th colspan="2" class="th-group th-group--period">الفترة</th>
+                            <th colspan="2" class="th-group">الإجمالي والإجراء</th>
+                        </tr>
                         <tr>
                             <th>الفرع</th>
                             <th>الإيجار</th>
@@ -1536,25 +841,34 @@ input[type="number"]{
                     <?php endif; ?>
                     </tbody>
                 </table>
+                </div>
+
+                <div class="rent-table-footer">
+                    <button type="button" class="icon-btn add-btn" onclick="addRentRow()">+ إضافة فرع</button>
+                    <div class="total-box">
+                        إجمالي الإيجارات: <span id="grandTotal">0</span> ريال
+                    </div>
+                </div>
+
+                <textarea id="rentSummary" style="display:none;"></textarea>
             </div>
+        </section>
 
-            <button type="button" class="icon-btn add-btn" onclick="addRentRow()">+ إضافة فرع</button>
+        <section class="form-panel rent-tab-panel" id="sec-notes" role="tabpanel">
+            <div class="section-title"><span class="step-num">4</span> ملاحظات أخرى</div>
 
-            <div class="total-box">
-                إجمالي الإيجارات: <span id="grandTotal">0</span> ريال
+            <div class="field">
+                <textarea id="notes" name="notes" placeholder="اكتب أي ملاحظات إضافية هنا..."><?= e($form['notes']) ?></textarea>
             </div>
+        </section>
 
-            <textarea id="rentSummary" style="display:none;"></textarea>
-
+        <div class="form-actions-bar">
+            <button type="button" class="btn-tab-nav" id="rentTabPrev" disabled>السابق</button>
+            <button type="button" class="btn-tab-nav" id="rentTabNext">التالي</button>
+            <button type="submit" class="submit" id="rentTabSubmit" hidden>حفظ العقد</button>
         </div>
 
-        <div class="section-title">ملاحظات أخرى</div>
-
-        <div class="field">
-            <textarea id="notes" name="notes" placeholder="اكتب أي ملاحظات إضافية هنا..."><?= e($form['notes']) ?></textarea>
         </div>
-
-        <button type="submit" class="submit">حفظ العقد</button>
 
     </form>
 </div>
@@ -1565,10 +879,13 @@ input[type="number"]{
 <script>
 document.addEventListener("DOMContentLoaded", function(){
 
+    initRentTabs();
     initDatePickers();
 
     calcGrand();
     buildSummary();
+
+    initSupplierSmartSearch();
 
     let box = document.getElementById("successBox");
     if(box){
@@ -1576,18 +893,165 @@ document.addEventListener("DOMContentLoaded", function(){
             box.style.display = "none";
         }, 8000);
     }
+});
 
-    let supplierSearch = document.getElementById("supplier_search");
-    let supplierHidden = document.getElementById("supplier_name");
+function initRentTabs(){
+    const tabs = Array.from(document.querySelectorAll(".rent-tab[data-target]"));
+    const prevBtn = document.getElementById("rentTabPrev");
+    const nextBtn = document.getElementById("rentTabNext");
+    const submitBtn = document.getElementById("rentTabSubmit");
+    const progress = document.getElementById("rentTabProgress");
 
-    if(supplierSearch && supplierHidden){
-        supplierHidden.value = supplierSearch.value;
+    if(!tabs.length){
+        return;
+    }
 
-        supplierSearch.addEventListener("input", function(){
-            supplierHidden.value = this.value;
+    let currentIndex = 0;
+
+    function panelForTab(index){
+        const targetId = tabs[index] ? tabs[index].getAttribute("data-target") : "";
+        return targetId ? document.getElementById(targetId) : null;
+    }
+
+    function isFieldVisible(field){
+        if(!field || field.type === "hidden" || field.disabled){
+            return false;
+        }
+
+        let node = field;
+        while(node && node !== document.body){
+            const style = window.getComputedStyle(node);
+            if(style.display === "none" || style.visibility === "hidden"){
+                return false;
+            }
+            node = node.parentElement;
+        }
+
+        return true;
+    }
+
+    function validatePanel(panel){
+        if(!panel){
+            return true;
+        }
+
+        if(panel.id === "sec-supplier"){
+            const supplierHidden = document.getElementById("supplier_name");
+            const supplierSearch = document.getElementById("supplier_search");
+            if(supplierHidden && !supplierHidden.value.trim()){
+                if(supplierSearch){
+                    supplierSearch.setCustomValidity("اختر المورد أو اكتب اسمه.");
+                    supplierSearch.reportValidity();
+                    supplierSearch.setCustomValidity("");
+                }
+                return false;
+            }
+        }
+
+        const requiredRadios = {};
+        panel.querySelectorAll('input[type="radio"][required]').forEach(function(radio){
+            requiredRadios[radio.name] = true;
+        });
+
+        for(const name in requiredRadios){
+            if(!panel.querySelector('input[type="radio"][name="' + name + '"]:checked')){
+                const first = panel.querySelector('input[type="radio"][name="' + name + '"]');
+                if(first){
+                    first.setCustomValidity("اختر أحد الخيارات.");
+                    first.reportValidity();
+                    first.setCustomValidity("");
+                }
+                return false;
+            }
+        }
+
+        const fields = panel.querySelectorAll("input, select, textarea");
+        for(let i = 0; i < fields.length; i++){
+            const field = fields[i];
+            if(field.type === "radio" || field.type === "hidden" || field.disabled){
+                continue;
+            }
+            if(!isFieldVisible(field)){
+                continue;
+            }
+            if(!field.checkValidity()){
+                field.reportValidity();
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function updateUi(){
+        const tab = tabs[currentIndex];
+        const targetId = tab ? tab.getAttribute("data-target") : "";
+
+        document.querySelectorAll(".rent-tab-panel").forEach(function(panel){
+            panel.classList.toggle("is-active", panel.id === targetId);
+        });
+
+        tabs.forEach(function(item, index){
+            const active = index === currentIndex;
+            item.classList.toggle("is-active", active);
+            item.classList.toggle("is-done", index < currentIndex);
+            item.setAttribute("aria-selected", active ? "true" : "false");
+        });
+
+        if(progress && tab){
+            progress.textContent = "الخطوة " + (currentIndex + 1) + " من " + tabs.length + " — " + tab.textContent.trim();
+        }
+
+        if(prevBtn){
+            prevBtn.disabled = currentIndex === 0;
+        }
+
+        const isLast = currentIndex === tabs.length - 1;
+
+        if(nextBtn){
+            nextBtn.hidden = isLast;
+        }
+
+        if(submitBtn){
+            submitBtn.hidden = !isLast;
+        }
+    }
+
+    function goTo(index, validateCurrent){
+        if(index < 0 || index >= tabs.length){
+            return;
+        }
+
+        if(validateCurrent && index > currentIndex){
+            if(!validatePanel(panelForTab(currentIndex))){
+                return;
+            }
+        }
+
+        currentIndex = index;
+        updateUi();
+    }
+
+    tabs.forEach(function(tab, index){
+        tab.addEventListener("click", function(){
+            goTo(index, false);
+        });
+    });
+
+    if(prevBtn){
+        prevBtn.addEventListener("click", function(){
+            goTo(currentIndex - 1, false);
         });
     }
-});
+
+    if(nextBtn){
+        nextBtn.addEventListener("click", function(){
+            goTo(currentIndex + 1, true);
+        });
+    }
+
+    updateUi();
+}
 
 function initDatePickers(){
     
@@ -1763,25 +1227,132 @@ function safeRemoveRow(btn){
 }
 
 let supplierSearchInput = document.getElementById("supplier_search");
+let supplierResultsBox = document.getElementById("results");
+let supplierSearchBtn = document.getElementById("supplierSearchBtn");
+let supplierListHint = document.getElementById("supplierListHint");
+let supplierLoadTimer = null;
 
-if(supplierSearchInput){
-    supplierSearchInput.addEventListener("keyup", function(){
+function closeSupplierResults(){
+    if(supplierResultsBox){
+        supplierResultsBox.innerHTML = "";
+        supplierResultsBox.classList.remove("is-open");
+    }
+}
 
-        let query = this.value;
+function openSupplierResults(html){
+    if(!supplierResultsBox){
+        return;
+    }
+    supplierResultsBox.innerHTML = html;
+    supplierResultsBox.classList.add("is-open");
+}
 
-        if(query.length < 2){
-            document.getElementById("results").innerHTML = "";
+function searchSuppliersByName(query, showMinHint){
+    const q = (query || "").trim();
+
+    if(q.length < 2){
+        closeSupplierResults();
+        if(showMinHint && supplierListHint){
+            supplierListHint.textContent = "اكتب حرفين على الأقل للبحث عن المورد";
+            supplierListHint.style.color = "#b45309";
+        }
+        return;
+    }
+
+    if(supplierListHint){
+        supplierListHint.textContent = "جاري البحث عن المطابقات...";
+        supplierListHint.style.color = "#7c6bb8";
+    }
+
+    if(supplierSearchBtn){
+        supplierSearchBtn.disabled = true;
+        supplierSearchBtn.textContent = "جاري البحث...";
+    }
+
+    fetch("search_supplier.php?q=" + encodeURIComponent(q))
+        .then(function(res){ return res.text(); })
+        .then(function(data){
+            const html = (data || "").trim();
+            if(html){
+                openSupplierResults(html);
+                if(supplierListHint){
+                    supplierListHint.textContent = "اختر المورد من النتائج المطابقة";
+                    supplierListHint.style.color = "#166534";
+                }
+            }else{
+                openSupplierResults("<div class='item' style='cursor:default;color:#777;'>لا توجد نتائج مطابقة</div>");
+                if(supplierListHint){
+                    supplierListHint.textContent = "لم يُعثر على مورد بهذا الاسم";
+                    supplierListHint.style.color = "#b42318";
+                }
+            }
+        })
+        .catch(function(){
+            openSupplierResults("<div class='item' style='cursor:default;color:#b42318;'>تعذر البحث، حاول مرة أخرى</div>");
+            if(supplierListHint){
+                supplierListHint.textContent = "حدث خطأ أثناء البحث";
+                supplierListHint.style.color = "#b42318";
+            }
+        })
+        .finally(function(){
+            if(supplierSearchBtn){
+                supplierSearchBtn.disabled = false;
+                supplierSearchBtn.textContent = "🔍 بحث";
+            }
+        });
+}
+
+function initSupplierSmartSearch(){
+    const supplierSearch = document.getElementById("supplier_search");
+    const supplierHidden = document.getElementById("supplier_name");
+    const searchBtn = document.getElementById("supplierSearchBtn");
+
+    if(!supplierSearch || !supplierHidden){
+        return;
+    }
+
+    supplierHidden.value = supplierSearch.value;
+
+    supplierSearch.addEventListener("input", function(){
+        supplierHidden.value = this.value;
+
+        clearTimeout(supplierLoadTimer);
+
+        const q = this.value.trim();
+        if(q.length < 2){
+            closeSupplierResults();
+            if(supplierListHint){
+                supplierListHint.textContent = "اكتب حرفين على الأقل ثم اضغط بحث أو انتظر لحظات لعرض المطابقات";
+                supplierListHint.style.color = "#7c6bb8";
+            }
             return;
         }
 
-        fetch("search_supplier.php?q=" + encodeURIComponent(query))
-            .then(res => res.text())
-            .then(data => {
-                document.getElementById("results").innerHTML = data;
-            })
-            .catch(() => {
-                document.getElementById("results").innerHTML = "<div class='item'>تعذر البحث عن المورد</div>";
-            });
+        supplierLoadTimer = setTimeout(function(){
+            searchSuppliersByName(q, false);
+        }, 400);
+    });
+
+    supplierSearch.addEventListener("keydown", function(e){
+        if(e.key === "Enter"){
+            e.preventDefault();
+            clearTimeout(supplierLoadTimer);
+            searchSuppliersByName(this.value.trim(), true);
+        }
+    });
+
+    if(searchBtn){
+        searchBtn.addEventListener("click", function(){
+            clearTimeout(supplierLoadTimer);
+            searchSuppliersByName(supplierSearch.value.trim(), true);
+        });
+    }
+
+    document.addEventListener("click", function(e){
+        const box = document.getElementById("supplier_search_box");
+        if(box && !box.contains(e.target)){
+            closeSupplierResults();
+        }
     });
 }
 
@@ -1801,10 +1372,32 @@ if(resultsBox){
     });
 }
 
-function selectSupplier(name){
-    document.getElementById("supplier_search").value = name;
-    document.getElementById("supplier_name").value = name;
-    document.getElementById("results").innerHTML = "";
+function selectSupplier(name, contact, phone){
+    const searchEl = document.getElementById("supplier_search");
+    const hiddenEl = document.getElementById("supplier_name");
+    const companyEl = document.getElementById("company_name");
+    const phoneEl = document.getElementById("supplier_phone");
+
+    if(searchEl){
+        searchEl.value = name || "";
+    }
+    if(hiddenEl){
+        hiddenEl.value = name || "";
+    }
+    if(companyEl && contact){
+        companyEl.value = contact;
+    }
+    if(phoneEl && phone){
+        phoneEl.value = phone;
+    }
+    if(supplierResultsBox){
+        supplierResultsBox.innerHTML = "";
+        supplierResultsBox.classList.remove("is-open");
+    }
+    if(supplierListHint){
+        supplierListHint.textContent = "تم اختيار المورد — يمكنك المتابعة للخطوة التالية";
+        supplierListHint.style.color = "#166534";
+    }
 }
 
 document.querySelector("form").addEventListener("submit", function(){
