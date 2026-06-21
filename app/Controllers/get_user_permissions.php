@@ -1,7 +1,5 @@
 ﻿<?php
 
-declare(strict_types=1);
-
 require_once VC_HELPERS . '/scope_helper.php';
 
 if (session_status() === PHP_SESSION_NONE) {
