@@ -49,12 +49,14 @@ final class VcDb
         $sslmode = $query['sslmode'] ?? 'require';
 
         $options = '';
-        if (str_contains($host, '.neon.tech')) {
-            $endpointHost = explode('.', $host)[0];
-            $endpointId = preg_replace('/-pooler$/', '', $endpointHost) ?? $endpointHost;
-            $options = ';options=endpoint=' . $endpointId;
-        } elseif (!empty($query['options'])) {
+        if (!empty($query['options'])) {
             $options = ';options=' . (string) $query['options'];
+        } elseif (str_contains($host, '.neon.tech')) {
+            $endpointHost = explode('.', $host)[0];
+            // مع pooler لا نضيف endpoint — Neon يستنتجه من SNI
+            if (!str_contains($endpointHost, '-pooler')) {
+                $options = ';options=endpoint=' . $endpointHost;
+            }
         }
 
         $dsn = sprintf(
