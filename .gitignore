@@ -1,6 +1,7 @@
 # Environment & secrets
 .env
 .env.*
+!.env.example
 *.local.php
 
 # Dependencies
@@ -11,6 +12,13 @@
 *.log
 /cache/
 /tmp/
+
+# Local SQLite database
+/database/local.sqlite
+/database/*.sqlite
+/database/*.sqlite-journal
+/database/*.sqlite-wal
+/database/*.sqlite-shm
 
 # OS & IDE
 .DS_Store

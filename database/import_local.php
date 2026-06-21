@@ -1,7 +1,7 @@
 <?php
 /**
- * استيراد database.sql إلى PostgreSQL (Neon) — بيئة الإنتاج
- * الاستخدام: php database/import_neon.php --fresh
+ * استيراد database.sql إلى SQLite المحلي
+ * الاستخدام: php database/import_local.php --fresh
  */
 
 declare(strict_types=1);
@@ -28,10 +28,9 @@ function vcLoadEnvInline(string $root): void
 
 vcLoadEnvInline($root);
 
-$url = getenv('DATABASE_URL') ?: '';
-if ($url === '') {
-    fwrite(STDERR, "DATABASE_URL missing in .env (set APP_ENV=production)\n");
-    exit(1);
+$sqlitePath = trim((string) (getenv('SQLITE_PATH') ?: 'database/local.sqlite'));
+if (!preg_match('/^[A-Za-z]:[\\\\\\/]|^\//', $sqlitePath)) {
+    $sqlitePath = $root . '/' . ltrim(str_replace('\\', '/', $sqlitePath), '/');
 }
 
 $source = $root . '/database/database.sql';
@@ -45,17 +44,15 @@ if ($raw === false) {
     exit(1);
 }
 
-try {
-    $db = VcDb::fromDatabaseUrl($url);
-    $pdo = $db->pdo();
+$argv = $argv ?? [];
+if (in_array('--fresh', $argv, true) && is_file($sqlitePath)) {
+    unlink($sqlitePath);
+    echo "Removed old SQLite file.\n";
+}
 
-    $argv = $argv ?? [];
-    if (in_array('--fresh', $argv, true)) {
-        $pdo->exec('DROP SCHEMA public CASCADE');
-        $pdo->exec('CREATE SCHEMA public');
-        $pdo->exec('GRANT ALL ON SCHEMA public TO public');
-        echo "Schema reset.\n";
-    }
+try {
+    $db = VcDb::fromSqlite($sqlitePath);
+    $pdo = $db->pdo();
 } catch (Throwable $e) {
     fwrite(STDERR, 'Connect failed: ' . $e->getMessage() . "\n");
     exit(1);
@@ -68,7 +65,7 @@ $fail = 0;
 $tables = [];
 
 foreach ($statements as $stmt) {
-    $converted = vcImportConvertMysqlStatement($stmt, 'pgsql');
+    $converted = vcImportConvertMysqlStatement($stmt, 'sqlite');
     if ($converted === null) {
         $skip++;
         continue;
@@ -87,11 +84,5 @@ foreach ($statements as $stmt) {
     }
 }
 
-foreach (array_keys($tables) as $table) {
-    try {
-        $pdo->exec("SELECT setval(pg_get_serial_sequence('{$table}', 'id'), COALESCE((SELECT MAX(id) FROM {$table}), 1), true)");
-    } catch (Throwable) {
-    }
-}
-
 echo "\nDone. ok={$ok} skip={$skip} fail={$fail} tables=" . count($tables) . "\n";
+echo "SQLite: {$sqlitePath}\n";

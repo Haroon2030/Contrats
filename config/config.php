@@ -5,7 +5,7 @@ date_default_timezone_set('Asia/Riyadh');
 require_once dirname(__DIR__) . '/app/Core/VcDb.php';
 
 /**
- * تحميل DATABASE_URL من .env أو متغير البيئة.
+ * تحميل المتغيرات من .env
  */
 function vcLoadEnv(string $root): void
 {
@@ -40,17 +40,25 @@ function vcLoadEnv(string $root): void
     }
 }
 
-vcLoadEnv(dirname(__DIR__));
+$vcRoot = dirname(__DIR__);
+vcLoadEnv($vcRoot);
 
-$databaseUrl = getenv('DATABASE_URL') ?: '';
-
-if ($databaseUrl === '') {
-    http_response_code(500);
-    die('❌ DATABASE_URL غير معرّف. أنشئ ملف .env من .env.example');
-}
+$appEnv = strtolower(trim((string) (getenv('APP_ENV') ?: 'local')));
 
 try {
-    $conn = VcDb::fromDatabaseUrl($databaseUrl);
+    if ($appEnv === 'production') {
+        $databaseUrl = getenv('DATABASE_URL') ?: '';
+        if ($databaseUrl === '') {
+            throw new RuntimeException('DATABASE_URL غير معرّف لبيئة الإنتاج');
+        }
+        $conn = VcDb::fromDatabaseUrl($databaseUrl);
+    } else {
+        $sqlitePath = trim((string) (getenv('SQLITE_PATH') ?: 'database/local.sqlite'));
+        if (!preg_match('/^[A-Za-z]:[\\\\\\/]|^\//', $sqlitePath)) {
+            $sqlitePath = $vcRoot . '/' . ltrim(str_replace('\\', '/', $sqlitePath), '/');
+        }
+        $conn = VcDb::fromSqlite($sqlitePath);
+    }
 } catch (Throwable $e) {
     http_response_code(500);
     die('❌ تعذر الاتصال بقاعدة البيانات: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'));
