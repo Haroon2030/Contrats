@@ -518,7 +518,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 $usersRes = $conn->query("
     SELECT id, username, role, job_role, " . ($hasIsAdminColumn ? "is_admin" : "0 AS is_admin") . ", manager_id, is_supervisor, session_version, last_password_change, whatsapp_number, whatsapp_enabled, is_active
     FROM users
-    ORDER BY id DESC
+    ORDER BY is_active DESC,
+        CASE COALESCE(NULLIF(job_role, ''), 'user')
+            WHEN 'admin' THEN 1
+            WHEN 'commercial_manager' THEN 2
+            WHEN 'finance_manager' THEN 3
+            WHEN 'section_manager' THEN 4
+            WHEN 'accountant' THEN 5
+            ELSE 6
+        END,
+        username ASC
 ");
 
 $pagesRes = $conn->query("
@@ -551,6 +560,49 @@ $managerOptions = array_values(array_filter($users, function($oneUser) {
 $userNamesById = [];
 foreach ($users as $oneUser) {
     $userNamesById[(int)$oneUser['id']] = (string)$oneUser['username'];
+}
+
+$userStats = [
+    'total' => count($users),
+    'active' => 0,
+    'inactive' => 0,
+    'managers' => 0,
+];
+foreach ($users as $oneUser) {
+    if ((int)($oneUser['is_active'] ?? 1) === 1) {
+        $userStats['active']++;
+    } else {
+        $userStats['inactive']++;
+    }
+    $jr = (string)($oneUser['job_role'] ?? 'user');
+    if (in_array($jr, ['admin', 'commercial_manager', 'finance_manager', 'section_manager'], true)
+        || (int)($oneUser['is_supervisor'] ?? 0) === 1) {
+        $userStats['managers']++;
+    }
+}
+
+function usersRoleKey(array $u): string {
+    $jobRole = (string)($u['job_role'] ?? 'user');
+    if (($u['role'] ?? '') === 'admin' || (int)($u['is_admin'] ?? 0) === 1) {
+        if ($jobRole !== 'commercial_manager') {
+            $jobRole = 'admin';
+        }
+    }
+
+    return $jobRole;
+}
+
+function usersRoleLabel(string $jobRole): string {
+    $roleMap = [
+        'user' => 'مستخدم',
+        'section_manager' => 'مدير قسم',
+        'commercial_manager' => 'مدير تجاري',
+        'finance_manager' => 'مدير مالي',
+        'accountant' => 'محاسب',
+        'admin' => 'أدمن',
+    ];
+
+    return $roleMap[$jobRole] ?? 'مستخدم';
 }
 
 /* بيانات عرض كروت الصلاحيات */
@@ -911,8 +963,146 @@ body{
 }
 
 .page-head{
-    text-align:center;
     margin-bottom:22px;
+}
+
+.users-stats{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:12px;
+    margin-bottom:18px;
+}
+
+.stat-card{
+    background:rgba(255,255,255,.72);
+    border:1px solid rgba(226,232,240,.95);
+    border-radius:18px;
+    padding:14px 16px;
+    box-shadow:4px 4px 12px #d1d9e6,-4px -4px 12px #fff;
+}
+
+.stat-card strong{
+    display:block;
+    font-size:24px;
+    font-weight:900;
+    color:#4f46e5;
+    line-height:1.2;
+}
+
+.stat-card span{
+    display:block;
+    margin-top:4px;
+    font-size:13px;
+    font-weight:800;
+    color:#667085;
+}
+
+.users-toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+}
+
+.users-toolbar-filters{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+    flex:1;
+}
+
+.users-toolbar-filters input,
+.users-toolbar-filters select{
+    max-width:220px;
+    min-height:42px;
+}
+
+.users-toolbar-actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+}
+
+.user-form-panel{
+    margin-bottom:18px;
+}
+
+.user-form-panel:not(.is-open){
+    display:none;
+}
+
+.user-form-panel .panel-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:14px;
+}
+
+.user-form-panel .panel-head .section-title{
+    margin:0;
+}
+
+.form-sections{
+    display:grid;
+    gap:14px;
+}
+
+.form-section{
+    background:#f8fafc;
+    border:1px solid #e2e8f0;
+    border-radius:18px;
+    padding:14px;
+}
+
+.form-section-title{
+    margin:0 0 12px;
+    font-size:14px;
+    font-weight:900;
+    color:#4f46e5;
+}
+
+.status-pill{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:30px;
+    padding:4px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:900;
+}
+
+.status-pill.active{
+    background:#ecfdf3;
+    color:#166534;
+}
+
+.status-pill.inactive{
+    background:#fee2e2;
+    color:#991b1b;
+}
+
+.user-meta-line{
+    margin-top:6px;
+    font-size:12px;
+    font-weight:700;
+    color:#667085;
+}
+
+.users-empty-filter{
+    display:none;
+    text-align:center;
+    padding:18px;
+    color:#667085;
+    font-weight:800;
+}
+
+.users-empty-filter.is-visible{
+    display:block;
 }
 
 .page-title{
@@ -1441,13 +1631,13 @@ select:focus{
     background:#f6f4ff;
 }
 
-.col-id{width:70px;}
-.col-name{width:25%;}
-.col-role{width:130px;}
-.col-whatsapp{width:170px;}
-.col-pass{width:150px;}
-.col-session{width:170px;}
-.col-actions{width:210px;}
+.col-id{width:60px;}
+.col-name{width:22%;}
+.col-role{width:120px;}
+.col-structure{width:16%;}
+.col-whatsapp{width:14%;}
+.col-status{width:110px;}
+.col-actions{width:180px;}
 
 .user-name{
     font-weight:900;
@@ -1527,18 +1717,29 @@ select:focus{
     font-weight:900;
 }
 
-@media(max-width:1000px){
+@media(max-width:1100px){
+    .users-stats{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+    }
+
     .form-grid,
     .password-row{
         grid-template-columns:1fr;
     }
 
+    .permissions-head{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+}
+
+@media(max-width:1000px){
     .table-box{
         overflow-x:auto;
     }
 
     .table{
-        min-width:980px;
+        min-width:760px;
     }
 }
 
@@ -1546,6 +1747,21 @@ select:focus{
     .container{
         width:calc(100% - 18px);
         margin-top:18px;
+    }
+
+    .users-stats{
+        grid-template-columns:1fr 1fr;
+    }
+
+    .users-toolbar{
+        flex-direction:column;
+        align-items:stretch;
+    }
+
+    .users-toolbar-filters input,
+    .users-toolbar-filters select{
+        max-width:none;
+        width:100%;
     }
 
     .page-title{
@@ -1566,10 +1782,8 @@ select:focus{
 <div class="container">
 
     <div class="page-head">
-        <h1 class="page-title">👥 إدارة المستخدمين</h1>
-        <p class="page-subtitle">
-            إضافة المستخدمين وتعديل بياناتهم وصلاحيات الوصول للصفحات.
-        </p>
+        <h1 class="page-title">إدارة المستخدمين</h1>
+        <p class="page-subtitle">عرض الحسابات، البحث والتصفية، ثم إضافة أو تعديل المستخدم وصلاحياته.</p>
     </div>
 
     <?php if(isset($_GET['saved'])): ?>
@@ -1594,14 +1808,173 @@ select:focus{
         <div class="alert alert-error"><?= e($error) ?></div>
     <?php endif; ?>
 
+    <div class="users-stats">
+        <div class="stat-card"><strong><?= (int)$userStats['total'] ?></strong><span>إجمالي المستخدمين</span></div>
+        <div class="stat-card"><strong><?= (int)$userStats['active'] ?></strong><span>نشط</span></div>
+        <div class="stat-card"><strong><?= (int)$userStats['inactive'] ?></strong><span>معطّل</span></div>
+        <div class="stat-card"><strong><?= (int)$userStats['managers'] ?></strong><span>مدراء وإشراف</span></div>
+    </div>
+
+    <div class="table-box">
+        <div class="users-toolbar">
+            <div class="users-toolbar-filters">
+                <input type="search" id="userSearch" placeholder="بحث بالاسم أو الرقم..." oninput="filterUsersTable()">
+                <select id="userRoleFilter" onchange="filterUsersTable()">
+                    <option value="">كل الأنواع</option>
+                    <option value="admin">أدمن</option>
+                    <option value="commercial_manager">مدير تجاري</option>
+                    <option value="finance_manager">مدير مالي</option>
+                    <option value="section_manager">مدير قسم</option>
+                    <option value="accountant">محاسب</option>
+                    <option value="user">مستخدم</option>
+                </select>
+                <select id="userStatusFilter" onchange="filterUsersTable()">
+                    <option value="">كل الحالات</option>
+                    <option value="1">نشط فقط</option>
+                    <option value="0">معطّل فقط</option>
+                </select>
+            </div>
+            <div class="users-toolbar-actions">
+                <button type="button" class="btn btn-primary" onclick="openUserForm(true)">+ إضافة مستخدم</button>
+            </div>
+        </div>
+
+        <div class="section-title">قائمة المستخدمين</div>
+
+        <table class="table" id="usersTable">
+            <thead>
+                <tr>
+                    <th class="col-id">#</th>
+                    <th class="col-name">المستخدم</th>
+                    <th class="col-role">النوع</th>
+                    <th class="col-structure">الهيكل</th>
+                    <th class="col-whatsapp">واتساب</th>
+                    <th class="col-status">الحالة</th>
+                    <th class="col-actions">إجراءات</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <?php if(!empty($users)): ?>
+                    <?php foreach($users as $u): ?>
+                        <?php
+                            $jobRole = usersRoleKey($u);
+                            $roleText = usersRoleLabel($jobRole);
+                            $roleClass = in_array($jobRole, ['admin','commercial_manager','finance_manager'], true) ? 'role-admin' : 'role-user';
+                            $isActive = (int)($u['is_active'] ?? 1) === 1;
+                            $lastChange = !empty($u['last_password_change'])
+                                ? date("Y-m-d H:i", strtotime($u['last_password_change']))
+                                : '-';
+                            $searchText = strtolower(trim(
+                                (string)$u['username'] . ' ' .
+                                (string)($u['whatsapp_number'] ?? '') . ' ' .
+                                (string)($userNamesById[(int)($u['manager_id'] ?? 0)] ?? '')
+                            ));
+                        ?>
+
+                        <tr class="user-row"
+                            data-role="<?= e($jobRole) ?>"
+                            data-active="<?= $isActive ? '1' : '0' ?>"
+                            data-search="<?= e($searchText) ?>">
+                            <td>#<?= (int)$u['id'] ?></td>
+
+                            <td class="user-name">
+                                <?= e($u['username']) ?>
+                                <div class="user-meta-line">جلسة v<?= (int)($u['session_version'] ?? 1) ?> · آخر تغيير مرور: <?= e($lastChange) ?></div>
+                            </td>
+
+                            <td>
+                                <span class="role-badge <?= e($roleClass) ?>"><?= e($roleText) ?></span>
+                            </td>
+
+                            <td>
+                                <?php if(!empty($u['manager_id']) && isset($userNamesById[(int)$u['manager_id']])): ?>
+                                    <span class="session-badge">تحت: <?= e($userNamesById[(int)$u['manager_id']]) ?></span>
+                                <?php else: ?>
+                                    <span class="session-badge">بدون مدير</span>
+                                <?php endif; ?>
+                            </td>
+
+                            <td>
+                                <?php if(!empty($u['whatsapp_number'])): ?>
+                                    <span class="session-badge" title="<?= ((int)($u['whatsapp_enabled'] ?? 1) === 1) ? 'واتساب مفعل' : 'واتساب موقوف' ?>">
+                                        <?= e($u['whatsapp_number']) ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="session-badge">—</span>
+                                <?php endif; ?>
+                            </td>
+
+                            <td>
+                                <span class="status-pill <?= $isActive ? 'active' : 'inactive' ?>">
+                                    <?= $isActive ? 'نشط' : 'معطّل' ?>
+                                </span>
+                            </td>
+
+                            <td>
+                                <div class="actions">
+                                    <button type="button"
+                                            class="btn btn-edit"
+                                            onclick='editUser(<?= json_encode([
+                                                "id" => (int)$u["id"],
+                                                "username" => $u["username"],
+                                                "account_type" => (string)($u["job_role"] ?? "user"),
+                                                "whatsapp_number" => $u["whatsapp_number"] ?? "",
+                                                "whatsapp_enabled" => (int)($u["whatsapp_enabled"] ?? 1),
+                                                "manager_id" => (int)($u["manager_id"] ?? 0),
+                                                "is_supervisor" => (int)($u["is_supervisor"] ?? 0),
+                                                "is_active" => (int)($u["is_active"] ?? 1)
+                                            ], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
+                                        تعديل
+                                    </button>
+
+                                    <?php if((int)$u['id'] !== $uid): ?>
+                                        <?php if($isActive): ?>
+                                            <form method="POST" onsubmit="return confirm('تعطيل المستخدم؟ لن يتم حذف عقوده أو نشاطاته، فقط سيتم منعه من الدخول.')">
+                                                <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
+                                                <input type="hidden" name="action" value="deactivate_user">
+                                                <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                                                <button type="submit" class="btn btn-delete">تعطيل</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <form method="POST" onsubmit="return confirm('تفعيل المستخدم مرة أخرى؟')">
+                                                <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
+                                                <input type="hidden" name="action" value="activate_user">
+                                                <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                                                <button type="submit" class="btn btn-edit">تفعيل</button>
+                                            </form>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="7" class="empty">لا يوجد مستخدمين</td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+
+        <div class="users-empty-filter" id="usersEmptyFilter">لا توجد نتائج مطابقة للبحث أو التصفية.</div>
+    </div>
+
+    <div class="user-form-panel" id="userFormPanel">
     <div class="panel">
-        <div class="section-title">إضافة / تعديل مستخدم</div>
+        <div class="panel-head">
+            <div class="section-title" id="userFormTitle">إضافة مستخدم</div>
+            <button type="button" class="btn btn-muted" onclick="closeUserForm()">إغلاق</button>
+        </div>
 
         <form method="POST" id="userForm" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
             <input type="hidden" name="action" value="save_user">
             <input type="hidden" name="id" id="id" value="0">
 
+            <div class="form-sections">
+            <div class="form-section">
+            <h3 class="form-section-title">البيانات الأساسية</h3>
             <div class="form-grid">
                 <div class="input-group">
                     <label for="username">اسم المستخدم</label>
@@ -1660,8 +2033,10 @@ select:focus{
                     <small class="field-hint">القائمة تعرض مديرين الأقسام والمدير المالي والمدير التجاري والأدمن فقط.</small>
                 </div>
             </div>
+            </div>
 
-
+            <div class="form-section">
+            <h3 class="form-section-title">كلمة المرور</h3>
             <div class="password-row">
                 <label class="check-line">
                     <input type="checkbox" id="changePass" onchange="togglePass()" checked>
@@ -1673,10 +2048,11 @@ select:focus{
                     <input type="password" name="password" id="password" placeholder="كلمة المرور الجديدة">
                 </div>
             </div>
+            </div>
 
-            <div id="permissionsArea">
+            <div class="form-section" id="permissionsArea">
+                <h3 class="form-section-title">الصلاحيات والصفحات</h3>
                 <div class="permissions-head">
-                    <div class="section-title" style="margin:0;">الصلاحيات</div>
                     <div class="permissions-note" id="rolePermissionNote">اختار الإدارة، أو فعّل الصفحات يدويًا. بعض الصفحات لا تحتاج صلاحيات أخرى.</div>
                 </div>
 
@@ -1865,153 +2241,92 @@ select:focus{
                     <?php endforeach; ?>
                 </div>
             </div>
+            </div>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">💾 حفظ المستخدم</button>
+                <button type="submit" class="btn btn-primary">حفظ المستخدم</button>
                 <button type="button" class="btn btn-muted" onclick="resetForm()">تفريغ النموذج</button>
             </div>
         </form>
     </div>
-
-    <div class="table-box">
-        <div class="section-title">المستخدمين</div>
-
-        <table class="table">
-            <thead>
-                <tr>
-                    <th class="col-id">ID</th>
-                    <th class="col-name">اسم المستخدم</th>
-                    <th class="col-role">نوع الحساب</th>
-                    <th class="col-role">الهيكل</th>
-                    <th class="col-whatsapp">واتساب</th>
-                    <th class="col-pass">كلمة المرور</th>
-                    <th class="col-session">حالة الجلسة</th>
-                    <th class="col-actions">تحكم</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                <?php if(!empty($users)): ?>
-                    <?php foreach($users as $u): ?>
-                        <?php
-                            $jobRole = (string)($u['job_role'] ?? 'user');
-                            if (($u['role'] ?? '') === 'admin' || (int)($u['is_admin'] ?? 0) === 1) {
-                                if (!in_array($jobRole, ['commercial_manager'], true)) {
-                                    $jobRole = 'admin';
-                                }
-                            }
-                            $roleMap = [
-                                'user' => 'مستخدم',
-                                'section_manager' => 'مدير قسم',
-                                'commercial_manager' => 'مدير تجاري',
-                                'finance_manager' => 'مدير مالي',
-                                'accountant' => 'محاسب',
-                                'admin' => 'أدمن'
-                            ];
-                            $roleText = $roleMap[$jobRole] ?? 'مستخدم';
-
-                            $roleClass = in_array($jobRole, ['admin','commercial_manager','finance_manager'], true) ? 'role-admin' : 'role-user';
-
-                            $lastChange = !empty($u['last_password_change'])
-                                ? date("Y-m-d H:i", strtotime($u['last_password_change']))
-                                : '-';
-                        ?>
-
-                        <tr>
-                            <td>#<?= (int)$u['id'] ?></td>
-
-                            <td class="user-name"><?= e($u['username']) ?>
-                                    <?php if((int)($u['is_active'] ?? 1) !== 1): ?>
-                                        <div style="margin-top:6px"><span class="session-badge" style="background:#fee2e2;color:#991b1b">معطل</span></div>
-                                    <?php endif; ?></td>
-
-                            <td>
-                                <span class="role-badge <?= e($roleClass) ?>">
-                                    <?= e($roleText) ?>
-                                </span>
-                            </td>
-
-                            <td>
-                                <span class="session-badge">
-                                    <?php if(!empty($u['manager_id']) && isset($userNamesById[(int)$u['manager_id']])): ?>
-                                        تحت: <?= e($userNamesById[(int)$u['manager_id']]) ?>
-                                    <?php else: ?>
-                                        بدون مدير مباشر
-                                    <?php endif; ?>
-                                </span>
-                            </td>
-
-
-                            <td>
-                                <?php if(!empty($u['whatsapp_number'])): ?>
-                                    <span class="session-badge" title="<?= ((int)($u['whatsapp_enabled'] ?? 1) === 1) ? 'واتساب مفعل' : 'واتساب موقوف' ?>">
-                                        <?= e($u['whatsapp_number']) ?>
-                                    </span>
-                                <?php else: ?>
-                                    <span class="session-badge">غير مسجل</span>
-                                <?php endif; ?>
-                            </td>
-
-                            <td>
-                                <span class="pass-safe">محفوظة بأمان</span>
-                            </td>
-
-                            <td>
-                                <span class="session-badge" title="آخر تغيير كلمة مرور: <?= e($lastChange) ?>">
-                                    إصدار <?= (int)($u['session_version'] ?? 1) ?>
-                                </span>
-                            </td>
-
-                            <td>
-                                <div class="actions">
-                                    <button type="button"
-                                            class="btn btn-edit"
-                                            onclick='editUser(<?= json_encode([
-                                                "id" => (int)$u["id"],
-                                                "username" => $u["username"],
-                                                "account_type" => (string)($u["job_role"] ?? "user"),
-                                                "whatsapp_number" => $u["whatsapp_number"] ?? "",
-                                                "whatsapp_enabled" => (int)($u["whatsapp_enabled"] ?? 1),
-                                                "manager_id" => (int)($u["manager_id"] ?? 0),
-                                                "is_supervisor" => (int)($u["is_supervisor"] ?? 0),
-                                                "is_active" => (int)($u["is_active"] ?? 1)
-                                            ], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
-                                        تعديل
-                                    </button>
-
-                                    <?php if((int)$u['id'] !== $uid): ?>
-                                        <?php if((int)($u['is_active'] ?? 1) === 1): ?>
-                                            <form method="POST" onsubmit="return confirm('تعطيل المستخدم؟ لن يتم حذف عقوده أو نشاطاته، فقط سيتم منعه من الدخول.')">
-                                                <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
-                                                <input type="hidden" name="action" value="deactivate_user">
-                                                <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-                                                <button type="submit" class="btn btn-delete">تعطيل</button>
-                                            </form>
-                                        <?php else: ?>
-                                            <form method="POST" onsubmit="return confirm('تفعيل المستخدم مرة أخرى؟')">
-                                                <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
-                                                <input type="hidden" name="action" value="activate_user">
-                                                <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-                                                <button type="submit" class="btn btn-edit">تفعيل</button>
-                                            </form>
-                                        <?php endif; ?>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr>
-                        <td colspan="8" class="empty">لا يوجد مستخدمين</td>
-                    </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
     </div>
 
 </div>
 
 <script>
+function filterUsersTable(){
+    const q = (document.getElementById("userSearch")?.value || "").trim().toLowerCase();
+    const role = document.getElementById("userRoleFilter")?.value || "";
+    const status = document.getElementById("userStatusFilter")?.value || "";
+    let visible = 0;
+
+    document.querySelectorAll(".user-row").forEach(function(row){
+        const hay = (row.getAttribute("data-search") || "").toLowerCase();
+        const rowRole = row.getAttribute("data-role") || "";
+        const rowActive = row.getAttribute("data-active") || "";
+
+        const matchSearch = !q || hay.includes(q);
+        const matchRole = !role || rowRole === role;
+        const matchStatus = status === "" || rowActive === status;
+        const show = matchSearch && matchRole && matchStatus;
+
+        row.style.display = show ? "" : "none";
+        if(show){
+            visible++;
+        }
+    });
+
+    const emptyBox = document.getElementById("usersEmptyFilter");
+    if(emptyBox){
+        emptyBox.classList.toggle("is-visible", visible === 0 && document.querySelectorAll(".user-row").length > 0);
+    }
+}
+
+function openUserForm(isNew){
+    const panel = document.getElementById("userFormPanel");
+    const title = document.getElementById("userFormTitle");
+    if(panel){
+        panel.classList.add("is-open");
+    }
+    if(title){
+        title.textContent = isNew ? "إضافة مستخدم" : "تعديل مستخدم";
+    }
+    if(isNew){
+        clearUserFormFields();
+    }
+    panel?.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function closeUserForm(){
+    const panel = document.getElementById("userFormPanel");
+    if(panel){
+        panel.classList.remove("is-open");
+    }
+}
+
+function clearUserFormFields(){
+    document.getElementById("id").value = "0";
+    document.getElementById("username").value = "";
+    document.getElementById("account_type").value = "user";
+    document.getElementById("whatsapp_number").value = "";
+    document.getElementById("whatsapp_enabled").checked = true;
+    document.getElementById("manager_id").value = "0";
+
+    document.getElementById("changePass").checked = true;
+    document.getElementById("password").disabled = false;
+    document.getElementById("password").value = "";
+
+    const permissionSearch = document.getElementById("permissionSearch");
+    if(permissionSearch){
+        permissionSearch.value = "";
+        filterPermissionCards();
+    }
+
+    resetPermissions();
+    handleAccountTypeChange("user");
+    prepareNewUserPassword();
+}
+
 function filterPermissionCards(){
     const input = document.getElementById("permissionSearch");
     const q = input ? input.value.trim().toLowerCase() : "";
@@ -2222,31 +2537,16 @@ function applyDepartment(dept){
 }
 
 function resetForm(){
-    document.getElementById("id").value = "0";
-    document.getElementById("username").value = "";
-    document.getElementById("account_type").value = "user";
-    document.getElementById("whatsapp_number").value = "";
-    document.getElementById("whatsapp_enabled").checked = true;
-    document.getElementById("manager_id").value = "0";
-
-    document.getElementById("changePass").checked = true;
-    document.getElementById("password").disabled = false;
-    document.getElementById("password").value = "";
-
-    const permissionSearch = document.getElementById("permissionSearch");
-    if(permissionSearch){
-        permissionSearch.value = "";
-        filterPermissionCards();
+    clearUserFormFields();
+    const title = document.getElementById("userFormTitle");
+    if(title){
+        title.textContent = "إضافة مستخدم";
     }
-
-    resetPermissions();
-    handleAccountTypeChange("user");
-
-    window.scrollTo({top:0, behavior:"smooth"});
+    openUserForm(true);
 }
 
 function editUser(u){
-    window.scrollTo({top:0, behavior:"smooth"});
+    openUserForm(false);
 
     document.getElementById("id").value = u.id;
     document.getElementById("username").value = u.username;
@@ -2293,7 +2593,9 @@ function editUser(u){
 }
 
 document.addEventListener("DOMContentLoaded", function(){
-    resetForm();
+    handleAccountTypeChange("user");
+    prepareNewUserPassword();
+    filterUsersTable();
 });
 </script>
 
