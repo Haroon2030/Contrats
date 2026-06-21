@@ -42,6 +42,40 @@ if (!function_exists('vcScopeColumnExists')) {
     }
 }
 
+if (!function_exists('vcTableExists')) {
+    function vcTableExists(VcDb $conn, string $table): bool {
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+            return false;
+        }
+
+        try {
+            if ($conn->driver() === 'sqlite') {
+                $stmt = $conn->prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type = 'table' AND name = ?");
+            } else {
+                $stmt = $conn->prepare("
+                    SELECT COUNT(*) AS c
+                    FROM information_schema.tables
+                    WHERE table_schema = current_schema()
+                    AND table_name = ?
+                ");
+            }
+
+            if (!$stmt) {
+                return false;
+            }
+
+            $stmt->bind_param('s', $table);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            return !empty($row) && (int) ($row['c'] ?? 0) > 0;
+        } catch (Throwable) {
+            return false;
+        }
+    }
+}
+
 if (!function_exists('vcGetDirectChildrenIds')) {
     function vcGetDirectChildrenIds(VcDb $conn, int $managerId): array {
         if ($managerId <= 0 || !vcScopeColumnExists($conn, 'users', 'manager_id')) {

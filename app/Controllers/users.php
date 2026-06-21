@@ -73,55 +73,53 @@ if ($uid <= 0) {
 }
 
 /*
-    مهم لتسجيل الخروج بعد تغيير الباسورد:
-    بنضيف session_version لو مش موجود.
-    وبعد كده لازم auth.php يقارنها مع السيشن.
+    في الإنتاج: التعديلات على الجداول عبر database/migrations/ (تُشغَّل تلقائياً عند النشر).
+    محلياً (SQLite): نُبقي ALTER التلقائي للتوافق مع قواعد قديمة.
 */
-if (!vcColumnExists($conn, 'users', 'session_version')) {
-    $conn->query("ALTER TABLE users ADD COLUMN session_version INT NOT NULL DEFAULT 1");
-}
-
-if (!vcColumnExists($conn, 'users', 'last_password_change')) {
-    $conn->query("ALTER TABLE users ADD COLUMN last_password_change DATETIME NULL");
-}
-
-if (!vcColumnExists($conn, 'users', 'whatsapp_number')) {
-    $conn->query("ALTER TABLE users ADD COLUMN whatsapp_number VARCHAR(30) NULL");
-}
-
-if (!vcColumnExists($conn, 'users', 'whatsapp_enabled')) {
-    $conn->query("ALTER TABLE users ADD COLUMN whatsapp_enabled TINYINT(1) NOT NULL DEFAULT 1");
-}
-
-if (!vcColumnExists($conn, 'users', 'is_active')) {
-    $conn->query("ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1");
-}
-
-if (!vcColumnExists($conn, 'users', 'manager_id')) {
-    $conn->query("ALTER TABLE users ADD COLUMN manager_id INT NULL DEFAULT NULL AFTER role");
-}
-
-if (!vcColumnExists($conn, 'users', 'is_supervisor')) {
-    $conn->query("ALTER TABLE users ADD COLUMN is_supervisor TINYINT(1) NOT NULL DEFAULT 0 AFTER manager_id");
-}
-
-if (!vcColumnExists($conn, 'users', 'job_role')) {
-    $conn->query("ALTER TABLE users ADD COLUMN job_role ENUM('user','section_manager','finance_manager','commercial_manager','accountant','admin') NOT NULL DEFAULT 'user' AFTER role");
-    $conn->query("UPDATE users SET job_role = CASE WHEN role = 'admin' OR is_admin = 1 THEN 'admin' WHEN is_supervisor = 1 THEN 'section_manager' ELSE 'user' END");
-} else {
-    // توسيع نوع الحساب لإضافة محاسب بدون كسر البيانات القديمة
-    @$conn->query("ALTER TABLE users MODIFY job_role ENUM('user','section_manager','finance_manager','commercial_manager','accountant','admin') NOT NULL DEFAULT 'user'");
-}
-
-
-/* المدير التجاري يأخذ صلاحيات الأدمن كاملة */
-if ($hasIsAdminColumn ?? vcColumnExists($conn, 'users', 'is_admin')) {
-    $conn->query("UPDATE users SET role = 'admin', is_admin = 1 WHERE job_role = 'commercial_manager'");
-} else {
-    $conn->query("UPDATE users SET role = 'admin' WHERE job_role = 'commercial_manager'");
-}
-
+$vcAppEnv = strtolower(trim((string) (vcEnv('APP_ENV', 'local') ?? 'local')));
 $hasIsAdminColumn = vcColumnExists($conn, 'users', 'is_admin');
+if ($vcAppEnv !== 'production') {
+    if (!vcColumnExists($conn, 'users', 'session_version')) {
+        $conn->query("ALTER TABLE users ADD COLUMN session_version INT NOT NULL DEFAULT 1");
+    }
+
+    if (!vcColumnExists($conn, 'users', 'last_password_change')) {
+        $conn->query("ALTER TABLE users ADD COLUMN last_password_change DATETIME NULL");
+    }
+
+    if (!vcColumnExists($conn, 'users', 'whatsapp_number')) {
+        $conn->query("ALTER TABLE users ADD COLUMN whatsapp_number VARCHAR(30) NULL");
+    }
+
+    if (!vcColumnExists($conn, 'users', 'whatsapp_enabled')) {
+        $conn->query("ALTER TABLE users ADD COLUMN whatsapp_enabled TINYINT(1) NOT NULL DEFAULT 1");
+    }
+
+    if (!vcColumnExists($conn, 'users', 'is_active')) {
+        $conn->query("ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1");
+    }
+
+    if (!vcColumnExists($conn, 'users', 'manager_id')) {
+        $conn->query("ALTER TABLE users ADD COLUMN manager_id INT NULL DEFAULT NULL AFTER role");
+    }
+
+    if (!vcColumnExists($conn, 'users', 'is_supervisor')) {
+        $conn->query("ALTER TABLE users ADD COLUMN is_supervisor TINYINT(1) NOT NULL DEFAULT 0 AFTER manager_id");
+    }
+
+    if (!vcColumnExists($conn, 'users', 'job_role')) {
+        $conn->query("ALTER TABLE users ADD COLUMN job_role ENUM('user','section_manager','finance_manager','commercial_manager','accountant','admin') NOT NULL DEFAULT 'user' AFTER role");
+        $conn->query("UPDATE users SET job_role = CASE WHEN role = 'admin' OR is_admin = 1 THEN 'admin' WHEN is_supervisor = 1 THEN 'section_manager' ELSE 'user' END");
+    } else {
+        @$conn->query("ALTER TABLE users MODIFY job_role ENUM('user','section_manager','finance_manager','commercial_manager','accountant','admin') NOT NULL DEFAULT 'user'");
+    }
+
+    if ($hasIsAdminColumn) {
+        $conn->query("UPDATE users SET role = 'admin', is_admin = 1 WHERE job_role = 'commercial_manager'");
+    } else {
+        $conn->query("UPDATE users SET role = 'admin' WHERE job_role = 'commercial_manager'");
+    }
+}
 
 /* CSRF */
 if (empty($_SESSION['csrf_token'])) {
@@ -2548,6 +2546,9 @@ function editUser(u){
 
     fetch("get_user_permissions.php?user_id=" + encodeURIComponent(u.id))
         .then(function(res){
+            if (!res.ok) {
+                throw new Error("http_" + res.status);
+            }
             return res.json();
         })
         .then(function(data){

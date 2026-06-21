@@ -37,7 +37,7 @@ try {
 
 
 $stmt = $conn->prepare("
-    SELECT id, username, role, is_admin, session_version, is_active
+    SELECT id, username, role, is_admin, job_role, session_version, is_active
     FROM users
     WHERE id = ?
     LIMIT 1
@@ -126,7 +126,8 @@ $_SESSION['is_admin'] = (int)($user['is_admin'] ?? 0);
 
 if (
     (int)($user['is_admin'] ?? 0) === 1 ||
-    ($user['role'] ?? '') === 'admin'
+    ($user['role'] ?? '') === 'admin' ||
+    in_array((string)($user['job_role'] ?? ''), ['admin', 'commercial_manager'], true)
 ) {
     return;
 }
