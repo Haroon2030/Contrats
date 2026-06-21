@@ -1,0 +1,122 @@
+/* RESET */
+*{
+    box-sizing:border-box;
+    font-family:'Cairo',Tahoma,Arial;
+}
+
+/* RTL */
+html, body{
+    direction: rtl;
+    text-align: right;
+}
+
+/* BODY */
+body{
+    margin:0;
+    background:#eef1f7;
+}
+
+/* CONTAINER */
+.container{
+    max-width:1200px;
+    margin:30px auto;
+    padding:25px;
+    border-radius:16px;
+    background:#eef1f7;
+    box-shadow:6px 6px 12px #d1d9e6,-6px -6px 12px #fff;
+}
+
+/* TITLES */
+h1,h2,h3{
+    font-weight:800;
+    margin-bottom:15px;
+}
+
+/* SEARCH */
+.search-box input,
+.search input{
+    width:100%;
+    padding:12px;
+    border-radius:10px;
+    border:1px solid #e0e5ec;
+    background:#eef1f7;
+    box-shadow: inset 2px 2px 5px #d1d9e6,
+                inset -2px -2px 5px #ffffff;
+}
+
+/* TABLE */
+table, .table{
+    width:100%;
+    border-collapse:collapse;
+    background:#eef1f7;
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:6px 6px 12px #d1d9e6,-6px -6px 12px #fff;
+}
+
+th{
+    background:#6d4aff;
+    color:#fff;
+    padding:12px;
+}
+
+td{
+    padding:12px;
+    border-top:1px solid #e0e5ec;
+    text-align:center;
+}
+
+/* STATUS */
+.status{
+    padding:6px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:bold;
+}
+
+.review{background:#facc15;color:#000;}
+.approved{background:#22c55e;color:#fff;}
+.rejected{background:#ef4444;color:#fff;}
+.draft{background:#9ca3af;color:#fff;}
+
+/* BUTTONS */
+.btn{
+    padding:8px 14px;
+    border:none;
+    border-radius:10px;
+    background:#6d4aff;
+    color:#fff;
+    cursor:pointer;
+    transition:.2s;
+    text-decoration:none;
+    display:inline-block;
+}
+
+.btn:hover{
+    transform:translateY(-2px);
+}
+
+/* COLORS */
+.btn-view{background:#6d4aff;}
+.btn-edit{background:#f59e0b;}
+.btn-delete{background:#ef4444;}
+.btn-success{background:#22c55e;}
+
+/* EMPTY */
+.empty{
+    text-align:center;
+    padding:20px;
+    color:#777;
+}
+
+/* INPUTS */
+input, textarea, select{
+    direction: rtl;
+    text-align: right;
+}
+
+/* NUMBER FIX */
+input[type="number"]{
+    direction:ltr;
+    text-align:center;
+}

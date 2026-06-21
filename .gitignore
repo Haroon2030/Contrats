@@ -1,0 +1,25 @@
+# Environment & secrets
+.env
+.env.*
+*.local.php
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# Logs & cache
+*.log
+/cache/
+/tmp/
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# User uploads (keep structure only)
+/public/uploads/*
+!/public/uploads/.htaccess

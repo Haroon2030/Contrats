@@ -1,0 +1,276 @@
+/*
+    VendorCore Mobile Fix
+    يعمل فقط على الشاشات الصغيرة.
+    لا يغير شكل الديسكتوب.
+*/
+
+@media (max-width: 768px){
+
+    html,
+    body{
+        width:100% !important;
+        max-width:100% !important;
+        overflow-x:hidden !important;
+    }
+
+    body{
+        font-size:14px !important;
+        background:
+            radial-gradient(circle at top right, rgba(109,74,255,.10), transparent 32%),
+            #eef1f7 !important;
+    }
+
+    .vc-header{
+        grid-template-columns:1fr !important;
+        max-width:calc(100% - 16px) !important;
+        width:calc(100% - 16px) !important;
+        min-height:auto !important;
+        margin:10px auto 16px !important;
+        padding:12px !important;
+        gap:10px !important;
+        text-align:center !important;
+        border-radius:18px !important;
+    }
+
+    .vc-logo{
+        justify-content:center !important;
+    }
+
+    .vc-logo a{
+        width:128px !important;
+        height:54px !important;
+        padding:6px !important;
+        border-radius:15px !important;
+    }
+
+    .vc-logo img{
+        max-width:116px !important;
+        max-height:42px !important;
+        width:auto !important;
+        height:auto !important;
+        object-fit:contain !important;
+    }
+
+    .vc-title-main{
+        font-size:17px !important;
+        line-height:1.5 !important;
+    }
+
+    .vc-title-sub{
+        font-size:11px !important;
+    }
+
+    .vc-right{
+        justify-content:center !important;
+        flex-wrap:wrap !important;
+        gap:10px !important;
+    }
+
+    .vc-user-box{
+        max-width:100% !important;
+    }
+
+    .vc-notif-box{
+        width:min(360px, calc(100vw - 24px)) !important;
+        left:50% !important;
+        right:auto !important;
+        transform:translateX(-50%) !important;
+    }
+
+    .vc-dropdown{
+        right:50% !important;
+        transform:translateX(50%) !important;
+    }
+
+    .container,
+    .wrap,
+    .page,
+    main.content,
+    .content{
+        width:calc(100% - 16px) !important;
+        max-width:none !important;
+        margin:12px auto 28px !important;
+        padding:12px !important;
+    }
+
+    main.content,
+    .content{
+        width:100% !important;
+    }
+
+    h1,
+    .page-title{
+        font-size:22px !important;
+        line-height:1.5 !important;
+        margin-bottom:8px !important;
+    }
+
+    h2,
+    .section-title,
+    .panel-title{
+        font-size:17px !important;
+        line-height:1.6 !important;
+    }
+
+    .page-subtitle,
+    .sub,
+    .hint{
+        font-size:13px !important;
+        line-height:1.8 !important;
+    }
+
+    .card,
+    .panel,
+    .table-box,
+    .search-box,
+    .summary-card,
+    .title-card,
+    .page-head,
+    .bulk-clean-bar{
+        padding:12px !important;
+        border-radius:16px !important;
+        box-shadow:5px 5px 12px #d1d9e6, -5px -5px 12px #fff !important;
+    }
+
+    .summary-grid,
+    .cards,
+    .form-grid,
+    .supplier-grid,
+    .filters,
+    .search-box,
+    .statusline,
+    .stats-grid,
+    .dashboard-grid,
+    .grid{
+        grid-template-columns:1fr !important;
+        gap:10px !important;
+    }
+
+    input,
+    textarea,
+    select{
+        min-height:44px !important;
+        font-size:14px !important;
+        border-radius:12px !important;
+    }
+
+    textarea{
+        min-height:90px !important;
+    }
+
+    .btn,
+    button,
+    .submit,
+    .action-btn,
+    .bulk-delete-btn{
+        min-height:42px !important;
+        font-size:13px !important;
+        border-radius:12px !important;
+    }
+
+    .actions-row,
+    .head-actions,
+    .top-actions,
+    .row-actions,
+    .actions{
+        flex-direction:column !important;
+        align-items:stretch !important;
+        justify-content:flex-start !important;
+        gap:8px !important;
+    }
+
+    .actions-row .btn,
+    .head-actions .btn,
+    .top-actions .btn,
+    .row-actions .btn,
+    .row-actions button,
+    .actions .btn,
+    .actions button{
+        width:100% !important;
+    }
+
+    .table-wrap,
+    .table-box{
+        overflow-x:auto !important;
+        -webkit-overflow-scrolling:touch !important;
+    }
+
+    table,
+    .table,
+    .items-table{
+        min-width:900px !important;
+        width:100% !important;
+    }
+
+    th,
+    td{
+        font-size:12px !important;
+        padding:9px 7px !important;
+        line-height:1.55 !important;
+    }
+
+    .items-table{
+        min-width:980px !important;
+    }
+
+    .items-table input{
+        min-height:38px !important;
+        height:38px !important;
+        font-size:12px !important;
+    }
+
+    img{
+        max-width:100% !important;
+        height:auto !important;
+    }
+
+    .alert,
+    .alert-success,
+    .alert-error,
+    .alert-info,
+    .alert-info-box{
+        padding:11px 12px !important;
+        border-radius:14px !important;
+        font-size:13px !important;
+        line-height:1.8 !important;
+    }
+}
+
+@media (max-width: 480px){
+
+    .container,
+    .wrap,
+    .page{
+        width:calc(100% - 10px) !important;
+        padding:10px !important;
+    }
+
+    .vc-header{
+        width:calc(100% - 10px) !important;
+        padding:10px !important;
+    }
+
+    h1,
+    .page-title{
+        font-size:20px !important;
+    }
+
+    .card,
+    .panel,
+    .table-box,
+    .search-box,
+    .summary-card,
+    .title-card,
+    .page-head{
+        padding:10px !important;
+    }
+
+    table,
+    .table{
+        min-width:850px !important;
+    }
+
+    .items-table{
+        min-width:960px !important;
+    }
+}

@@ -1,0 +1,4 @@
+# السماح بعرض CSS والأيقونات
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>

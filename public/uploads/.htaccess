@@ -1,0 +1,4 @@
+# Allow direct access to uploaded files only
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
