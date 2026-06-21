@@ -15,7 +15,7 @@ function h($v): string {
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 }
 
-function vcColumnExistsSearch(mysqli $conn, string $table, string $column): bool {
+function vcColumnExistsSearch(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("\n        SELECT COUNT(*) AS c\n        FROM INFORMATION_SCHEMA.COLUMNS\n        WHERE TABLE_SCHEMA = DATABASE()\n        AND TABLE_NAME = ?\n        AND COLUMN_NAME = ?\n    ");
 
     if (!$stmt) {
@@ -30,7 +30,7 @@ function vcColumnExistsSearch(mysqli $conn, string $table, string $column): bool
     return !empty($row) && (int)$row['c'] > 0;
 }
 
-function vcFirstExistingColumnSearch(mysqli $conn, string $table, array $columns): ?string {
+function vcFirstExistingColumnSearch(VcDb $conn, string $table, array $columns): ?string {
     foreach ($columns as $column) {
         if (vcColumnExistsSearch($conn, $table, $column)) {
             return $column;

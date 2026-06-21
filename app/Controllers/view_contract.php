@@ -1,6 +1,6 @@
 <?php
 
-function ensureApprovalWithdrawalsTable(mysqli $conn): void {
+function ensureApprovalWithdrawalsTable(VcDb $conn): void {
     $conn->query("
         CREATE TABLE IF NOT EXISTS approval_withdrawals (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -19,7 +19,7 @@ function ensureApprovalWithdrawalsTable(mysqli $conn): void {
     ");
 }
 
-function logApprovalWithdrawal(mysqli $conn, string $targetType, string $targetId, string $oldStatus, string $newStatus, string $actionType, string $reason, int $adminId): void {
+function logApprovalWithdrawal(VcDb $conn, string $targetType, string $targetId, string $oldStatus, string $newStatus, string $actionType, string $reason, int $adminId): void {
     ensureApprovalWithdrawalsTable($conn);
     $stmt = $conn->prepare("
         INSERT INTO approval_withdrawals
@@ -81,7 +81,7 @@ function normalizeArabicName(string $value): string {
     return $value;
 }
 
-function getExistingColumn(mysqli $conn, string $table, array $candidates): ?string {
+function getExistingColumn(VcDb $conn, string $table, array $candidates): ?string {
     foreach ($candidates as $column) {
         $stmt = $conn->prepare("
             SELECT COUNT(*) AS c
@@ -104,7 +104,7 @@ function getExistingColumn(mysqli $conn, string $table, array $candidates): ?str
 }
 
 
-function vcColumnExists(mysqli $conn, string $table, string $column): bool {
+function vcColumnExists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -125,16 +125,16 @@ function vcColumnExists(mysqli $conn, string $table, string $column): bool {
     return !empty($row) && (int)$row['c'] > 0;
 }
 
-function vcDisabledHookSetup(mysqli $conn): void {
+function vcDisabledHookSetup(VcDb $conn): void {
     return;
 }
 
 
-function vcDisabledUserHook(mysqli $conn, int $userId, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0): void {
+function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0): void {
     return;
 }
 
-function vcDisabledAdminsHook(mysqli $conn, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0, int $excludeUserId = 0): void {
+function vcDisabledAdminsHook(VcDb $conn, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0, int $excludeUserId = 0): void {
     return;
 }
 
@@ -154,7 +154,7 @@ function statusClass($status): string {
     return in_array($status, ['draft','review','approved','rejected','deleted'], true) ? $status : 'draft';
 }
 
-function getUserPageScope(mysqli $conn, int $uid, string $pageName): string {
+function getUserPageScope(VcDb $conn, int $uid, string $pageName): string {
     $scope = 'none';
 
     $stmt = $conn->prepare("

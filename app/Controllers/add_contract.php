@@ -106,7 +106,7 @@ function historyMoneyText($value): string {
     return number_format((float)$value, 2);
 }
 
-function logHistoryIfChanged(mysqli $conn, int $contract_id, int $uid, string $field, $oldValue, $newValue): void {
+function logHistoryIfChanged(VcDb $conn, int $contract_id, int $uid, string $field, $oldValue, $newValue): void {
     $oldText = trim((string)$oldValue);
     $newText = trim((string)$newValue);
 
@@ -202,7 +202,7 @@ function eventHistoryText(array $row): string {
 }
 
 
-function vcColumnExists(mysqli $conn, string $table, string $column): bool {
+function vcColumnExists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -294,22 +294,22 @@ function vcHandleSupplierContractUpload(array &$errors, string $currentFile = ''
     return 'uploads/supplier_contracts/' . $newName;
 }
 
-function vcDisabledHookSetup(mysqli $conn): void {
+function vcDisabledHookSetup(VcDb $conn): void {
     return;
 }
 
 
-function vcDisabledUserHook(mysqli $conn, int $userId, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0): void {
+function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0): void {
     return;
 }
 
-function vcDisabledAdminsHook(mysqli $conn, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0, int $excludeUserId = 0): void {
+function vcDisabledAdminsHook(VcDb $conn, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0, int $excludeUserId = 0): void {
     return;
 }
 
 
 
-function vcDisabledManagerHook(mysqli $conn, int $createdByUserId, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0, int $excludeUserId = 0): void {
+function vcDisabledManagerHook(VcDb $conn, int $createdByUserId, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0, int $excludeUserId = 0): void {
     return;
 }
 

@@ -18,7 +18,7 @@ function contractTypeClass(array $row): string {
     return (($row['source'] ?? '') === 'rent') ? 'rent-type' : 'annual-type';
 }
 
-function getUserPageScope(mysqli $conn, int $uid, string $pageName): string {
+function getUserPageScope(VcDb $conn, int $uid, string $pageName): string {
     $scope = 'none';
 
     $stmt = $conn->prepare("

@@ -19,7 +19,7 @@ function e($value): string {
 }
 
 
-function vcColumnExists(mysqli $conn, string $table, string $column): bool {
+function vcColumnExists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -35,13 +35,13 @@ function vcColumnExists(mysqli $conn, string $table, string $column): bool {
     return !empty($row) && (int)$row['c'] > 0;
 }
 
-function ensureItemsShadColumn(mysqli $conn): void {
+function ensureItemsShadColumn(VcDb $conn): void {
     if (!vcColumnExists($conn, 'items', 'shad')) {
         @$conn->query("ALTER TABLE items ADD COLUMN shad INT NULL DEFAULT NULL AFTER name");
     }
 }
 
-function ensureItemsTaxRateColumn(mysqli $conn): void {
+function ensureItemsTaxRateColumn(VcDb $conn): void {
     if (!vcColumnExists($conn, 'items', 'tax_rate')) {
         @$conn->query("ALTER TABLE items ADD COLUMN tax_rate DECIMAL(5,2) NOT NULL DEFAULT 15.00 AFTER shad");
     }
@@ -83,7 +83,7 @@ function vcCleanItemNumber($value, float $default = 0): string {
     return rtrim(rtrim(number_format((float)$value, 4, '.', ''), '0'), '.');
 }
 
-function vcCurrentUserCanEditItemsBatch(mysqli $conn, int $userId, int $createdBy): bool {
+function vcCurrentUserCanEditItemsBatch(VcDb $conn, int $userId, int $createdBy): bool {
     if ($userId <= 0) return false;
     if ($userId === $createdBy) return true;
 
@@ -104,7 +104,7 @@ function vcCurrentUserCanEditItemsBatch(mysqli $conn, int $userId, int $createdB
 }
 
 
-function vcNotifyColumnExists(mysqli $conn, string $table, string $column): bool {
+function vcNotifyColumnExists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -120,16 +120,16 @@ function vcNotifyColumnExists(mysqli $conn, string $table, string $column): bool
     return !empty($row) && (int)$row['c'] > 0;
 }
 
-function vcDisabledHookSetup(mysqli $conn): void {
+function vcDisabledHookSetup(VcDb $conn): void {
     return;
 }
 
-function vcDisabledUserHook(mysqli $conn, int $userId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0): void {
+function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0): void {
     return;
 }
 
 
-function getDirectManagerId(mysqli $conn, int $userId): int {
+function getDirectManagerId(VcDb $conn, int $userId): int {
     if ($userId <= 0) return 0;
 
     $stmt = $conn->prepare("SELECT manager_id FROM users WHERE id = ? LIMIT 1");
@@ -150,7 +150,7 @@ function vcDisabledRecipientHook(array &$sentTo, int $userId): bool {
     return true;
 }
 
-function vcGetUsersWithAnyPagePermission(mysqli $conn, array $pageNames): array {
+function vcGetUsersWithAnyPagePermission(VcDb $conn, array $pageNames): array {
     $pageNames = array_values(array_unique(array_filter(array_map('strval', $pageNames))));
     if (empty($pageNames)) return [];
 
@@ -183,15 +183,15 @@ function vcGetUsersWithAnyPagePermission(mysqli $conn, array $pageNames): array 
     return $rows;
 }
 
-function vcDisabledItemsReviewHook(mysqli $conn, int $createdByUserId, string $title, string $message, string $managerLink = 'under_review_items.php', string $adminLink = 'items_admin.php', string $type = 'items_sent_review', int $relatedId = 0): void {
+function vcDisabledItemsReviewHook(VcDb $conn, int $createdByUserId, string $title, string $message, string $managerLink = 'under_review_items.php', string $adminLink = 'items_admin.php', string $type = 'items_sent_review', int $relatedId = 0): void {
     return;
 }
 
-function vcDisabledManagerHook(mysqli $conn, int $createdByUserId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0): void {
+function vcDisabledManagerHook(VcDb $conn, int $createdByUserId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0): void {
     return;
 }
 
-function vcDisabledAdminsHook(mysqli $conn, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0, int $excludeUserId = 0): void {
+function vcDisabledAdminsHook(VcDb $conn, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0, int $excludeUserId = 0): void {
     return;
 }
 

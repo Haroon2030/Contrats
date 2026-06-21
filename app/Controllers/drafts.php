@@ -63,7 +63,7 @@ function defaultReminderDate(?string $createdAt, ?string $reminderDate): string 
 }
 
 
-function vcDraftColumnExists(mysqli $conn, string $table, string $column): bool {
+function vcDraftColumnExists(VcDb $conn, string $table, string $column): bool {
     try {
         $stmt = $conn->prepare("\n            SELECT COUNT(*) AS c\n            FROM INFORMATION_SCHEMA.COLUMNS\n            WHERE TABLE_SCHEMA = DATABASE()\n              AND TABLE_NAME = ?\n              AND COLUMN_NAME = ?\n        ");
         if (!$stmt) return false;
@@ -77,11 +77,11 @@ function vcDraftColumnExists(mysqli $conn, string $table, string $column): bool 
     }
 }
 
-function vcDisabledDraftHookSetup(mysqli $conn): void {
+function vcDisabledDraftHookSetup(VcDb $conn): void {
     return;
 }
 
-function vcDraftGetUserJobRole(mysqli $conn, int $userId): string {
+function vcDraftGetUserJobRole(VcDb $conn, int $userId): string {
     if ($userId <= 0 || !vcDraftColumnExists($conn, 'users', 'job_role')) return 'user';
     $stmt = $conn->prepare("SELECT job_role FROM users WHERE id = ? LIMIT 1");
     if (!$stmt) return 'user';
@@ -92,7 +92,7 @@ function vcDraftGetUserJobRole(mysqli $conn, int $userId): string {
     return (string)($row['job_role'] ?? 'user');
 }
 
-function vcDraftGetDirectSectionManagerId(mysqli $conn, int $ownerId): int {
+function vcDraftGetDirectSectionManagerId(VcDb $conn, int $ownerId): int {
     if ($ownerId <= 0 || !vcDraftColumnExists($conn, 'users', 'manager_id')) return 0;
 
     $stmt = $conn->prepare("SELECT manager_id FROM users WHERE id = ? LIMIT 1");
@@ -113,11 +113,11 @@ function vcDraftGetDirectSectionManagerId(mysqli $conn, int $ownerId): int {
     return $managerId;
 }
 
-function vcDisabledDraftHookOnce(mysqli $conn, int $recipientId, int $contractId, string $title, string $message, string $link): void {
+function vcDisabledDraftHookOnce(VcDb $conn, int $recipientId, int $contractId, string $title, string $message, string $link): void {
     return;
 }
 
-function vcDisabledDraftDeadlineHooks(mysqli $conn, array $row, int $daysLeft): void {
+function vcDisabledDraftDeadlineHooks(VcDb $conn, array $row, int $daysLeft): void {
     return;
 }
 

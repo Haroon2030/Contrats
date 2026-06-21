@@ -53,7 +53,7 @@ function pp_approval_ar($status): string {
     ][$status] ?? '-';
 }
 
-function pp_column_exists(mysqli $conn, string $table, string $column): bool {
+function pp_column_exists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("\n        SELECT COUNT(*) AS c\n        FROM INFORMATION_SCHEMA.COLUMNS\n        WHERE TABLE_SCHEMA = DATABASE()\n          AND TABLE_NAME = ?\n          AND COLUMN_NAME = ?\n    ");
     if (!$stmt) return false;
     $stmt->bind_param('ss', $table, $column);
@@ -63,7 +63,7 @@ function pp_column_exists(mysqli $conn, string $table, string $column): bool {
     return (int)($row['c'] ?? 0) > 0;
 }
 
-function pp_get_settings(mysqli $conn): array {
+function pp_get_settings(VcDb $conn): array {
     $settings = [];
     $res = $conn->query("SELECT setting_key, user_id FROM payment_approval_settings");
     if ($res) {

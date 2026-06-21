@@ -2,19 +2,55 @@
 
 date_default_timezone_set('Asia/Riyadh');
 
-define('DB_HOST', '127.0.0.1');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'mordun');
-define('DB_CHARSET', 'utf8mb4');
+require_once dirname(__DIR__) . '/app/Core/VcDb.php';
 
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+/**
+ * تحميل DATABASE_URL من .env أو متغير البيئة.
+ */
+function vcLoadEnv(string $root): void
+{
+    $envFile = $root . '/.env';
+    if (!is_file($envFile)) {
+        return;
+    }
+
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return;
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+
+        if (!str_contains($line, '=')) {
+            continue;
+        }
+
+        [$key, $value] = explode('=', $line, 2);
+        $key = trim($key);
+        $value = trim($value, " \t\n\r\0\x0B\"'");
+
+        if ($key !== '' && getenv($key) === false) {
+            putenv($key . '=' . $value);
+            $_ENV[$key] = $value;
+        }
+    }
+}
+
+vcLoadEnv(dirname(__DIR__));
+
+$databaseUrl = getenv('DATABASE_URL') ?: '';
+
+if ($databaseUrl === '') {
+    http_response_code(500);
+    die('❌ DATABASE_URL غير معرّف. أنشئ ملف .env من .env.example');
+}
 
 try {
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    $conn->set_charset(DB_CHARSET);
-    $conn->query("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
-    $conn->query("SET CHARACTER SET utf8mb4");
+    $conn = VcDb::fromDatabaseUrl($databaseUrl);
 } catch (Throwable $e) {
     http_response_code(500);
     die('❌ تعذر الاتصال بقاعدة البيانات: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'));

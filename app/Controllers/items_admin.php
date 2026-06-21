@@ -14,7 +14,7 @@ function money($value): string {
     return number_format((float)$value, 2);
 }
 
-function columnExists(mysqli $conn, string $table, string $column): bool {
+function columnExists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -30,7 +30,7 @@ function columnExists(mysqli $conn, string $table, string $column): bool {
     return !empty($row) && (int)$row['c'] > 0;
 }
 
-function getUserPageScope(mysqli $conn, int $uid, string $pageName): string {
+function getUserPageScope(VcDb $conn, int $uid, string $pageName): string {
     $scope = 'none';
 
     $stmt = $conn->prepare("
@@ -57,20 +57,20 @@ function getUserPageScope(mysqli $conn, int $uid, string $pageName): string {
     return $scope;
 }
 
-function vcDisabledHookSetup(mysqli $conn): void {
+function vcDisabledHookSetup(VcDb $conn): void {
     return;
 }
 
-function vcDisabledUserHook(mysqli $conn, int $userId, string $title, string $message, string $link = '', string $type = 'items', int $relatedId = 0): void {
+function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'items', int $relatedId = 0): void {
     return;
 }
 
 
-function notifyDataEntryUsersForItemsBatch(mysqli $conn, string $batch, array $batchInfo, int $excludeUserId = 0, string $approvedByName = ''): void {
+function notifyDataEntryUsersForItemsBatch(VcDb $conn, string $batch, array $batchInfo, int $excludeUserId = 0, string $approvedByName = ''): void {
     return;
 }
 
-function ensureApprovalWithdrawalsTable(mysqli $conn): void {
+function ensureApprovalWithdrawalsTable(VcDb $conn): void {
     $conn->query("
         CREATE TABLE IF NOT EXISTS approval_withdrawals (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -89,7 +89,7 @@ function ensureApprovalWithdrawalsTable(mysqli $conn): void {
     ");
 }
 
-function logApprovalWithdrawal(mysqli $conn, string $targetType, string $targetId, string $oldStatus, string $newStatus, string $actionType, string $reason, int $adminId): void {
+function logApprovalWithdrawal(VcDb $conn, string $targetType, string $targetId, string $oldStatus, string $newStatus, string $actionType, string $reason, int $adminId): void {
     ensureApprovalWithdrawalsTable($conn);
     $stmt = $conn->prepare("
         INSERT INTO approval_withdrawals

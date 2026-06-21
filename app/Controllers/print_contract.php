@@ -7,7 +7,7 @@ require_once VC_HELPERS . '/scope_helper.php';
 
 
 
-function getUserPageScopePrint(mysqli $conn, int $uid, string $pageName): string {
+function getUserPageScopePrint(VcDb $conn, int $uid, string $pageName): string {
     $scope = 'none';
 
     $stmt = $conn->prepare("

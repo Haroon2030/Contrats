@@ -25,7 +25,7 @@ function statusClass(string $status): string {
     return in_array($status, ['draft', 'review', 'approved', 'rejected'], true) ? $status : 'draft';
 }
 
-function vcColumnExists(mysqli $conn, string $table, string $column): bool {
+function vcColumnExists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -70,7 +70,7 @@ function contractTypeClass(array $row): string {
     return (($row['source'] ?? '') === 'rent') ? 'rent-type' : 'annual-type';
 }
 
-function getUserPageScope(mysqli $conn, int $uid, string $pageName): string {
+function getUserPageScope(VcDb $conn, int $uid, string $pageName): string {
     $scope = 'none';
 
     $stmt = $conn->prepare("

@@ -10,7 +10,7 @@ function e($value): string {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-function getUserPageScope(mysqli $conn, int $uid, string $pageName): string {
+function getUserPageScope(VcDb $conn, int $uid, string $pageName): string {
     $scope = 'none';
 
     $stmt = $conn->prepare("
@@ -84,7 +84,7 @@ function highlightText($text, $search): string {
 }
 
 
-function vcColumnExists(mysqli $conn, string $table, string $column): bool {
+function vcColumnExists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -105,15 +105,15 @@ function vcColumnExists(mysqli $conn, string $table, string $column): bool {
     return !empty($row) && (int)$row['c'] > 0;
 }
 
-function vcDisabledHookSetup(mysqli $conn): void {
+function vcDisabledHookSetup(VcDb $conn): void {
     return;
 }
 
-function vcDisabledUserHook(mysqli $conn, int $userId, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0): void {
+function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0): void {
     return;
 }
 
-function vcDisabledAdminsHook(mysqli $conn, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0, int $excludeUserId = 0): void {
+function vcDisabledAdminsHook(VcDb $conn, string $title, string $message, string $link = '', string $type = 'contract', int $relatedId = 0, int $excludeUserId = 0): void {
     return;
 }
 

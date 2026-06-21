@@ -75,7 +75,7 @@ function pa_approval_ar($status): string {
 function pa_step_ar($step): string {
     return ['section_manager'=>'مدير القسم','commercial_manager'=>'المدير التجاري','finance_manager'=>'المدير المالي'][$step] ?? (string)$step;
 }
-function pa_get_settings(mysqli $conn): array {
+function pa_get_settings(VcDb $conn): array {
     $settings = [];
     $res = $conn->query("SELECT setting_key, user_id FROM payment_approval_settings");
     if ($res) {
@@ -89,7 +89,7 @@ function pa_get_settings(mysqli $conn): array {
     return $settings;
 }
 
-function pa_column_exists(mysqli $conn, string $table, string $column): bool {
+function pa_column_exists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -105,7 +105,7 @@ function pa_column_exists(mysqli $conn, string $table, string $column): bool {
     return (int)($row['c'] ?? 0) > 0;
 }
 
-function pa_ensure_payment_due_columns(mysqli $conn): void {
+function pa_ensure_payment_due_columns(VcDb $conn): void {
 
     if (!pa_column_exists($conn, 'payment_requests', 'agreed_payment_days')) {
         $conn->query("ALTER TABLE payment_requests ADD COLUMN agreed_payment_days INT NULL DEFAULT NULL AFTER invoice_date");
@@ -156,7 +156,7 @@ function pa_payment_amount_lines(float $approvedAmount, float $discountPercent =
 }
 
 
-function pa_get_previous_financials(mysqli $conn, int $requestId): array {
+function pa_get_previous_financials(VcDb $conn, int $requestId): array {
     $defaults = [
         'amount_before' => null,
         'percent' => null,
@@ -195,7 +195,7 @@ function pa_section_manager_for_type(array $settings, string $companyType): int 
         ? (int)($settings['food_section_manager'] ?? 0)
         : (int)($settings['non_food_section_manager'] ?? 0);
 }
-function pa_user_has_page(mysqli $conn, int $userId, string $pageName): bool {
+function pa_user_has_page(VcDb $conn, int $userId, string $pageName): bool {
     $stmt = $conn->prepare("SELECT 1 FROM user_permissions up JOIN pages p ON p.id=up.page_id WHERE up.user_id=? AND p.name=? AND p.status=1 LIMIT 1");
     if (!$stmt) return false;
     $stmt->bind_param("is", $userId, $pageName);
@@ -204,11 +204,11 @@ function pa_user_has_page(mysqli $conn, int $userId, string $pageName): bool {
     $stmt->close();
     return $ok;
 }
-function pa_disabled_hook(mysqli $conn, int $userId, string $title, string $message, string $link, string $type, int $relatedId): void {
+function pa_disabled_hook(VcDb $conn, int $userId, string $title, string $message, string $link, string $type, int $relatedId): void {
     return;
 }
 function pa_upsert_approval(
-    mysqli $conn,
+    VcDb $conn,
     int $requestId,
     string $step,
     int $approverId,

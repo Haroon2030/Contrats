@@ -30,7 +30,7 @@ function statusClass(string $status): string {
     return $status === 'rejected' ? 'rejected' : 'approved';
 }
 
-function tableExists(mysqli $conn, string $table): bool {
+function tableExists(VcDb $conn, string $table): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.TABLES

@@ -62,7 +62,7 @@ function pr_due_color_class(?string $dueDate): string {
     return ($dueDate <= $today) ? 'due-passed' : 'due-future';
 }
 
-function pr_column_exists(mysqli $conn, string $table, string $column): bool {
+function pr_column_exists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("\n        SELECT COUNT(*) AS c\n        FROM INFORMATION_SCHEMA.COLUMNS\n        WHERE TABLE_SCHEMA = DATABASE()\n          AND TABLE_NAME = ?\n          AND COLUMN_NAME = ?\n    ");
     if (!$stmt) return false;
     $stmt->bind_param('ss', $table, $column);
@@ -72,7 +72,7 @@ function pr_column_exists(mysqli $conn, string $table, string $column): bool {
     return (int)($row['c'] ?? 0) > 0;
 }
 
-function pr_table_exists(mysqli $conn, string $table): bool {
+function pr_table_exists(VcDb $conn, string $table): bool {
     $stmt = $conn->prepare("\n        SELECT COUNT(*) AS c\n        FROM INFORMATION_SCHEMA.TABLES\n        WHERE TABLE_SCHEMA = DATABASE()\n          AND TABLE_NAME = ?\n    ");
     if (!$stmt) return false;
     $stmt->bind_param('s', $table);
@@ -82,7 +82,7 @@ function pr_table_exists(mysqli $conn, string $table): bool {
     return (int)($row['c'] ?? 0) > 0;
 }
 
-function pr_ensure_payment_due_columns(mysqli $conn): void {
+function pr_ensure_payment_due_columns(VcDb $conn): void {
 
     if (!pr_column_exists($conn, 'payment_requests', 'agreed_payment_days')) {
         $conn->query("ALTER TABLE payment_requests ADD COLUMN agreed_payment_days INT NULL DEFAULT NULL AFTER invoice_date");
@@ -107,7 +107,7 @@ function pr_calculate_due_date(?string $invoiceDateDb, int $agreedPaymentDays): 
     }
 }
 
-function pr_get_setting_user(mysqli $conn, string $key): int {
+function pr_get_setting_user(VcDb $conn, string $key): int {
     $stmt = $conn->prepare("SELECT user_id FROM payment_approval_settings WHERE setting_key = ? LIMIT 1");
     if (!$stmt) return 0;
     $stmt->bind_param('s', $key);
@@ -117,7 +117,7 @@ function pr_get_setting_user(mysqli $conn, string $key): int {
     return (int)($row['user_id'] ?? 0);
 }
 
-function pr_get_user_name(mysqli $conn, int $userId): string {
+function pr_get_user_name(VcDb $conn, int $userId): string {
     if ($userId <= 0) return '-';
     $stmt = $conn->prepare("SELECT username FROM users WHERE id = ? LIMIT 1");
     if (!$stmt) return '-';
@@ -128,7 +128,7 @@ function pr_get_user_name(mysqli $conn, int $userId): string {
     return (string)($row['username'] ?? '-');
 }
 
-function pr_notify_user(mysqli $conn, int $userId, string $title, string $message, string $link, string $type, int $relatedId): void {
+function pr_notify_user(VcDb $conn, int $userId, string $title, string $message, string $link, string $type, int $relatedId): void {
     return;
 }
 

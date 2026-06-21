@@ -142,7 +142,7 @@ $dashboardScopedUserIds = vcGetDashboardScopedUserIds($conn, $uid, $user, $is_ad
 $dashboardIsAllScope = empty($dashboardScopedUserIds);
 $show_management_analytics = ($is_admin || in_array((string)($user['job_role'] ?? ''), ['section_manager','finance_manager','commercial_manager'], true) || (int)($user['is_supervisor'] ?? 0) === 1);
 
-function vcDashRunCount(mysqli $conn, string $sql, string $types = '', array $params = []): int {
+function vcDashRunCount(VcDb $conn, string $sql, string $types = '', array $params = []): int {
     $stmt = $conn->prepare($sql);
     if (!$stmt) return 0;
     if ($types !== '' && !empty($params)) {
@@ -173,7 +173,7 @@ function vcDashApplyScopeWhere(string $column, array $scopeIds, &$params, &$type
     - المستخدم الذي عنده صفحة data_entry_items
     - المدير المباشر لمستخدم عنده صفحة data_entry_items
 */
-function vcDashGetDirectManagedDataEntryUserIds(mysqli $conn, int $managerId): array {
+function vcDashGetDirectManagedDataEntryUserIds(VcDb $conn, int $managerId): array {
     if ($managerId <= 0 || !vcScopeColumnExists($conn, 'users', 'manager_id')) {
         return [];
     }
@@ -346,7 +346,7 @@ function buildDashboardSegments(array $rows, bool $money = false, int $limit = 5
     return $segments;
 }
 
-function fetchDashboardRows(mysqli $conn, string $sql): array {
+function fetchDashboardRows(VcDb $conn, string $sql): array {
     $rows = [];
     $res = $conn->query($sql);
 
@@ -360,7 +360,7 @@ function fetchDashboardRows(mysqli $conn, string $sql): array {
 }
 
 
-function fetchDashboardRowsPrepared(mysqli $conn, string $sql, string $types = '', array $params = []): array {
+function fetchDashboardRowsPrepared(VcDb $conn, string $sql, string $types = '', array $params = []): array {
     $rows = [];
     $stmt = $conn->prepare($sql);
     if (!$stmt) return $rows;
@@ -376,7 +376,7 @@ function fetchDashboardRowsPrepared(mysqli $conn, string $sql, string $types = '
     return $rows;
 }
 
-function fetchDashboardOneValue(mysqli $conn, string $sql, string $field, string $types = '', array $params = []): float {
+function fetchDashboardOneValue(VcDb $conn, string $sql, string $field, string $types = '', array $params = []): float {
     $stmt = $conn->prepare($sql);
     if (!$stmt) return 0.0;
     if ($types !== '' && !empty($params)) {
@@ -389,7 +389,7 @@ function fetchDashboardOneValue(mysqli $conn, string $sql, string $field, string
 }
 
 
-function vcDashEnsureNotificationsTable(mysqli $conn): void {
+function vcDashEnsureNotificationsTable(VcDb $conn): void {
     try {
         $conn->query("
             CREATE TABLE IF NOT EXISTS notifications (
@@ -409,7 +409,7 @@ function vcDashEnsureNotificationsTable(mysqli $conn): void {
     }
 }
 
-function vcDashEnsureDismissalsTable(mysqli $conn): void {
+function vcDashEnsureDismissalsTable(VcDb $conn): void {
     try {
         $conn->query("
             CREATE TABLE IF NOT EXISTS notification_dismissals (
@@ -428,7 +428,7 @@ function vcDashEnsureDismissalsTable(mysqli $conn): void {
 }
 
 
-function vcDashColumnExists(mysqli $conn, string $table, string $column): bool {
+function vcDashColumnExists(VcDb $conn, string $table, string $column): bool {
     try {
         $stmt = $conn->prepare("\n            SELECT COUNT(*) AS c\n            FROM INFORMATION_SCHEMA.COLUMNS\n            WHERE TABLE_SCHEMA = DATABASE()\n            AND TABLE_NAME = ?\n            AND COLUMN_NAME = ?\n        ");
 
@@ -581,7 +581,7 @@ function vcDashClassifyNotification(string $kind, string $type, string $title, s
     ];
 }
 
-function vcDashGetNotificationsData(mysqli $conn, int $user_id): array {
+function vcDashGetNotificationsData(VcDb $conn, int $user_id): array {
     $rows = [];
     $unreadCount = 0;
 
@@ -823,7 +823,7 @@ $dashNotifications = (int)($dashNotifData['count'] ?? 0);
 $dashNotifRows = $dashNotifData['rows'] ?? [];
 
 /* ================= MESSAGES UNREAD COUNT ================= */
-function vcDashGetMessagesUnreadCount(mysqli $conn, int $user_id): int {
+function vcDashGetMessagesUnreadCount(VcDb $conn, int $user_id): int {
     if ($user_id <= 0) {
         return 0;
     }
@@ -1418,7 +1418,7 @@ $item_donut = donutGradient([
 
 /* ================= FINANCE MANAGER DASHBOARD SIDE ANALYTICS ================= */
 if (!function_exists('vcDashTableExists')) {
-    function vcDashTableExists(mysqli $conn, string $table): bool {
+    function vcDashTableExists(VcDb $conn, string $table): bool {
         try {
             $stmt = $conn->prepare("\n                SELECT COUNT(*) AS c\n                FROM INFORMATION_SCHEMA.TABLES\n                WHERE TABLE_SCHEMA = DATABASE()\n                AND TABLE_NAME = ?\n            ");
             if (!$stmt) return false;

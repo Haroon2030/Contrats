@@ -2,7 +2,7 @@
 
 
 if (!function_exists('vcScopeColumnExists')) {
-    function vcScopeColumnExists(mysqli $conn, string $table, string $column): bool {
+    function vcScopeColumnExists(VcDb $conn, string $table, string $column): bool {
         try {
             $stmt = $conn->prepare("\n                SELECT COUNT(*) AS c\n                FROM INFORMATION_SCHEMA.COLUMNS\n                WHERE TABLE_SCHEMA = DATABASE()\n                AND TABLE_NAME = ?\n                AND COLUMN_NAME = ?\n            ");
             if (!$stmt) return false;
@@ -18,7 +18,7 @@ if (!function_exists('vcScopeColumnExists')) {
 }
 
 if (!function_exists('vcGetDirectChildrenIds')) {
-    function vcGetDirectChildrenIds(mysqli $conn, int $managerId): array {
+    function vcGetDirectChildrenIds(VcDb $conn, int $managerId): array {
         if ($managerId <= 0 || !vcScopeColumnExists($conn, 'users', 'manager_id')) {
             return [];
         }
@@ -42,7 +42,7 @@ if (!function_exists('vcGetDirectChildrenIds')) {
 }
 
 if (!function_exists('vcGetTeamUserIds')) {
-    function vcGetTeamUserIds(mysqli $conn, int $managerId): array {
+    function vcGetTeamUserIds(VcDb $conn, int $managerId): array {
         if ($managerId <= 0) return [];
 
         $all = [$managerId];
@@ -67,7 +67,7 @@ if (!function_exists('vcGetTeamUserIds')) {
 }
 
 if (!function_exists('vcGetScopedUserIds')) {
-    function vcGetScopedUserIds(mysqli $conn, int $uid, string $scope, bool $isAdmin = false): array {
+    function vcGetScopedUserIds(VcDb $conn, int $uid, string $scope, bool $isAdmin = false): array {
         if ($isAdmin || $scope === 'all') {
             return []; 
         }
@@ -80,7 +80,7 @@ if (!function_exists('vcGetScopedUserIds')) {
 }
 
 if (!function_exists('vcGetUserPageScope')) {
-    function vcGetUserPageScope(mysqli $conn, int $uid, string $pageName): string {
+    function vcGetUserPageScope(VcDb $conn, int $uid, string $pageName): string {
         $scope = 'none';
         $stmt = $conn->prepare("\n            SELECT up.scope\n            FROM user_permissions up\n            JOIN pages p ON p.id = up.page_id\n            WHERE up.user_id = ?\n            AND p.name = ?\n            AND p.status = 1\n            LIMIT 1\n        ");
         if ($stmt) {
@@ -97,7 +97,7 @@ if (!function_exists('vcGetUserPageScope')) {
 }
 
 if (!function_exists('vcGetDashboardScopedUserIds')) {
-    function vcGetDashboardScopedUserIds(mysqli $conn, int $uid, array $userRow, bool $isAdmin): array {
+    function vcGetDashboardScopedUserIds(VcDb $conn, int $uid, array $userRow, bool $isAdmin): array {
         if ($isAdmin) return []; 
         $jobRole = (string)($userRow['job_role'] ?? 'user');
         if (in_array($jobRole, ['section_manager', 'finance_manager', 'commercial_manager'], true) || (int)($userRow['is_supervisor'] ?? 0) === 1) {
@@ -123,7 +123,7 @@ if (!function_exists('vcBuildInCondition')) {
 
 
 if (!function_exists('vcGetVisibleUsersForFilter')) {
-    function vcGetVisibleUsersForFilter(mysqli $conn, array $scopeIds = []): array {
+    function vcGetVisibleUsersForFilter(VcDb $conn, array $scopeIds = []): array {
         $rows = [];
         $scopeIds = array_values(array_unique(array_filter(array_map('intval', $scopeIds), function($v){ return $v > 0; })));
         if (empty($scopeIds)) {

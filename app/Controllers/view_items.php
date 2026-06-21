@@ -14,7 +14,7 @@ function money($value): string {
     return number_format((float)$value, 2);
 }
 
-function vcColumnExists(mysqli $conn, string $table, string $column): bool {
+function vcColumnExists(VcDb $conn, string $table, string $column): bool {
     $stmt = $conn->prepare("
         SELECT COUNT(*) AS c
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -30,7 +30,7 @@ function vcColumnExists(mysqli $conn, string $table, string $column): bool {
     return !empty($row) && (int)$row['c'] > 0;
 }
 
-function ensureItemsShadColumn(mysqli $conn): void {
+function ensureItemsShadColumn(VcDb $conn): void {
     if (!vcColumnExists($conn, 'items', 'shad')) {
         @$conn->query("ALTER TABLE items ADD COLUMN shad INT NULL DEFAULT NULL AFTER name");
     }
@@ -75,7 +75,7 @@ function itemNumberValue($value, float $default = 0): string {
     return rtrim(rtrim(number_format((float)$value, 4, '.', ''), '0'), '.');
 }
 
-function getUserPageScope(mysqli $conn, int $uid, string $pageName): string {
+function getUserPageScope(VcDb $conn, int $uid, string $pageName): string {
     $scope = 'none';
 
     $stmt = $conn->prepare("
