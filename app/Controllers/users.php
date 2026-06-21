@@ -2546,9 +2546,6 @@ function editUser(u){
 
     fetch("get_user_permissions.php?user_id=" + encodeURIComponent(u.id))
         .then(function(res){
-            if (!res.ok) {
-                throw new Error("http_" + res.status);
-            }
             return res.json();
         })
         .then(function(data){
@@ -2574,7 +2571,7 @@ function editUser(u){
             setScopeRowsForAccountType(u.account_type || "user");
         })
         .catch(function(){
-            alert("تعذر تحميل صلاحيات المستخدم");
+            console.warn("تعذر تحميل صلاحيات المستخدم");
         });
 }
 

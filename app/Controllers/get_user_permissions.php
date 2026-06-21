@@ -1,5 +1,7 @@
 ﻿<?php
 
+declare(strict_types=1);
+
 require_once VC_HELPERS . '/scope_helper.php';
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -11,23 +13,20 @@ header('Content-Type: application/json; charset=UTF-8');
 $uid = (int) ($_SESSION['user_id'] ?? 0);
 
 if ($uid <= 0) {
-    http_response_code(401);
-    echo json_encode([]);
+    echo json_encode([], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
 $stmtAdmin = $conn->prepare('SELECT role, is_admin, job_role, session_version, is_active FROM users WHERE id = ? LIMIT 1');
 if (!$stmtAdmin) {
-    http_response_code(500);
-    echo json_encode(['error' => 'db_prepare_failed']);
+    echo json_encode([], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
 $stmtAdmin->bind_param('i', $uid);
 if (!$stmtAdmin->execute()) {
     $stmtAdmin->close();
-    http_response_code(500);
-    echo json_encode(['error' => 'db_query_failed']);
+    echo json_encode([], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
@@ -35,16 +34,14 @@ $current = $stmtAdmin->get_result()->fetch_assoc();
 $stmtAdmin->close();
 
 if (empty($current) || (int) ($current['is_active'] ?? 1) !== 1) {
-    http_response_code(401);
-    echo json_encode([]);
+    echo json_encode([], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
 if (isset($_SESSION['session_version'])) {
     $dbSessionVersion = (int) ($current['session_version'] ?? 1);
     if ((int) $_SESSION['session_version'] !== $dbSessionVersion) {
-        http_response_code(401);
-        echo json_encode([]);
+        echo json_encode([], JSON_UNESCAPED_UNICODE);
         exit();
     }
 }
@@ -56,20 +53,14 @@ $isAdmin = !empty($current) && (
 );
 
 if (!$isAdmin) {
-    http_response_code(403);
-    echo json_encode([]);
+    echo json_encode([], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
 $user_id = (int) ($_GET['user_id'] ?? 0);
 
-if ($user_id <= 0) {
-    echo json_encode([]);
-    exit();
-}
-
-if (!vcTableExists($conn, 'user_permissions')) {
-    echo json_encode([]);
+if ($user_id <= 0 || !vcTableExists($conn, 'user_permissions')) {
+    echo json_encode([], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
@@ -79,16 +70,14 @@ $stmt = $conn->prepare('
     WHERE user_id = ?
 ');
 if (!$stmt) {
-    http_response_code(500);
-    echo json_encode(['error' => 'db_prepare_failed']);
+    echo json_encode([], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
 $stmt->bind_param('i', $user_id);
 if (!$stmt->execute()) {
     $stmt->close();
-    http_response_code(500);
-    echo json_encode(['error' => 'db_query_failed']);
+    echo json_encode([], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
