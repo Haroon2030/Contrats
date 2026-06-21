@@ -1,0 +1,9 @@
+-- مثال: إضافة عمود جديد (انسخه إلى ملف 001_xxx.sql)
+-- استخدم IF NOT EXISTS / ON CONFLICT DO NOTHING لحماية البيانات الحالية.
+
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS example_flag SMALLINT NOT NULL DEFAULT 0;
+
+-- إدراج بيانات مرجعية بدون تكرار:
+-- INSERT INTO pages (id, name, title, icon, sort_order, description, status, section)
+-- VALUES (99, 'new_page', 'صفحة جديدة', 'icon.png', 99, '', 1, 'admin')
+-- ON CONFLICT (id) DO NOTHING;

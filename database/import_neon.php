@@ -1,6 +1,10 @@
 <?php
 /**
- * استيراد database.sql إلى PostgreSQL (Neon) — بيئة الإنتاج
+ * استيراد database.sql إلى PostgreSQL (Neon) — إعداد أولي يدوي فقط
+ *
+ * ⚠️ لا يُستخدم أثناء النشر التلقائي — استخدم database/migrate.php للتحديثات.
+ * ⚠️ --fresh يحذف كل البيانات — للإعداد الأولي على قاعدة فارغة فقط.
+ *
  * الاستخدام: php database/import_neon.php --fresh
  */
 
