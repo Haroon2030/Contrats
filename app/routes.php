@@ -4,8 +4,6 @@ return [
     'login',
     'logout',
     'dashboard',
-    'dashboard_admin_glass_donut_fixed',
-    'check',
     'add_contract',
     'drafts',
     'under_review',
