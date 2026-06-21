@@ -1,19 +1,44 @@
 <?php
 
 
-if (!function_exists('vcScopeColumnExists')) {
-    function vcScopeColumnExists(VcDb $conn, string $table, string $column): bool {
+if (!function_exists('vcColumnExists')) {
+    function vcColumnExists(VcDb $conn, string $table, string $column): bool {
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $table) || !preg_match('/^[A-Za-z0-9_]+$/', $column)) {
+            return false;
+        }
+
         try {
-            $stmt = $conn->prepare("\n                SELECT COUNT(*) AS c\n                FROM INFORMATION_SCHEMA.COLUMNS\n                WHERE TABLE_SCHEMA = DATABASE()\n                AND TABLE_NAME = ?\n                AND COLUMN_NAME = ?\n            ");
-            if (!$stmt) return false;
-            $stmt->bind_param("ss", $table, $column);
+            if ($conn->driver() === 'sqlite') {
+                $stmt = $conn->prepare('SELECT COUNT(*) AS c FROM pragma_table_info(?) WHERE name = ?');
+            } else {
+                $stmt = $conn->prepare('
+                    SELECT COUNT(*) AS c
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                    AND table_name = ?
+                    AND column_name = ?
+                ');
+            }
+
+            if (!$stmt) {
+                return false;
+            }
+
+            $stmt->bind_param('ss', $table, $column);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
             $stmt->close();
+
             return !empty($row) && (int)($row['c'] ?? 0) > 0;
-        } catch (Throwable $e) {
+        } catch (Throwable) {
             return false;
         }
+    }
+}
+
+if (!function_exists('vcScopeColumnExists')) {
+    function vcScopeColumnExists(VcDb $conn, string $table, string $column): bool {
+        return vcColumnExists($conn, $table, $column);
     }
 }
 

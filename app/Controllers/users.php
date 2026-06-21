@@ -1,5 +1,6 @@
 <?php
 require_once VC_HELPERS . '/auth.php';
+require_once VC_HELPERS . '/scope_helper.php';
 
 /*
     users.php
@@ -20,22 +21,6 @@ date_default_timezone_set('Asia/Riyadh');
 
 function e($value): string {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
-}
-
-function columnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    return !empty($row) && (int)$row['c'] > 0;
 }
 
 function normalizeSaudiWhatsappNumber($phone): string {
@@ -92,35 +77,35 @@ if ($uid <= 0) {
     بنضيف session_version لو مش موجود.
     وبعد كده لازم auth.php يقارنها مع السيشن.
 */
-if (!columnExists($conn, 'users', 'session_version')) {
+if (!vcColumnExists($conn, 'users', 'session_version')) {
     $conn->query("ALTER TABLE users ADD COLUMN session_version INT NOT NULL DEFAULT 1");
 }
 
-if (!columnExists($conn, 'users', 'last_password_change')) {
+if (!vcColumnExists($conn, 'users', 'last_password_change')) {
     $conn->query("ALTER TABLE users ADD COLUMN last_password_change DATETIME NULL");
 }
 
-if (!columnExists($conn, 'users', 'whatsapp_number')) {
+if (!vcColumnExists($conn, 'users', 'whatsapp_number')) {
     $conn->query("ALTER TABLE users ADD COLUMN whatsapp_number VARCHAR(30) NULL");
 }
 
-if (!columnExists($conn, 'users', 'whatsapp_enabled')) {
+if (!vcColumnExists($conn, 'users', 'whatsapp_enabled')) {
     $conn->query("ALTER TABLE users ADD COLUMN whatsapp_enabled TINYINT(1) NOT NULL DEFAULT 1");
 }
 
-if (!columnExists($conn, 'users', 'is_active')) {
+if (!vcColumnExists($conn, 'users', 'is_active')) {
     $conn->query("ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1");
 }
 
-if (!columnExists($conn, 'users', 'manager_id')) {
+if (!vcColumnExists($conn, 'users', 'manager_id')) {
     $conn->query("ALTER TABLE users ADD COLUMN manager_id INT NULL DEFAULT NULL AFTER role");
 }
 
-if (!columnExists($conn, 'users', 'is_supervisor')) {
+if (!vcColumnExists($conn, 'users', 'is_supervisor')) {
     $conn->query("ALTER TABLE users ADD COLUMN is_supervisor TINYINT(1) NOT NULL DEFAULT 0 AFTER manager_id");
 }
 
-if (!columnExists($conn, 'users', 'job_role')) {
+if (!vcColumnExists($conn, 'users', 'job_role')) {
     $conn->query("ALTER TABLE users ADD COLUMN job_role ENUM('user','section_manager','finance_manager','commercial_manager','accountant','admin') NOT NULL DEFAULT 'user' AFTER role");
     $conn->query("UPDATE users SET job_role = CASE WHEN role = 'admin' OR is_admin = 1 THEN 'admin' WHEN is_supervisor = 1 THEN 'section_manager' ELSE 'user' END");
 } else {
@@ -130,13 +115,13 @@ if (!columnExists($conn, 'users', 'job_role')) {
 
 
 /* المدير التجاري يأخذ صلاحيات الأدمن كاملة */
-if ($hasIsAdminColumn ?? columnExists($conn, 'users', 'is_admin')) {
+if ($hasIsAdminColumn ?? vcColumnExists($conn, 'users', 'is_admin')) {
     $conn->query("UPDATE users SET role = 'admin', is_admin = 1 WHERE job_role = 'commercial_manager'");
 } else {
     $conn->query("UPDATE users SET role = 'admin' WHERE job_role = 'commercial_manager'");
 }
 
-$hasIsAdminColumn = columnExists($conn, 'users', 'is_admin');
+$hasIsAdminColumn = vcColumnExists($conn, 'users', 'is_admin');
 
 /* CSRF */
 if (empty($_SESSION['csrf_token'])) {
