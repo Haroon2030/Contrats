@@ -207,47 +207,25 @@ $bulkDeleteMsg = $_SESSION['my_items_bulk_delete_msg'] ?? '';
 unset($_SESSION['my_items_bulk_delete_msg']);
 
 
-$sql = "
-    SELECT 
-        i.batch_id,
-        i.supplier_name,
-
-        COUNT(*) AS request_items_count,
-
-        SUM(CASE WHEN i.status = 'approved' THEN 1 ELSE 0 END) AS approved_items_count,
-        COALESCE(SUM(CASE WHEN i.status = 'approved' THEN i.fee ELSE 0 END), 0) AS approved_total_fees,
-
-        MAX(i.status) AS status,
-        MAX(i.created_at) AS created_at,
-        MAX(i.approved_at) AS approved_at,
-        MAX(i.rejected_at) AS rejected_at,
-
-        MAX(i.paid) AS paid,
-        MAX(i.deducted_by) AS deducted_by,
-        MAX(i.deducted_at) AS deducted_at,
-        i.created_by,
-        creator.username AS creator_username,
-        u.username AS deducted_username
-
+$fromWhere = "
     FROM items i
     LEFT JOIN users u ON u.id = i.deducted_by
     LEFT JOIN users creator ON creator.id = i.created_by
-
     WHERE i.status IN ('approved','rejected')
 ";
 
 $params = [];
 $types  = "";
-$sql .= vcBuildInCondition('i.created_by', $scopedUserIds, $params, $types);
+$fromWhere .= vcBuildInCondition('i.created_by', $scopedUserIds, $params, $types);
 
 if ($user_filter !== '') {
-    $sql .= " AND i.created_by = ?";
+    $fromWhere .= " AND i.created_by = ?";
     $params[] = (int)$user_filter;
     $types .= "i";
 }
 
 if ($search !== '') {
-    $sql .= " AND (
+    $fromWhere .= " AND (
         i.supplier_name LIKE ?
         OR i.batch_id LIKE ?
         OR creator.username LIKE ?
@@ -259,7 +237,64 @@ if ($search !== '') {
     $types .= "sss";
 }
 
-$sql .= "
+$summarySql = "
+    SELECT
+        COUNT(DISTINCT i.batch_id) AS total_requests,
+        SUM(CASE WHEN i.status = 'approved' THEN 1 ELSE 0 END) AS total_approved_items,
+        COALESCE(SUM(CASE WHEN i.status = 'approved' THEN i.fee ELSE 0 END), 0) AS total_approved_fees,
+        COUNT(DISTINCT CASE WHEN i.status = 'approved' THEN i.batch_id END) AS approved_batches,
+        COUNT(DISTINCT CASE WHEN i.status = 'rejected' THEN i.batch_id END) AS rejected_batches
+    {$fromWhere}
+";
+
+$stmtSummary = $conn->prepare($summarySql);
+if (!empty($params)) {
+    $stmtSummary->bind_param($types, ...$params);
+}
+$stmtSummary->execute();
+$summary = $stmtSummary->get_result()->fetch_assoc() ?: [];
+$stmtSummary->close();
+
+$totalRequests = (int)($summary['total_requests'] ?? 0);
+$totalApprovedItems = (int)($summary['total_approved_items'] ?? 0);
+$totalApprovedFees = (float)($summary['total_approved_fees'] ?? 0);
+$approvedCount = (int)($summary['approved_batches'] ?? 0);
+$rejectedCount = (int)($summary['rejected_batches'] ?? 0);
+
+$groupCountSql = "
+    SELECT i.batch_id
+    {$fromWhere}
+    GROUP BY 
+        i.batch_id,
+        i.supplier_name,
+        i.created_by,
+        creator.username,
+        u.username
+";
+
+$pg = vcPaginationState();
+$totalRows = vcPaginationCountGrouped($conn, $groupCountSql, $params, $types);
+$totalPages = vcPaginationTotalPages($totalRows, $pg['per_page']);
+$page = min($pg['page'], $totalPages);
+
+$sql = "
+    SELECT 
+        i.batch_id,
+        i.supplier_name,
+        COUNT(*) AS request_items_count,
+        SUM(CASE WHEN i.status = 'approved' THEN 1 ELSE 0 END) AS approved_items_count,
+        COALESCE(SUM(CASE WHEN i.status = 'approved' THEN i.fee ELSE 0 END), 0) AS approved_total_fees,
+        MAX(i.status) AS status,
+        MAX(i.created_at) AS created_at,
+        MAX(i.approved_at) AS approved_at,
+        MAX(i.rejected_at) AS rejected_at,
+        MAX(i.paid) AS paid,
+        MAX(i.deducted_by) AS deducted_by,
+        MAX(i.deducted_at) AS deducted_at,
+        i.created_by,
+        creator.username AS creator_username,
+        u.username AS deducted_username
+    {$fromWhere}
     GROUP BY 
         i.batch_id,
         i.supplier_name,
@@ -267,38 +302,23 @@ $sql .= "
         creator.username,
         u.username
     ORDER BY i.batch_id DESC
+    LIMIT ? OFFSET ?
 ";
+
+[$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($page - 1) * $pg['per_page']);
 
 $stmt = $conn->prepare($sql);
 
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+if (!empty($dataParams)) {
+    $stmt->bind_param($dataTypes, ...$dataParams);
 }
 
 $stmt->execute();
 $result = $stmt->get_result();
 
 $rows = [];
-$totalRequests = 0;
-$totalApprovedItems = 0;
-$totalApprovedFees = 0;
-$approvedCount = 0;
-$rejectedCount = 0;
-
 while ($row = $result->fetch_assoc()) {
     $rows[] = $row;
-
-    $totalRequests++;
-
-    if (($row['status'] ?? '') === 'approved') {
-        $approvedCount++;
-        $totalApprovedItems += (int)($row['approved_items_count'] ?? 0);
-        $totalApprovedFees += (float)($row['approved_total_fees'] ?? 0);
-    }
-
-    if (($row['status'] ?? '') === 'rejected') {
-        $rejectedCount++;
-    }
 }
 
 $stmt->close();
@@ -955,6 +975,8 @@ body.wide-table-mode .user-badge{
 
     </div>
 
+    <?php vcRenderPagination($page, $totalPages); ?>
+
 </div>
 
 <script>
@@ -978,6 +1000,8 @@ function applyFilters(){
     }else{
         url.searchParams.delete("user");
     }
+
+    url.searchParams.delete("pg");
 
     window.location.href = url;
 }

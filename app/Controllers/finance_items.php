@@ -165,6 +165,84 @@ if (!in_array($paid_filter, ['', 'paid', 'unpaid'], true)) {
 }
 
 
+$fromWhere = "
+    FROM items i
+    LEFT JOIN users u ON u.id = i.deducted_by
+    WHERE i.status = 'approved'
+";
+
+$params = [];
+$types = "";
+
+if ($search !== '') {
+    $fromWhere .= " AND (
+        i.supplier_name LIKE ?
+        OR i.batch_id LIKE ?
+    )";
+    $like = "%{$search}%";
+    $params[] = $like;
+    $params[] = $like;
+    $types .= "ss";
+}
+
+$groupBase = "
+    SELECT i.batch_id
+    {$fromWhere}
+    GROUP BY 
+        i.batch_id,
+        i.supplier_name,
+        u.username
+";
+
+$paidInner = $groupBase . " HAVING MAX(i.paid) = 1";
+$unpaidInner = $groupBase . " HAVING MAX(i.paid) IS NULL OR MAX(i.paid) = 0";
+
+$paidCount = vcPaginationCountGrouped($conn, $paidInner, $params, $types);
+$unpaidCount = vcPaginationCountGrouped($conn, $unpaidInner, $params, $types);
+$totalBatches = $paidCount + $unpaidCount;
+
+$havingSql = '';
+if ($paid_filter === 'paid') {
+    $havingSql = "HAVING MAX(i.paid) = 1";
+}
+
+if ($paid_filter === 'unpaid') {
+    $havingSql = "HAVING MAX(i.paid) IS NULL OR MAX(i.paid) = 0";
+}
+
+$summarySql = "
+    SELECT COALESCE(SUM(t.total_fees), 0) AS total_fees
+    FROM (
+        SELECT COALESCE(SUM(i.fee), 0) AS total_fees
+        {$fromWhere}
+        GROUP BY 
+            i.batch_id,
+            i.supplier_name,
+            u.username
+        {$havingSql}
+    ) t
+";
+
+$stmtSummary = $conn->prepare($summarySql);
+if (!empty($params)) {
+    $stmtSummary->bind_param($types, ...$params);
+}
+$stmtSummary->execute();
+$summaryRow = $stmtSummary->get_result()->fetch_assoc() ?: [];
+$stmtSummary->close();
+$totalFees = (float)($summaryRow['total_fees'] ?? 0);
+
+$totalRows = $totalBatches;
+if ($paid_filter === 'paid') {
+    $totalRows = $paidCount;
+} elseif ($paid_filter === 'unpaid') {
+    $totalRows = $unpaidCount;
+}
+
+$pg = vcPaginationState();
+$totalPages = vcPaginationTotalPages($totalRows, $pg['per_page']);
+$page = min($pg['page'], $totalPages);
+
 $sql = "
     SELECT 
         i.batch_id,
@@ -175,68 +253,31 @@ $sql = "
         MAX(i.deducted_by) AS deducted_by,
         MAX(i.deducted_at) AS deducted_at,
         u.username AS deducted_username
-    FROM items i
-    LEFT JOIN users u ON u.id = i.deducted_by
-    WHERE i.status = 'approved'
-";
-
-$params = [];
-$types = "";
-
-if ($search !== '') {
-    $sql .= " AND (
-        i.supplier_name LIKE ?
-        OR i.batch_id LIKE ?
-    )";
-    $like = "%{$search}%";
-    $params[] = $like;
-    $params[] = $like;
-    $types .= "ss";
-}
-
-$sql .= "
+    {$fromWhere}
     GROUP BY 
         i.batch_id,
         i.supplier_name,
         u.username
+    {$havingSql}
+    ORDER BY i.batch_id DESC
+    LIMIT ? OFFSET ?
 ";
 
-if ($paid_filter === 'paid') {
-    $sql .= " HAVING MAX(i.paid) = 1";
-}
-
-if ($paid_filter === 'unpaid') {
-    $sql .= " HAVING MAX(i.paid) IS NULL OR MAX(i.paid) = 0";
-}
-
-$sql .= " ORDER BY i.batch_id DESC";
+[$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($page - 1) * $pg['per_page']);
 
 $stmt = $conn->prepare($sql);
 
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+if (!empty($dataParams)) {
+    $stmt->bind_param($dataTypes, ...$dataParams);
 }
 
 $stmt->execute();
 $result = $stmt->get_result();
 
 $rows = [];
-$totalBatches = 0;
-$totalFees = 0;
-$paidCount = 0;
-$unpaidCount = 0;
 
 while ($row = $result->fetch_assoc()) {
     $rows[] = $row;
-
-    $totalBatches++;
-    $totalFees += (float)($row['total_fees'] ?? 0);
-
-    if (!empty($row['paid'])) {
-        $paidCount++;
-    } else {
-        $unpaidCount++;
-    }
 }
 
 $stmt->close();
@@ -728,6 +769,8 @@ body{
 
     </div>
 
+    <?php vcRenderPagination($page, $totalPages); ?>
+
 </div>
 
 <script>
@@ -736,7 +779,25 @@ const searchInput = document.getElementById("searchInput");
 const paidFilter = document.getElementById("paidFilter");
 
 function applyFilters(){
-    document.querySelector(".filters").submit();
+    let url = new URL(window.location.href);
+    const search = document.getElementById("searchInput") ? document.getElementById("searchInput").value : "";
+    const paid = document.getElementById("paidFilter") ? document.getElementById("paidFilter").value : "";
+
+    if(search){
+        url.searchParams.set("search", search);
+    }else{
+        url.searchParams.delete("search");
+    }
+
+    if(paid){
+        url.searchParams.set("paid", paid);
+    }else{
+        url.searchParams.delete("paid");
+    }
+
+    url.searchParams.delete("pg");
+
+    window.location.href = url;
 }
 
 if(searchInput){

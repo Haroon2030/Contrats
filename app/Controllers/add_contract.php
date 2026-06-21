@@ -1266,8 +1266,8 @@ body{
 
 
 .page-head{
-    text-align:center;
-    margin-bottom:24px;
+    text-align:right;
+    margin-bottom:22px;
 }
 
 .page-title{
@@ -1309,25 +1309,242 @@ body{
 
 
 .section-title{
-    background:rgba(255,255,255,.74);
-    padding:15px 18px;
-    border-radius:18px;
+    background:transparent;
+    padding:0 0 14px;
+    border-radius:0;
     font-weight:900;
-    margin:26px 0 16px;
-    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
-    border:1px solid rgba(226,232,240,.95);
-    color:#4f46e5;
+    margin:0 0 16px;
+    box-shadow:none;
+    border:none;
+    border-bottom:2px solid #eef2f7;
+    color:#172033;
     display:flex;
     align-items:center;
     gap:10px;
+    font-size:17px;
+}
+
+.section-title .step-num{
+    width:28px;
+    height:28px;
+    border-radius:10px;
+    background:linear-gradient(145deg,#7c5cff,#4f46e5);
+    color:#fff;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    font-size:13px;
+    flex-shrink:0;
 }
 
 .section-title::before{
-    content:"";
-    width:9px;
-    height:24px;
+    display:none;
+}
+
+.form-panel{
+    background:rgba(255,255,255,.78);
+    border-radius:22px;
+    padding:20px 22px 22px;
+    margin-bottom:18px;
+    border:1px solid rgba(226,232,240,.95);
+    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
+    scroll-margin-top:18px;
+}
+
+.panel-divider{
+    height:1px;
+    background:#eef2f7;
+    margin:20px 0 18px;
+}
+
+.panel-subtitle{
+    font-size:14px;
+    font-weight:900;
+    color:#4f46e5;
+    margin:0 0 14px;
+}
+
+.contract-meta-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:16px;
+}
+
+.contract-meta-grid .field--full{
+    grid-column:1 / -1;
+}
+
+.discounts-grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:14px;
+}
+
+.discounts-grid .box{
+    margin-bottom:0;
+    height:100%;
+}
+
+.discounts-grid .box--wide{
+    grid-column:1 / -1;
+}
+
+.contract-page-layout{
+    display:block;
+}
+
+.contract-form-main{
+    min-width:0;
+}
+
+.contract-tabs{
+    background:rgba(255,255,255,.84);
+    border:1px solid rgba(226,232,240,.95);
+    border-radius:18px;
+    padding:14px;
+    margin-bottom:16px;
+    box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;
+}
+
+.contract-tabs-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:12px;
+}
+
+.contract-tabs-title{
+    font-size:13px;
+    font-weight:900;
+    color:#667085;
+    margin:0;
+}
+
+.contract-tab-progress{
+    font-size:12px;
+    font-weight:800;
+    color:#4f46e5;
+    background:#f0edff;
+    padding:6px 12px;
     border-radius:999px;
-    background:linear-gradient(180deg,#7c5cff,#4f46e5);
+    white-space:nowrap;
+}
+
+.contract-tabs-inner{
+    display:grid;
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    gap:8px;
+}
+
+.contract-tab{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:11px 10px;
+    border-radius:14px;
+    border:1px solid #e4e7ec;
+    background:#f8fafc;
+    color:#344054;
+    font-weight:800;
+    font-size:12px;
+    cursor:pointer;
+    transition:.15s ease;
+    font-family:inherit;
+    text-align:center;
+    line-height:1.4;
+}
+
+.contract-tab span{
+    width:22px;
+    height:22px;
+    border-radius:8px;
+    background:#eef2ff;
+    color:#4f46e5;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    font-size:11px;
+    font-weight:900;
+    flex-shrink:0;
+}
+
+.contract-tab:hover{
+    border-color:#c7d2fe;
+    background:#fff;
+}
+
+.contract-tab.is-active{
+    background:linear-gradient(145deg,#7c5cff,#4f46e5);
+    border-color:transparent;
+    color:#fff;
+    box-shadow:0 10px 22px rgba(109,74,255,.22);
+}
+
+.contract-tab.is-active span{
+    background:rgba(255,255,255,.2);
+    color:#fff;
+}
+
+.contract-tab.is-done{
+    border-color:#bbf7d0;
+    background:#f0fdf4;
+    color:#166534;
+}
+
+.contract-tab-panel{
+    display:none !important;
+}
+
+.contract-tab-panel.is-active{
+    display:block !important;
+}
+
+.form-actions-bar{
+    position:sticky;
+    bottom:0;
+    z-index:30;
+    margin-top:6px;
+    padding:14px 0 4px;
+    background:linear-gradient(180deg, rgba(238,241,247,0) 0%, rgba(238,241,247,.94) 28%);
+    backdrop-filter:blur(6px);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.form-actions-bar .submit{
+    margin-top:0;
+    margin-right:auto;
+    width:auto;
+    min-width:180px;
+    padding:0 28px;
+}
+
+.btn-tab-nav{
+    min-height:48px;
+    padding:0 18px;
+    border-radius:14px;
+    border:1px solid #dfe6f0;
+    background:#fff;
+    color:#344054;
+    font-weight:900;
+    font-size:14px;
+    cursor:pointer;
+    font-family:inherit;
+    transition:.15s ease;
+}
+
+.btn-tab-nav:hover:not(:disabled){
+    border-color:#c7d2fe;
+    color:#4f46e5;
+}
+
+.btn-tab-nav:disabled{
+    opacity:.45;
+    cursor:not-allowed;
 }
 
 
@@ -1747,8 +1964,31 @@ select:focus{
     .grid-2,
     .supplier-status,
     .option-buttons,
-    .discount{
+    .discount,
+    .contract-meta-grid,
+    .discounts-grid{
         grid-template-columns:1fr;
+    }
+
+    .discounts-grid .box--wide{
+        grid-column:auto;
+    }
+
+    .contract-tabs-inner{
+        display:flex;
+        overflow-x:auto;
+        gap:8px;
+        padding-bottom:4px;
+    }
+
+    .contract-tab{
+        flex:0 0 auto;
+        min-width:140px;
+    }
+
+    .form-actions-bar .submit{
+        width:100%;
+        margin-right:0;
     }
 
     .container{
@@ -1757,6 +1997,10 @@ select:focus{
     }
 
     .box{
+        padding:16px;
+    }
+
+    .form-panel{
         padding:16px;
     }
 
@@ -2190,132 +2434,142 @@ form{
     </div>
 <?php endif; ?>
 
-<form method="POST" enctype="multipart/form-data" autocomplete="off" onsubmit="return confirmSupplierDuplicateBeforeSubmit();">
+<form method="POST" enctype="multipart/form-data" autocomplete="off" onsubmit="return confirmSupplierDuplicateBeforeSubmit();" id="contractForm">
     <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token']) ?>">
     <input type="hidden" name="supplier_name" id="supplier_name" value="<?= e($form['supplier_name']) ?>">
-<div class="field">
-        <div class="option-title">حالة المورد</div>
 
-        <div class="supplier-status">
+<div class="contract-page-layout">
 
-            <label class="status-card">
-                <input type="radio" name="supplier_status" value="registered" <?= $supplier_registered_checked ?>>
-                <div class="card">
-                    <span class="icon">🏢</span>
-                    <div>
-                        <strong>مورد مسجل</strong>
-                        <small>اختار مورد موجود بالفعل</small>
+    <nav class="contract-tabs" aria-label="أقسام النموذج">
+        <div class="contract-tabs-head">
+            <p class="contract-tabs-title">خطوات إضافة العقد</p>
+            <span class="contract-tab-progress" id="contractTabProgress">الخطوة 1 من 6</span>
+        </div>
+        <div class="contract-tabs-inner" role="tablist">
+            <button type="button" class="contract-tab is-active" role="tab" data-target="sec-supplier" aria-selected="true"><span>1</span> المورد</button>
+            <button type="button" class="contract-tab" role="tab" data-target="sec-commercial" aria-selected="false"><span>2</span> تجارية</button>
+            <button type="button" class="contract-tab" role="tab" data-target="sec-marketing" aria-selected="false"><span>3</span> تسويقية</button>
+            <button type="button" class="contract-tab" role="tab" data-target="sec-rent" aria-selected="false"><span>4</span> إيجارية</button>
+            <button type="button" class="contract-tab" role="tab" data-target="sec-contract-file" aria-selected="false"><span>5</span> النموذج</button>
+            <button type="button" class="contract-tab" role="tab" data-target="sec-notes" aria-selected="false"><span>6</span> ملاحظات</button>
+        </div>
+    </nav>
+
+    <div class="contract-form-main">
+
+    <section class="form-panel contract-tab-panel is-active" id="sec-supplier" role="tabpanel">
+        <div class="section-title"><span class="step-num">1</span> المورد والبيانات الأساسية</div>
+
+        <div class="field">
+            <div class="option-title">حالة المورد</div>
+            <div class="supplier-status">
+                <label class="status-card">
+                    <input type="radio" name="supplier_status" value="registered" <?= $supplier_registered_checked ?>>
+                    <div class="card">
+                        <span class="icon">🏢</span>
+                        <div>
+                            <strong>مورد مسجل</strong>
+                            <small>اختار مورد موجود بالفعل</small>
+                        </div>
                     </div>
-                </div>
-            </label>
-
-            <label class="status-card">
-                <input type="radio" name="supplier_status" value="new" <?= $supplier_new_checked ?>>
-                <div class="card">
-                    <span class="icon">➕</span>
-                    <div>
-                        <strong>مورد جديد</strong>
-                        <small>إضافة مورد جديد للنظام</small>
+                </label>
+                <label class="status-card">
+                    <input type="radio" name="supplier_status" value="new" <?= $supplier_new_checked ?>>
+                    <div class="card">
+                        <span class="icon">➕</span>
+                        <div>
+                            <strong>مورد جديد</strong>
+                            <small>إضافة مورد جديد للنظام</small>
+                        </div>
                     </div>
+                </label>
+            </div>
+        </div>
+
+        <div class="basic-info-grid">
+            <div class="field supplier-field">
+                <div id="supplier_name_box">
+                    <label>اسم المورد</label>
+                    <input type="text" id="new_supplier_name" value="<?= e($form['supplier_name']) ?>" placeholder="اكتب اسم المورد">
                 </div>
-            </label>
-
-        </div>
-    </div>
-
-    <div class="section-title">البيانات الأساسية</div>
-
-    <div class="basic-info-grid">
-
-        <div class="field supplier-field">
-
-            <div id="supplier_name_box">
-                <label>اسم المورد</label>
-                <input type="text" id="new_supplier_name" value="<?= e($form['supplier_name']) ?>" placeholder="اكتب اسم المورد">
+                <div id="supplier_search_box" style="display:none;">
+                    <label>بحث عن المورد</label>
+                    <input type="text" id="supplier_search" placeholder="اكتب اسم المورد..." value="<?= e($form['supplier_name']) ?>">
+                    <div id="results"></div>
+                </div>
+                <div id="supplierDuplicateWarning" class="supplier-warning-box"></div>
+                <input type="hidden" id="supplier_duplicate_found" value="0">
             </div>
 
-            <div id="supplier_search_box" style="display:none;">
-                <label>بحث عن المورد</label>
-                <input type="text" id="supplier_search" placeholder="اكتب اسم المورد..." value="<?= e($form['supplier_name']) ?>">
-                <div id="results"></div>
+            <div class="field">
+                <label for="company_name">اسم المسؤول</label>
+                <input type="text" id="company_name" name="company_name" placeholder="اكتب اسم المسؤول" value="<?= e($form['company_name']) ?>" required>
             </div>
 
-            <div id="supplierDuplicateWarning" class="supplier-warning-box"></div>
-            <input type="hidden" id="supplier_duplicate_found" value="0">
-
-        </div>
-
-        <div class="field">
-            <label for="company_name">اسم المسؤول</label>
-            <input type="text" id="company_name" name="company_name" placeholder="اكتب اسم المسؤول" value="<?= e($form['company_name']) ?>" required>
-        </div>
-
-        <div class="field">
-            <label for="supplier_phone">رقم الجوال</label>
-            <div class="phone">
-                <span>+966</span>
-                <input
-                    type="text"
-                    id="supplier_phone"
-                    name="supplier_phone"
-                    placeholder="5XXXXXXXX"
-                    maxlength="9"
-                    inputmode="numeric"
-                    value="<?= e($form['supplier_phone']) ?>"
-                >
-            </div>
-            <div class="hint">مثال: 5XXXXXXXX</div>
-        </div>
-
-    </div>
-
-    <div class="field">
-        <div class="option-title">حالة العقد</div>
-
-        <div class="option-buttons">
-
-            <input type="radio" id="status1" name="status" value="تفاوض" required <?= $status_tafawod_checked ?>>
-            <label for="status1">تفاوض</label>
-
-            <input type="radio" id="status2" name="status" value="نهائي" <?= $status_final_checked ?>>
-            <label for="status2" class="<?= $is_admin ? 'final-btn' : '' ?>">
-                <?= $is_admin ? 'إجراء نهائي' : 'إرسال للإدارة' ?>
-            </label>
-
-        </div>
-    </div>
-
-    <div class="grid-2">
-
-        <div class="field">
-            <label for="start_date">تاريخ البداية</label>
-            <div class="date-field">
-                <input type="text" id="start_date" name="start_date" value="<?= e($form['start_date']) ?>" placeholder="اختر تاريخ البداية">
-                <span class="date-icon">📅</span>
+            <div class="field">
+                <label for="supplier_phone">رقم الجوال</label>
+                <div class="phone">
+                    <span>+966</span>
+                    <input
+                        type="text"
+                        id="supplier_phone"
+                        name="supplier_phone"
+                        placeholder="5XXXXXXXX"
+                        maxlength="9"
+                        inputmode="numeric"
+                        value="<?= e($form['supplier_phone']) ?>"
+                    >
+                </div>
+                <div class="hint">مثال: 5XXXXXXXX</div>
             </div>
         </div>
 
-        <div class="field">
-            <label for="end_date">تاريخ النهاية</label>
-            <div class="date-field">
-                <input type="text" id="end_date" name="end_date" value="<?= e($form['end_date']) ?>" placeholder="اختر تاريخ النهاية">
-                <span class="date-icon">📅</span>
+        <div class="panel-divider"></div>
+        <div class="panel-subtitle">تفاصيل العقد</div>
+
+        <div class="contract-meta-grid">
+            <div class="field field--full">
+                <div class="option-title">حالة العقد</div>
+                <div class="option-buttons">
+                    <input type="radio" id="status1" name="status" value="تفاوض" required <?= $status_tafawod_checked ?>>
+                    <label for="status1">تفاوض</label>
+                    <input type="radio" id="status2" name="status" value="نهائي" <?= $status_final_checked ?>>
+                    <label for="status2" class="<?= $is_admin ? 'final-btn' : '' ?>">
+                        <?= $is_admin ? 'إجراء نهائي' : 'إرسال للإدارة' ?>
+                    </label>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="start_date">تاريخ البداية</label>
+                <div class="date-field">
+                    <input type="text" id="start_date" name="start_date" value="<?= e($form['start_date']) ?>" placeholder="اختر تاريخ البداية">
+                    <span class="date-icon">📅</span>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="end_date">تاريخ النهاية</label>
+                <div class="date-field">
+                    <input type="text" id="end_date" name="end_date" value="<?= e($form['end_date']) ?>" placeholder="اختر تاريخ النهاية">
+                    <span class="date-icon">📅</span>
+                </div>
+            </div>
+
+            <div class="field field--full">
+                <label>فترة السداد <span style="color:#ef4444">*</span></label>
+                <div class="currency-field">
+                    <span>يوم</span>
+                    <input type="number" name="payment_period" value="<?= e($form['payment_period'] ?? '') ?>" placeholder="مثلاً 30" min="1" required>
+                </div>
             </div>
         </div>
+    </section>
 
-    </div>
+    <section class="form-panel contract-tab-panel" id="sec-commercial" role="tabpanel">
+        <div class="section-title"><span class="step-num">2</span> البنود التجارية</div>
 
-    <div class="field">
-        <label>فترة السداد <span style="color:#ef4444">*</span></label>
-
-        <div class="currency-field">
-            <span>يوم</span>
-            <input type="number" name="payment_period" value="<?= e($form['payment_period'] ?? '') ?>" placeholder="مثلاً 30" min="1" required>
-        </div>
-    </div>
-
-    <div class="section-title">البنود التجارية</div>
-
+        <div class="discounts-grid">
     <div class="box">
         <div class="box-title">خصم الفاتورة</div>
         <div class="discount">
@@ -2346,7 +2600,7 @@ form{
         </div>
     </div>
 
-    <div class="box">
+    <div class="box box--wide">
         <div class="box-title">خصم سنوي</div>
 
         <div class="table-wrap">
@@ -2382,9 +2636,13 @@ form{
 
         <button type="button" class="icon-btn add-btn" onclick="addYearRow()">+ إضافة صف</button>
     </div>
+        </div>
+    </section>
 
-    <div class="section-title">البنود التسويقية</div>
+    <section class="form-panel contract-tab-panel" id="sec-marketing" role="tabpanel">
+        <div class="section-title"><span class="step-num">3</span> البنود التسويقية</div>
 
+    <div class="discounts-grid">
     <div class="box">
         <div class="box-title">رسوم صنف جديد</div>
 
@@ -2394,7 +2652,7 @@ form{
         </div>
     </div>
 
-    <div class="box">
+    <div class="box box--wide">
         <div class="box-title">رسوم مهرجان / فعالية</div>
 
         <div class="table-wrap">
@@ -2448,8 +2706,11 @@ form{
 
         <button type="button" class="icon-btn add-btn" onclick="addEventRow()">+ إضافة صف</button>
     </div>
+    </div>
+    </section>
 
-    <div class="section-title">البنود الإيجارية</div>
+    <section class="form-panel contract-tab-panel" id="sec-rent" role="tabpanel">
+        <div class="section-title"><span class="step-num">4</span> البنود الإيجارية</div>
 
     <div class="box">
 
@@ -2577,9 +2838,10 @@ form{
         <textarea id="rentSummary" style="display:none;"></textarea>
 
     </div>
+    </section>
 
-
-    <div class="section-title">نموذج العقد الرسمي</div>
+    <section class="form-panel contract-tab-panel" id="sec-contract-file" role="tabpanel">
+        <div class="section-title"><span class="step-num">5</span> نموذج العقد الرسمي</div>
 
     <div class="supplier-contract-mode">
         <div class="mode-options">
@@ -2606,8 +2868,10 @@ form{
             </div>
         </div>
     </div>
+    </section>
 
-    <div class="section-title">ملاحظات أخرى</div>
+    <section class="form-panel contract-tab-panel" id="sec-notes" role="tabpanel">
+        <div class="section-title"><span class="step-num">6</span> ملاحظات أخرى</div>
 
     <div class="field">
         <label>ملاحظات إضافية</label>
@@ -2620,8 +2884,16 @@ form{
             <textarea name="edit_note" placeholder="اكتب سبب التعديل..."></textarea>
         </div>
     <?php endif; ?>
+    </section>
 
-    <button type="submit" class="submit">حفظ العقد</button>
+    <div class="form-actions-bar">
+        <button type="button" class="btn-tab-nav" id="contractTabPrev" disabled>السابق</button>
+        <button type="button" class="btn-tab-nav" id="contractTabNext">التالي</button>
+        <button type="submit" class="submit" id="contractTabSubmit" hidden>حفظ العقد</button>
+    </div>
+
+    </div>
+</div>
 </form>
 
 </div>
@@ -2630,6 +2902,153 @@ form{
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
 
 <script>
+
+function initContractTabs(){
+    const tabs = Array.from(document.querySelectorAll(".contract-tab[data-target]"));
+    const prevBtn = document.getElementById("contractTabPrev");
+    const nextBtn = document.getElementById("contractTabNext");
+    const submitBtn = document.getElementById("contractTabSubmit");
+    const progress = document.getElementById("contractTabProgress");
+
+    if(!tabs.length){
+        return;
+    }
+
+    let currentIndex = 0;
+
+    function panelForTab(index){
+        const targetId = tabs[index] ? tabs[index].getAttribute("data-target") : "";
+        return targetId ? document.getElementById(targetId) : null;
+    }
+
+    function isFieldVisible(field){
+        if(!field || field.type === "hidden" || field.disabled){
+            return false;
+        }
+
+        let node = field;
+        while(node && node !== document.body){
+            const style = window.getComputedStyle(node);
+            if(style.display === "none" || style.visibility === "hidden"){
+                return false;
+            }
+            node = node.parentElement;
+        }
+
+        return true;
+    }
+
+    function validatePanel(panel){
+        if(!panel){
+            return true;
+        }
+
+        const requiredRadios = {};
+        panel.querySelectorAll('input[type="radio"][required]').forEach(function(radio){
+            requiredRadios[radio.name] = true;
+        });
+
+        for(const name in requiredRadios){
+            if(!panel.querySelector('input[type="radio"][name="' + name + '"]:checked')){
+                const first = panel.querySelector('input[type="radio"][name="' + name + '"]');
+                if(first){
+                    first.setCustomValidity("اختر أحد الخيارات.");
+                    first.reportValidity();
+                    first.setCustomValidity("");
+                }
+                return false;
+            }
+        }
+
+        const fields = panel.querySelectorAll("input, select, textarea");
+        for(let i = 0; i < fields.length; i++){
+            const field = fields[i];
+            if(field.type === "radio" || field.type === "hidden" || field.disabled){
+                continue;
+            }
+            if(!isFieldVisible(field)){
+                continue;
+            }
+            if(!field.checkValidity()){
+                field.reportValidity();
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function updateUi(){
+        const tab = tabs[currentIndex];
+        const targetId = tab ? tab.getAttribute("data-target") : "";
+
+        document.querySelectorAll(".contract-tab-panel").forEach(function(panel){
+            panel.classList.toggle("is-active", panel.id === targetId);
+        });
+
+        tabs.forEach(function(item, index){
+            const active = index === currentIndex;
+            item.classList.toggle("is-active", active);
+            item.classList.toggle("is-done", index < currentIndex);
+            item.setAttribute("aria-selected", active ? "true" : "false");
+        });
+
+        if(progress && tab){
+            progress.textContent = "الخطوة " + (currentIndex + 1) + " من " + tabs.length + " — " + tab.textContent.trim();
+        }
+
+        if(prevBtn){
+            prevBtn.disabled = currentIndex === 0;
+        }
+
+        const isLast = currentIndex === tabs.length - 1;
+
+        if(nextBtn){
+            nextBtn.hidden = isLast;
+        }
+
+        if(submitBtn){
+            submitBtn.hidden = !isLast;
+        }
+    }
+
+    function goTo(index, validateCurrent){
+        if(index < 0 || index >= tabs.length){
+            return;
+        }
+
+        if(validateCurrent && index > currentIndex){
+            if(!validatePanel(panelForTab(currentIndex))){
+                return;
+            }
+        }
+
+        currentIndex = index;
+        updateUi();
+    }
+
+    tabs.forEach(function(tab, index){
+        tab.addEventListener("click", function(){
+            goTo(index, false);
+        });
+    });
+
+    if(prevBtn){
+        prevBtn.addEventListener("click", function(){
+            goTo(currentIndex - 1, false);
+        });
+    }
+
+    if(nextBtn){
+        nextBtn.addEventListener("click", function(){
+            goTo(currentIndex + 1, true);
+        });
+    }
+
+    updateUi();
+}
+
+document.addEventListener("DOMContentLoaded", initContractTabs);
 
 function toggleSupplierContractBox(){
     const checked = document.querySelector('input[name="contract_form_type"]:checked');

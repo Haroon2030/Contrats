@@ -303,10 +303,8 @@ if ($employee !== '') {
 }
 
 
-$limit = 50;
-$page  = max((int)($_GET['page'] ?? 1), 1);
-$offset = ($page - 1) * $limit;
-
+$limit = VC_TABLE_PER_PAGE;
+$pg = vcPaginationState();
 
 $where = " WHERE 1 ";
 $params = [];
@@ -376,8 +374,9 @@ $stmtCount->execute();
 $totalRows = (int)$stmtCount->get_result()->fetch_assoc()['c'];
 $stmtCount->close();
 
-$totalPages = max((int)ceil($totalRows / $limit), 1);
-
+$totalPages = vcPaginationTotalPages($totalRows, $limit);
+$page = min($pg['page'], $totalPages);
+$offset = ($page - 1) * $limit;
 
 $dataSql = "
     SELECT contracts.*, users.username
@@ -1207,15 +1206,7 @@ mark{
 
     </div>
 
-    <?php if($totalPages > 1): ?>
-        <div class="pagination">
-            <?php for($i = 1; $i <= $totalPages; $i++): ?>
-                <a class="page-link <?= $i === $page ? 'active' : '' ?>" href="<?= e(buildQuery(['page' => $i])) ?>">
-                    <?= (int)$i ?>
-                </a>
-            <?php endfor; ?>
-        </div>
-    <?php endif; ?>
+    <?php vcRenderPagination($page, $totalPages); ?>
 
 </div>
 
@@ -1228,7 +1219,7 @@ function applyFilters(){
     let status       = document.querySelector("select[name='status']").value;
     let employee     = document.querySelector("select[name='employee']").value;
 
-    url.searchParams.delete("page");
+    url.searchParams.delete("pg");
 
     if(search){
         url.searchParams.set("search", search);

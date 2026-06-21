@@ -12,6 +12,7 @@ if (!defined('VC_ROOT')) {
 
 require_once VC_CONFIG . '/config.php';
 require_once VC_APP . '/Core/Router.php';
+require_once VC_HELPERS . '/pagination_helper.php';
 
 if (!function_exists('vc_asset')) {
     function vc_asset(string $path): string

@@ -199,8 +199,7 @@ if ($showUserColumn) {
 
 $signedSelect = $signedReceivedColumnExists ? "contracts.*" : "contracts.*, 0 AS supplier_signed_received";
 
-$sql = "
-    SELECT $signedSelect, users.username AS created_username
+$fromWhere = "
     FROM contracts
     LEFT JOIN users ON users.id = contracts.created_by
     WHERE contracts.status IN ('approved','rejected')
@@ -210,29 +209,29 @@ $params = [];
 $types  = "";
 
 if (!$canViewAllMyContracts && !empty($scopedUserIds)) {
-    $sql .= vcBuildInCondition('contracts.created_by', $scopedUserIds, $params, $types);
+    $fromWhere .= vcBuildInCondition('contracts.created_by', $scopedUserIds, $params, $types);
 }
 
 if ($user_filter !== '') {
-    $sql .= " AND contracts.created_by = ?";
+    $fromWhere .= " AND contracts.created_by = ?";
     $params[] = (int)$user_filter;
     $types .= "i";
 }
 
 if ($contract_type === 'rent') {
-    $sql .= " AND contracts.source = 'rent'";
+    $fromWhere .= " AND contracts.source = 'rent'";
 } elseif ($contract_type === 'annual') {
-    $sql .= " AND (contracts.source IS NULL OR contracts.source <> 'rent')";
+    $fromWhere .= " AND (contracts.source IS NULL OR contracts.source <> 'rent')";
 }
 
 if ($status !== '') {
-    $sql .= " AND contracts.status = ?";
+    $fromWhere .= " AND contracts.status = ?";
     $params[] = $status;
     $types .= "s";
 }
 
 if ($search !== '') {
-    $sql .= " AND (
+    $fromWhere .= " AND (
         contracts.supplier_name LIKE ?
         OR contracts.company_name LIKE ?
         OR contracts.supplier_phone LIKE ?
@@ -247,12 +246,24 @@ if ($search !== '') {
     $types .= "ssss";
 }
 
-$sql .= " ORDER BY contracts.id DESC";
+$pg = vcPaginationState();
+$totalRows = vcPaginationCount($conn, $fromWhere, $params, $types);
+$totalPages = vcPaginationTotalPages($totalRows, $pg['per_page']);
+$page = min($pg['page'], $totalPages);
+
+$sql = "
+    SELECT $signedSelect, users.username AS created_username
+    {$fromWhere}
+    ORDER BY contracts.id DESC
+    LIMIT ? OFFSET ?
+";
+
+[$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($page - 1) * $pg['per_page']);
 
 $stmt = $conn->prepare($sql);
 
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+if (!empty($dataParams)) {
+    $stmt->bind_param($dataTypes, ...$dataParams);
 }
 
 $stmt->execute();
@@ -334,7 +345,6 @@ $stmtCount->execute();
 $count = $stmtCount->get_result()->fetch_assoc();
 $stmtCount->close();
 
-$totalRows = count($rows);
 ?>
 
 <!DOCTYPE html>
@@ -900,6 +910,8 @@ body{
 
     </div>
 
+    <?php vcRenderPagination($page, $totalPages); ?>
+
 </div>
 
 <script>
@@ -935,6 +947,8 @@ function applyFilters(){
     }else{
         url.searchParams.delete("user");
     }
+
+    url.searchParams.delete("pg");
 
     window.location.href = url;
 }

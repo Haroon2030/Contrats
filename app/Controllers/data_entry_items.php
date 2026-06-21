@@ -225,25 +225,10 @@ if (!in_array($entry_filter, ['', 'done', 'pending'], true)) {
 }
 
 
-$sql = "
-    SELECT 
-        i.batch_id,
-        MAX(i.supplier_name) AS supplier_name,
-        i.created_by,
-        creator.username AS creator_username,
-
-        MAX(i.created_at) AS created_at,
-        MAX(i.approved_at) AS approved_at,
-
-        MAX(i.entry_done) AS entry_done,
-        MAX(i.entered_by) AS entered_by,
-        MAX(i.entered_at) AS entered_at,
-        entry_user.username AS entered_username
-
+$fromWhere = "
     FROM items i
     LEFT JOIN users creator ON creator.id = i.created_by
     LEFT JOIN users entry_user ON entry_user.id = i.entered_by
-
     WHERE i.status = 'approved'
 ";
 
@@ -251,7 +236,7 @@ $params = [];
 $types  = "";
 
 if ($search !== '') {
-    $sql .= " AND (
+    $fromWhere .= " AND (
         i.supplier_name LIKE ?
         OR i.batch_id LIKE ?
         OR creator.username LIKE ?
@@ -263,7 +248,9 @@ if ($search !== '') {
     $types .= "sss";
 }
 
-$sql .= "
+$groupBase = "
+    SELECT i.batch_id
+    {$fromWhere}
     GROUP BY
         i.batch_id,
         i.created_by,
@@ -271,40 +258,71 @@ $sql .= "
         entry_user.username
 ";
 
+$doneInner = $groupBase . " HAVING MAX(i.entry_done) = 1";
+$pendingInner = $groupBase . " HAVING MAX(i.entry_done) IS NULL OR MAX(i.entry_done) = 0";
+
+$doneCount = vcPaginationCountGrouped($conn, $doneInner, $params, $types);
+$pendingCount = vcPaginationCountGrouped($conn, $pendingInner, $params, $types);
+$totalRequests = $doneCount + $pendingCount;
+
+$havingSql = '';
 if ($entry_filter === 'done') {
-    $sql .= " HAVING MAX(i.entry_done) = 1";
+    $havingSql = "HAVING MAX(i.entry_done) = 1";
 }
 
 if ($entry_filter === 'pending') {
-    $sql .= " HAVING MAX(i.entry_done) IS NULL OR MAX(i.entry_done) = 0";
+    $havingSql = "HAVING MAX(i.entry_done) IS NULL OR MAX(i.entry_done) = 0";
 }
 
-$sql .= " ORDER BY MAX(i.approved_at) DESC, MAX(i.created_at) DESC, i.batch_id DESC";
+$totalRows = $totalRequests;
+if ($entry_filter === 'done') {
+    $totalRows = $doneCount;
+} elseif ($entry_filter === 'pending') {
+    $totalRows = $pendingCount;
+}
+
+$pg = vcPaginationState();
+$totalPages = vcPaginationTotalPages($totalRows, $pg['per_page']);
+$page = min($pg['page'], $totalPages);
+
+$sql = "
+    SELECT 
+        i.batch_id,
+        MAX(i.supplier_name) AS supplier_name,
+        i.created_by,
+        creator.username AS creator_username,
+        MAX(i.created_at) AS created_at,
+        MAX(i.approved_at) AS approved_at,
+        MAX(i.entry_done) AS entry_done,
+        MAX(i.entered_by) AS entered_by,
+        MAX(i.entered_at) AS entered_at,
+        entry_user.username AS entered_username
+    {$fromWhere}
+    GROUP BY
+        i.batch_id,
+        i.created_by,
+        creator.username,
+        entry_user.username
+    {$havingSql}
+    ORDER BY MAX(i.approved_at) DESC, MAX(i.created_at) DESC, i.batch_id DESC
+    LIMIT ? OFFSET ?
+";
+
+[$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($page - 1) * $pg['per_page']);
 
 $stmt = $conn->prepare($sql);
 
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+if (!empty($dataParams)) {
+    $stmt->bind_param($dataTypes, ...$dataParams);
 }
 
 $stmt->execute();
 $result = $stmt->get_result();
 
 $rows = [];
-$totalRequests = 0;
-$doneCount = 0;
-$pendingCount = 0;
 
 while ($row = $result->fetch_assoc()) {
     $rows[] = $row;
-
-    $totalRequests++;
-
-    if (!empty($row['entry_done'])) {
-        $doneCount++;
-    } else {
-        $pendingCount++;
-    }
 }
 
 $stmt->close();
@@ -804,6 +822,8 @@ body{
 
     </div>
 
+    <?php vcRenderPagination($page, $totalPages); ?>
+
 </div>
 
 <script>
@@ -812,7 +832,25 @@ const searchInput = document.getElementById("searchInput");
 const entryFilter = document.getElementById("entryFilter");
 
 function applyFilters(){
-    document.querySelector(".filters").submit();
+    let url = new URL(window.location.href);
+    const search = document.getElementById("searchInput") ? document.getElementById("searchInput").value : "";
+    const entry = document.getElementById("entryFilter") ? document.getElementById("entryFilter").value : "";
+
+    if(search){
+        url.searchParams.set("search", search);
+    }else{
+        url.searchParams.delete("search");
+    }
+
+    if(entry){
+        url.searchParams.set("entry", entry);
+    }else{
+        url.searchParams.delete("entry");
+    }
+
+    url.searchParams.delete("pg");
+
+    window.location.href = url;
 }
 
 if(searchInput){

@@ -507,16 +507,7 @@ if (!$showUserFilter || ($user_filter !== '' && !vcIsUserInScope((int)$user_filt
 $users_result = $showUserFilter ? vcGetVisibleUsersForFilter($conn, $itemScopedUserIds) : [];
 
 
-$sqlReview = "
-    SELECT 
-        i.batch_id,
-        i.supplier_name,
-        COUNT(*) AS items_count,
-        SUM(i.fee) AS total_fees,
-        MAX(i.status) AS status,
-        MAX(i.created_by) AS created_by,
-        MAX(i.created_at) AS created_at,
-        u.username AS created_username
+$reviewFromWhere = "
     FROM items i
     LEFT JOIN users u ON u.id = i.created_by
     WHERE i.status = 'review'
@@ -524,15 +515,15 @@ $sqlReview = "
 
 $paramsReview = [];
 $typesReview  = "";
-$sqlReview .= vcBuildInCondition('i.created_by', $itemScopedUserIds, $paramsReview, $typesReview);
+$reviewFromWhere .= vcBuildInCondition('i.created_by', $itemScopedUserIds, $paramsReview, $typesReview);
 if ($user_filter !== '') {
-    $sqlReview .= " AND i.created_by = ?";
+    $reviewFromWhere .= " AND i.created_by = ?";
     $paramsReview[] = (int)$user_filter;
     $typesReview .= "i";
 }
 
 if ($search !== '') {
-    $sqlReview .= " AND (
+    $reviewFromWhere .= " AND (
         i.supplier_name LIKE ?
         OR i.batch_id LIKE ?
         OR u.username LIKE ?
@@ -544,33 +535,73 @@ if ($search !== '') {
     $typesReview .= "sss";
 }
 
-$sqlReview .= "
+$reviewSummarySql = "
+    SELECT
+        COUNT(DISTINCT i.batch_id) AS review_batches,
+        COUNT(*) AS review_items,
+        COALESCE(SUM(i.fee), 0) AS review_fees
+    {$reviewFromWhere}
+";
+$stmtReviewSummary = $conn->prepare($reviewSummarySql);
+if (!empty($paramsReview)) {
+    $stmtReviewSummary->bind_param($typesReview, ...$paramsReview);
+}
+$stmtReviewSummary->execute();
+$reviewSummary = $stmtReviewSummary->get_result()->fetch_assoc() ?: [];
+$stmtReviewSummary->close();
+
+$reviewBatches = (int)($reviewSummary['review_batches'] ?? 0);
+$reviewItems = (int)($reviewSummary['review_items'] ?? 0);
+$reviewFees = (float)($reviewSummary['review_fees'] ?? 0);
+
+$reviewGroupCountSql = "
+    SELECT i.batch_id
+    {$reviewFromWhere}
+    GROUP BY 
+        i.batch_id,
+        i.supplier_name,
+        u.username
+";
+
+$pg = vcPaginationState();
+$reviewTotalRows = vcPaginationCountGrouped($conn, $reviewGroupCountSql, $paramsReview, $typesReview);
+$reviewTotalPages = vcPaginationTotalPages($reviewTotalRows, $pg['per_page']);
+$reviewPage = min($pg['page'], $reviewTotalPages);
+
+$sqlReview = "
+    SELECT 
+        i.batch_id,
+        i.supplier_name,
+        COUNT(*) AS items_count,
+        SUM(i.fee) AS total_fees,
+        MAX(i.status) AS status,
+        MAX(i.created_by) AS created_by,
+        MAX(i.created_at) AS created_at,
+        u.username AS created_username
+    {$reviewFromWhere}
     GROUP BY 
         i.batch_id,
         i.supplier_name,
         u.username
     ORDER BY i.batch_id DESC
+    LIMIT ? OFFSET ?
 ";
+
+[$reviewDataParams, $reviewDataTypes] = vcPaginationBindLimit($paramsReview, $typesReview, $pg['limit'], ($reviewPage - 1) * $pg['per_page']);
 
 $stmtReview = $conn->prepare($sqlReview);
 
-if (!empty($paramsReview)) {
-    $stmtReview->bind_param($typesReview, ...$paramsReview);
+if (!empty($reviewDataParams)) {
+    $stmtReview->bind_param($reviewDataTypes, ...$reviewDataParams);
 }
 
 $stmtReview->execute();
 $resultReview = $stmtReview->get_result();
 
 $reviewRows = [];
-$reviewBatches = 0;
-$reviewItems = 0;
-$reviewFees = 0;
 
 while ($row = $resultReview->fetch_assoc()) {
     $reviewRows[] = $row;
-    $reviewBatches++;
-    $reviewItems += (int)($row['items_count'] ?? 0);
-    $reviewFees += (float)($row['total_fees'] ?? 0);
 }
 
 $stmtReview->close();
@@ -1508,6 +1539,8 @@ body{
 
     </div>
 
+    <?php vcRenderPagination($reviewPage, $reviewTotalPages); ?>
+
     <div class="section-title">
         <span>متابعة الطلبات المعتمدة</span>
         <span class="section-note">الإدخال والخصم في كروت بدون سكرول</span>
@@ -1648,7 +1681,39 @@ const entryFilter = document.getElementById("entryFilter");
 const paidFilter = document.getElementById("paidFilter");
 
 function applyFilters(){
-    document.querySelector(".filters").submit();
+    let url = new URL(window.location.href);
+    const search = document.getElementById("searchInput") ? document.getElementById("searchInput").value : "";
+    const user = document.getElementById("userFilter") ? document.getElementById("userFilter").value : "";
+    const entry = document.getElementById("entryFilter") ? document.getElementById("entryFilter").value : "";
+    const paid = document.getElementById("paidFilter") ? document.getElementById("paidFilter").value : "";
+
+    if(search){
+        url.searchParams.set("search", search);
+    }else{
+        url.searchParams.delete("search");
+    }
+
+    if(user){
+        url.searchParams.set("user", user);
+    }else{
+        url.searchParams.delete("user");
+    }
+
+    if(entry){
+        url.searchParams.set("entry", entry);
+    }else{
+        url.searchParams.delete("entry");
+    }
+
+    if(paid){
+        url.searchParams.set("paid", paid);
+    }else{
+        url.searchParams.delete("paid");
+    }
+
+    url.searchParams.delete("pg");
+
+    window.location.href = url;
 }
 
 if(searchInput){

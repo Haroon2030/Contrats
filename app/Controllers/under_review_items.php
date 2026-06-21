@@ -136,16 +136,7 @@ $pageMsg = $_SESSION['under_review_items_msg'] ?? '';
 unset($_SESSION['under_review_items_msg']);
 
 
-$sql = "
-    SELECT 
-        items.batch_id,
-        items.supplier_name,
-        COUNT(*) AS items_count,
-        SUM(items.fee) AS total_fees,
-        MAX(items.id) AS last_id,
-        MAX(items.created_at) AS created_at,
-        MAX(items.created_by) AS created_by,
-        users.username AS created_username
+$fromWhere = "
     FROM items
     LEFT JOIN users ON users.id = items.created_by
     WHERE items.status = 'review'
@@ -154,15 +145,15 @@ $sql = "
 $params = [];
 $types  = "";
 
-$sql .= vcBuildInCondition('items.created_by', $scopedUserIds, $params, $types);
+$fromWhere .= vcBuildInCondition('items.created_by', $scopedUserIds, $params, $types);
 if ($user_filter !== '') {
-    $sql .= " AND items.created_by = ?";
+    $fromWhere .= " AND items.created_by = ?";
     $params[] = (int)$user_filter;
     $types .= "i";
 }
 
 if ($search !== '') {
-    $sql .= " AND (
+    $fromWhere .= " AND (
         items.supplier_name LIKE ?
         OR items.batch_id LIKE ?
         OR users.username LIKE ?
@@ -175,30 +166,68 @@ if ($search !== '') {
     $types .= "sss";
 }
 
-$sql .= "
+$summarySql = "
+    SELECT
+        COUNT(DISTINCT items.batch_id) AS total_batches,
+        COUNT(*) AS total_items,
+        COALESCE(SUM(items.fee), 0) AS total_fees
+    {$fromWhere}
+";
+
+$stmtSummary = $conn->prepare($summarySql);
+if (!empty($params)) {
+    $stmtSummary->bind_param($types, ...$params);
+}
+$stmtSummary->execute();
+$summary = $stmtSummary->get_result()->fetch_assoc() ?: [];
+$stmtSummary->close();
+
+$totalBatches = (int)($summary['total_batches'] ?? 0);
+$totalItems = (int)($summary['total_items'] ?? 0);
+$totalFees = (float)($summary['total_fees'] ?? 0);
+
+$groupCountSql = "
+    SELECT items.batch_id
+    {$fromWhere}
+    GROUP BY items.batch_id, items.supplier_name, users.username
+";
+
+$pg = vcPaginationState();
+$totalRows = vcPaginationCountGrouped($conn, $groupCountSql, $params, $types);
+$totalPages = vcPaginationTotalPages($totalRows, $pg['per_page']);
+$page = min($pg['page'], $totalPages);
+
+$sql = "
+    SELECT 
+        items.batch_id,
+        items.supplier_name,
+        COUNT(*) AS items_count,
+        SUM(items.fee) AS total_fees,
+        MAX(items.id) AS last_id,
+        MAX(items.created_at) AS created_at,
+        MAX(items.created_by) AS created_by,
+        users.username AS created_username
+    {$fromWhere}
     GROUP BY items.batch_id, items.supplier_name, users.username
     ORDER BY last_id DESC
+    LIMIT ? OFFSET ?
 ";
+
+[$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($page - 1) * $pg['per_page']);
 
 $stmt = $conn->prepare($sql);
 
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+if (!empty($dataParams)) {
+    $stmt->bind_param($dataTypes, ...$dataParams);
 }
 
 $stmt->execute();
 $result = $stmt->get_result();
 
 $rows = [];
-$totalBatches = 0;
-$totalItems = 0;
-$totalFees = 0;
 
 while ($row = $result->fetch_assoc()) {
     $rows[] = $row;
-    $totalBatches++;
-    $totalItems += (int)($row['items_count'] ?? 0);
-    $totalFees += (float)($row['total_fees'] ?? 0);
 }
 
 $stmt->close();
@@ -595,7 +624,7 @@ body{
                 <tr>
                     <th class="col-batch">رقم الطلب</th>
                     <th class="col-supplier">المورد</th>
-                    <?php if($canViewAllItems): ?>
+                    <?php if($showUserColumn): ?>
                         <th class="col-user">بواسطة</th>
                     <?php endif; ?>
                     <th class="col-count">عدد الأصناف</th>
@@ -626,7 +655,7 @@ body{
                                 <?= e($row['supplier_name'] ?? '-') ?>
                             </td>
 
-                            <?php if($canViewAllItems): ?>
+                            <?php if($showUserColumn): ?>
                                 <td>
                                     <span class="user-badge"><?= e($row['created_username'] ?? '-') ?></span>
                                 </td>
@@ -673,7 +702,7 @@ body{
                 <?php else: ?>
 
                     <tr>
-                        <td colspan="<?= $canViewAllItems ? 8 : 7 ?>" class="empty">لا توجد طلبات أصناف تحت المراجعة</td>
+                        <td colspan="<?= $showUserColumn ? 8 : 7 ?>" class="empty">لا توجد طلبات أصناف تحت المراجعة</td>
                     </tr>
 
                 <?php endif; ?>
@@ -682,6 +711,8 @@ body{
         </table>
 
     </div>
+
+    <?php vcRenderPagination($page, $totalPages); ?>
 
 </div>
 
@@ -706,6 +737,8 @@ function applyFilters(){
     }else{
         url.searchParams.delete("user");
     }
+
+    url.searchParams.delete("pg");
 
     window.location.href = url;
 }

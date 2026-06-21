@@ -581,6 +581,12 @@ foreach ($users as $oneUser) {
     }
 }
 
+$pg = vcPaginationState();
+$totalUsersRows = count($users);
+$totalPages = vcPaginationTotalPages($totalUsersRows, $pg['per_page']);
+$page = min($pg['page'], $totalPages);
+$displayUsers = array_slice($users, ($page - 1) * $pg['per_page'], $pg['per_page']);
+
 function usersRoleKey(array $u): string {
     $jobRole = (string)($u['job_role'] ?? 'user');
     if (($u['role'] ?? '') === 'admin' || (int)($u['is_admin'] ?? 0) === 1) {
@@ -1855,8 +1861,8 @@ select:focus{
             </thead>
 
             <tbody>
-                <?php if(!empty($users)): ?>
-                    <?php foreach($users as $u): ?>
+                <?php if(!empty($displayUsers)): ?>
+                    <?php foreach($displayUsers as $u): ?>
                         <?php
                             $jobRole = usersRoleKey($u);
                             $roleText = usersRoleLabel($jobRole);
@@ -1956,6 +1962,8 @@ select:focus{
                 <?php endif; ?>
             </tbody>
         </table>
+
+        <?php vcRenderPagination($page, $totalPages); ?>
 
         <div class="users-empty-filter" id="usersEmptyFilter">لا توجد نتائج مطابقة للبحث أو التصفية.</div>
     </div>

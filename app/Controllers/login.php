@@ -66,7 +66,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $stmt = $conn->prepare("
                     SELECT id, username, password, role, is_admin, session_version, is_active
                     FROM users
-                    WHERE TRIM(username) = ?
+                    WHERE LOWER(TRIM(username)) = LOWER(?)
                     LIMIT 1
                 ");
                 $stmt->bind_param("s", $username);

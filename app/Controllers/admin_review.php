@@ -159,7 +159,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 
-$stmt = $conn->prepare("
+$fromWhere = "
+    FROM contracts
+    LEFT JOIN users ON users.id = contracts.created_by
+    WHERE contracts.status = 'review'
+";
+
+$pg = vcPaginationState();
+$totalReview = vcPaginationCount($conn, $fromWhere);
+$totalPages = vcPaginationTotalPages($totalReview, $pg['per_page']);
+$page = min($pg['page'], $totalPages);
+
+$sql = "
     SELECT 
         contracts.id,
         contracts.supplier_name,
@@ -167,11 +178,15 @@ $stmt = $conn->prepare("
         contracts.source,
         contracts.created_at,
         users.username
-    FROM contracts
-    LEFT JOIN users ON users.id = contracts.created_by
-    WHERE contracts.status = 'review'
+    {$fromWhere}
     ORDER BY contracts.id DESC
-");
+    LIMIT ? OFFSET ?
+";
+
+[$dataParams, $dataTypes] = vcPaginationBindLimit([], '', $pg['limit'], ($page - 1) * $pg['per_page']);
+
+$stmt = $conn->prepare($sql);
+$stmt->bind_param($dataTypes, ...$dataParams);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -181,7 +196,6 @@ while ($row = $result->fetch_assoc()) {
 }
 $stmt->close();
 
-$totalReview = count($rows);
 ?>
 
 <!DOCTYPE html>
@@ -615,6 +629,8 @@ body{
         </table>
 
     </div>
+
+    <?php vcRenderPagination($page, $totalPages); ?>
 
 </div>
 

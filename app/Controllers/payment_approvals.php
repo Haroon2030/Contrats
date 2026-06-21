@@ -548,6 +548,10 @@ if (in_array($statusFilter, ['rejected_commercial_manager','rejected_finance_man
     $statusFilter = 'rejected';
 }
 $viewId = (int)($_GET['view'] ?? 0);
+$pg = vcPaginationState();
+$totalRows = 0;
+$totalPages = 1;
+$page = 1;
 $where = [];
 $params = [];
 $types = '';
@@ -594,6 +598,22 @@ if ($viewId > 0) {
     }
 }
 
+$whereSql = $where ? " WHERE " . implode(" AND ", $where) : "";
+
+if ($viewId <= 0) {
+    $countSql = "SELECT COUNT(*) AS c FROM payment_requests pr" . $whereSql;
+    $stmtCount = $conn->prepare($countSql);
+    if ($params) {
+        $stmtCount->bind_param($types, ...$params);
+    }
+    $stmtCount->execute();
+    $totalRows = (int)($stmtCount->get_result()->fetch_assoc()['c'] ?? 0);
+    $stmtCount->close();
+
+    $totalPages = vcPaginationTotalPages($totalRows, $pg['per_page']);
+    $page = min($pg['page'], $totalPages);
+}
+
 $sql = "SELECT pr.*, u.username AS created_by_name,
     sm.username AS section_user_name, s.status AS section_status, s.note AS section_note, s.approved_amount AS section_amount, s.amount_before_early_discount AS section_before_early_discount, s.early_payment_discount_percent AS section_early_discount_percent, s.early_payment_discount_amount AS section_early_discount_amount, s.acted_at AS section_acted_at,
     cm.username AS commercial_user_name, c.status AS commercial_status, c.note AS commercial_note, c.approved_amount AS commercial_amount, c.amount_before_early_discount AS commercial_before_early_discount, c.early_payment_discount_percent AS commercial_early_discount_percent, c.early_payment_discount_amount AS commercial_early_discount_amount, c.acted_at AS commercial_acted_at,
@@ -606,10 +626,19 @@ LEFT JOIN payment_request_approvals c ON c.request_id = pr.id AND c.step_key='co
 LEFT JOIN users cm ON cm.id = c.approver_user_id
 LEFT JOIN payment_request_approvals f ON f.request_id = pr.id AND f.step_key='finance_manager'
 LEFT JOIN users fm ON fm.id = f.approver_user_id";
-if ($where) { $sql .= " WHERE " . implode(" AND ", $where); }
-$sql .= " ORDER BY pr.id DESC LIMIT 200";
+
+$sql .= $whereSql;
+$sql .= " ORDER BY pr.id DESC";
+
+$dataParams = $params;
+$dataTypes = $types;
+if ($viewId <= 0) {
+    [$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($page - 1) * $pg['per_page']);
+    $sql .= " LIMIT ? OFFSET ?";
+}
+
 $stmt = $conn->prepare($sql);
-if ($params) { $stmt->bind_param($types, ...$params); }
+if ($dataParams) { $stmt->bind_param($dataTypes, ...$dataParams); }
 $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
@@ -869,6 +898,7 @@ body{margin:0;background:#eef2f7;font-family:"Tahoma",Arial,sans-serif;color:#17
                 </tbody>
             </table>
         </div>
+        <?php vcRenderPagination($page, $totalPages); ?>
     <?php endif; ?>
 </div>
 

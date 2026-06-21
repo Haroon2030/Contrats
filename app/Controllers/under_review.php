@@ -104,8 +104,7 @@ if ($showUserColumn) {
 }
 
 
-$sql = "
-    SELECT contracts.*, users.username AS created_username
+$fromWhere = "
     FROM contracts
     LEFT JOIN users ON users.id = contracts.created_by
     WHERE contracts.status = 'review'
@@ -116,26 +115,26 @@ $types  = "";
 
 if ($hasLimitedScope) {
     if (empty($scopedUserIds)) {
-        $sql .= " AND 1 = 0";
+        $fromWhere .= " AND 1 = 0";
     } else {
-        $sql .= vcBuildInCondition('contracts.created_by', $scopedUserIds, $params, $types, 'AND');
+        $fromWhere .= vcBuildInCondition('contracts.created_by', $scopedUserIds, $params, $types, 'AND');
     }
 }
 
 if ($user_filter !== '') {
-    $sql .= " AND contracts.created_by = ?";
+    $fromWhere .= " AND contracts.created_by = ?";
     $params[] = (int)$user_filter;
     $types .= "i";
 }
 
 if ($contract_type === 'rent') {
-    $sql .= " AND contracts.source = 'rent'";
+    $fromWhere .= " AND contracts.source = 'rent'";
 } elseif ($contract_type === 'annual') {
-    $sql .= " AND (contracts.source IS NULL OR contracts.source <> 'rent')";
+    $fromWhere .= " AND (contracts.source IS NULL OR contracts.source <> 'rent')";
 }
 
 if ($search !== '') {
-    $sql .= " AND (
+    $fromWhere .= " AND (
         contracts.supplier_name LIKE ?
         OR contracts.company_name LIKE ?
         OR contracts.supplier_phone LIKE ?
@@ -152,12 +151,24 @@ if ($search !== '') {
     $types .= "sssss";
 }
 
-$sql .= " ORDER BY contracts.id DESC";
+$pg = vcPaginationState();
+$totalReview = vcPaginationCount($conn, $fromWhere, $params, $types);
+$totalPages = vcPaginationTotalPages($totalReview, $pg['per_page']);
+$page = min($pg['page'], $totalPages);
+
+$sql = "
+    SELECT contracts.*, users.username AS created_username
+    {$fromWhere}
+    ORDER BY contracts.id DESC
+    LIMIT ? OFFSET ?
+";
+
+[$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($page - 1) * $pg['per_page']);
 
 $stmt = $conn->prepare($sql);
 
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+if (!empty($dataParams)) {
+    $stmt->bind_param($dataTypes, ...$dataParams);
 }
 
 $stmt->execute();
@@ -168,9 +179,6 @@ while ($row = $result->fetch_assoc()) {
     $rows[] = $row;
 }
 $stmt->close();
-
-
-$totalReview = count($rows);
 
 $totalSql = "
     SELECT COUNT(*) AS total_all
@@ -715,6 +723,8 @@ body.wide-table-mode .col-status{width:150px;}
 
     </div>
 
+    <?php vcRenderPagination($page, $totalPages); ?>
+
 </div>
 
 <script>
@@ -745,6 +755,8 @@ function applyFilters(){
     }else{
         url.searchParams.delete("user");
     }
+
+    url.searchParams.delete("pg");
 
     window.location.href = url;
 }

@@ -287,8 +287,7 @@ if (!$show_user_column || ($user_filter !== '' && !vcIsUserInScope((int)$user_fi
 }
 
 
-$sql = "
-    SELECT contracts.*, users.username
+$fromWhere = "
     FROM contracts
     LEFT JOIN users ON users.id = contracts.created_by
     WHERE contracts.status IN ('draft', 'review')
@@ -297,34 +296,45 @@ $sql = "
 $params = [];
 $types = "";
 
-$sql .= vcBuildInCondition('contracts.created_by', $scopedUserIds, $params, $types);
+$fromWhere .= vcBuildInCondition('contracts.created_by', $scopedUserIds, $params, $types);
 if ($show_user_column && $user_filter !== '') {
-    $sql .= " AND contracts.created_by = ?";
+    $fromWhere .= " AND contracts.created_by = ?";
     $params[] = (int)$user_filter;
     $types .= "i";
 }
 
 if ($status_filter === 'new') {
-    $sql .= " AND contracts.last_edited_by IS NULL";
+    $fromWhere .= " AND contracts.last_edited_by IS NULL";
 }
 
 if ($status_filter === 'edited') {
-    $sql .= " AND contracts.last_edited_by IS NOT NULL";
+    $fromWhere .= " AND contracts.last_edited_by IS NOT NULL";
 }
 
 if ($search !== '') {
-    $sql .= " AND contracts.supplier_name LIKE ?";
+    $fromWhere .= " AND contracts.supplier_name LIKE ?";
     $params[] = "%{$search}%";
     $types .= "s";
 }
 
+$pg = vcPaginationState();
+$totalRows = vcPaginationCount($conn, $fromWhere, $params, $types);
+$totalPages = vcPaginationTotalPages($totalRows, $pg['per_page']);
+$page = min($pg['page'], $totalPages);
 
-$sql .= " ORDER BY contracts.id DESC";
+$sql = "
+    SELECT contracts.*, users.username
+    {$fromWhere}
+    ORDER BY contracts.id DESC
+    LIMIT ? OFFSET ?
+";
+
+[$dataParams, $dataTypes] = vcPaginationBindLimit($params, $types, $pg['limit'], ($page - 1) * $pg['per_page']);
 
 $stmt = $conn->prepare($sql);
 
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+if (!empty($dataParams)) {
+    $stmt->bind_param($dataTypes, ...$dataParams);
 }
 
 $stmt->execute();
@@ -1071,6 +1081,8 @@ tr.warn-now td{
 
     </div>
 
+    <?php vcRenderPagination($page, $totalPages); ?>
+
 </div>
 
 <div id="toast"></div>
@@ -1095,6 +1107,8 @@ if(searchInput){
             }else{
                 url.searchParams.delete("search");
             }
+
+            url.searchParams.delete("pg");
 
             window.location.href = url;
         }, 400);
@@ -1195,6 +1209,8 @@ function applyFilters(){
     }else{
         url.searchParams.delete("user");
     }
+
+    url.searchParams.delete("pg");
 
     window.location.href = url;
 }
