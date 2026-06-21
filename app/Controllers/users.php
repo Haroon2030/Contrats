@@ -190,6 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     $id = (int)($_POST['id'] ?? 0);
     $username = trim((string)($_POST['username'] ?? ''));
     $password = trim((string)($_POST['password'] ?? ''));
+    $wantPasswordChange = ($_POST['want_password_change'] ?? '0') === '1';
     $account_type = trim((string)($_POST['account_type'] ?? $_POST['role'] ?? 'user'));
     if (!in_array($account_type, ['user', 'section_manager', 'finance_manager', 'commercial_manager', 'accountant', 'admin'], true)) {
         $account_type = 'user';
@@ -209,6 +210,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
     if ($id === 0 && $password === '') {
         $error = "كلمة المرور مطلوبة عند إضافة مستخدم جديد.";
+    }
+
+    if ($id > 0 && $wantPasswordChange && $password === '') {
+        $error = "اكتب كلمة المرور الجديدة أو ألغِ خيار تغيير كلمة المرور.";
+    }
+
+    if ($error === '' && $password !== '' && mb_strlen($password, 'UTF-8') < 6) {
+        $error = "كلمة المرور لازم تكون 6 أحرف على الأقل.";
     }
 
     if ($id > 0 && $manager_id !== null && $manager_id === $id) {
@@ -269,7 +278,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 $stmt->bind_param("ssssiisi", $username, $hashedPassword, $role, $job_role, $manager_id, $is_supervisor, $whatsapp_number, $whatsapp_enabled);
             }
 
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                $error = "تعذر إضافة المستخدم.";
+                error_log('VendorCore users insert error: ' . $stmt->error);
+            }
             $userId = (int)$stmt->insert_id;
             $stmt->close();
 
@@ -316,7 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
             $userId = $id;
 
-            if ($password !== '') {
+            if ($wantPasswordChange && $password !== '') {
                 $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
                 $passwordChanged = true;
 
@@ -339,7 +351,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                             session_version = session_version + 1,
                             last_password_change = NOW()
                         WHERE id = ?
-                        LIMIT 1
                     ");
                     $stmt->bind_param("ssssiiisii", $username, $hashedPassword, $role, $job_role, $isAdminValue, $manager_id, $is_supervisor, $whatsapp_number, $whatsapp_enabled, $id);
                 } else {
@@ -356,7 +367,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                             session_version = session_version + 1,
                             last_password_change = NOW()
                         WHERE id = ?
-                        LIMIT 1
                     ");
                     $stmt->bind_param("ssssiisii", $username, $hashedPassword, $role, $job_role, $manager_id, $is_supervisor, $whatsapp_number, $whatsapp_enabled, $id);
                 }
@@ -375,7 +385,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                             whatsapp_number = ?,
                             whatsapp_enabled = ?
                         WHERE id = ?
-                        LIMIT 1
                     ");
                     $stmt->bind_param("sssiiisii", $username, $role, $job_role, $isAdminValue, $manager_id, $is_supervisor, $whatsapp_number, $whatsapp_enabled, $id);
                 } else {
@@ -389,17 +398,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                             whatsapp_number = ?,
                             whatsapp_enabled = ?
                         WHERE id = ?
-                        LIMIT 1
                     ");
                     $stmt->bind_param("sssiisii", $username, $role, $job_role, $manager_id, $is_supervisor, $whatsapp_number, $whatsapp_enabled, $id);
                 }
             }
 
-            $stmt->execute();
-            $stmt->close();
+            if (!$stmt || !$stmt->execute()) {
+                $error = "تعذر حفظ بيانات المستخدم.";
+                error_log('VendorCore users save error: ' . ($stmt ? $stmt->error : $conn->error));
+            }
+            if ($stmt) {
+                $stmt->close();
+            }
 
             /* لو الأدمن غير باسورد نفسه، نحدث السيشن الحالية عشان ما يخرجش فورًا */
-            if ($passwordChanged && $id === $uid) {
+            if ($error === '' && $passwordChanged && $id === $uid) {
                 $stmtCurrent = $conn->prepare("SELECT session_version FROM users WHERE id = ? LIMIT 1");
                 $stmtCurrent->bind_param("i", $uid);
                 $stmtCurrent->execute();
@@ -409,12 +422,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 $_SESSION['session_version'] = (int)($v['session_version'] ?? 1);
             }
 
-            $stmt = $conn->prepare("DELETE FROM user_permissions WHERE user_id = ?");
-            $stmt->bind_param("i", $id);
-            $stmt->execute();
-            $stmt->close();
+            if ($error === '') {
+                $stmt = $conn->prepare("DELETE FROM user_permissions WHERE user_id = ?");
+                $stmt->bind_param("i", $id);
+                $stmt->execute();
+                $stmt->close();
+            }
         }
 
+        if ($error === '') {
         /*
             صلاحيات المستخدم:
             حتى لو الحساب أدمن، بنحفظ الصفحات المحددة فقط.
@@ -494,6 +510,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
         header("Location: users.php?saved=1" . ($passwordChanged ? "&pass_changed=1" : ""));
         exit();
+        }
     }
 }
 
@@ -1955,6 +1972,8 @@ select:focus{
             <input type="hidden" name="action" value="save_user">
             <input type="hidden" name="id" id="id" value="0">
 
+            <input type="hidden" name="want_password_change" id="wantPasswordChange" value="0">
+
             <div class="form-sections">
             <div class="form-section">
             <h3 class="form-section-title">البيانات الأساسية</h3>
@@ -2298,6 +2317,7 @@ function clearUserFormFields(){
     document.getElementById("changePass").checked = true;
     document.getElementById("password").disabled = false;
     document.getElementById("password").value = "";
+    syncPasswordChangeFlag();
 
     const permissionSearch = document.getElementById("permissionSearch");
     if(permissionSearch){
@@ -2455,11 +2475,20 @@ function togglePerms(accountType){
     }
 }
 
+function syncPasswordChangeFlag(){
+    const check = document.getElementById("changePass");
+    const flag = document.getElementById("wantPasswordChange");
+    if(flag && check){
+        flag.value = check.checked ? "1" : "0";
+    }
+}
+
 function togglePass(){
     const pass = document.getElementById("password");
     const check = document.getElementById("changePass");
 
     pass.disabled = !check.checked;
+    syncPasswordChangeFlag();
 
     if(pass.disabled){
         pass.value = "";
@@ -2480,10 +2509,29 @@ function prepareNewUserPassword(){
     if(String(idField.value || "0") === "0"){
         check.checked = true;
         pass.disabled = false;
+        syncPasswordChangeFlag();
     }
 }
 
 document.addEventListener("DOMContentLoaded", prepareNewUserPassword);
+
+function bindUserFormSubmit(){
+    const form = document.getElementById("userForm");
+    if(!form || form.dataset.submitBound === "1"){
+        return;
+    }
+    form.dataset.submitBound = "1";
+    form.addEventListener("submit", function(){
+        const pass = document.getElementById("password");
+        const check = document.getElementById("changePass");
+        if(check && check.checked && pass){
+            pass.disabled = false;
+        }else if(pass){
+            pass.value = "";
+        }
+        syncPasswordChangeFlag();
+    });
+}
 
 function resetPermissions(){
     document.querySelectorAll(".perm-check").forEach(function(c){
@@ -2540,6 +2588,7 @@ function editUser(u){
     document.getElementById("changePass").checked = false;
     document.getElementById("password").value = "";
     document.getElementById("password").disabled = true;
+    syncPasswordChangeFlag();
 
     resetPermissions();
     handleAccountTypeChange(u.account_type || "user");
@@ -2578,6 +2627,7 @@ function editUser(u){
 document.addEventListener("DOMContentLoaded", function(){
     handleAccountTypeChange("user");
     prepareNewUserPassword();
+    bindUserFormSubmit();
     filterUsersTable();
 });
 </script>

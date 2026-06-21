@@ -248,6 +248,7 @@ final class VcDb
         $sql = preg_replace("/'0000-00-00 00:00:00'/", 'NULL', $sql) ?? $sql;
         $sql = preg_replace('/\bcurrent_timestamp\s*\(\s*\)/i', 'CURRENT_TIMESTAMP', $sql) ?? $sql;
         $sql = preg_replace('/\bCURRENT_TIMESTAMP\(\)/i', 'CURRENT_TIMESTAMP', $sql) ?? $sql;
+        $sql = preg_replace('/\bNOW\s*\(\s*\)/i', 'CURRENT_TIMESTAMP', $sql) ?? $sql;
         $sql = preg_replace('/\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP(?:\(\))?/i', '', $sql) ?? $sql;
 
         return $sql;
@@ -275,6 +276,10 @@ final class VcDb
         }
 
         $sql = preg_replace('/VALUES\s*\(\s*([`"]?\w+[`"]?)\s*\)/i', 'EXCLUDED.$1', $sql) ?? $sql;
+
+        if (preg_match('/^\s*UPDATE\b/is', $sql)) {
+            $sql = preg_replace('/\s+LIMIT\s+\d+\s*;?\s*$/i', '', $sql) ?? $sql;
+        }
 
         return $sql;
     }

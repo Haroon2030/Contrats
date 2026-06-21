@@ -264,13 +264,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'chang
                 session_version = session_version + 1,
                 last_password_change = NOW()
             WHERE id = ?
-            LIMIT 1
         ");
         $stmtUpdate->bind_param("si", $newHash, $uid);
-        $stmtUpdate->execute();
+        if (!$stmtUpdate->execute()) {
+            $error = "تعذر تغيير كلمة المرور.";
+            error_log('VendorCore my_account password error: ' . $stmtUpdate->error);
+        }
         $stmtUpdate->close();
 
-        
+        if ($error !== '') {
+            // لا نحدّث الجلسة إذا فشل الحفظ
+        } else {
         $stmtVersion = $conn->prepare("SELECT session_version, last_password_change FROM users WHERE id = ? LIMIT 1");
         $stmtVersion->bind_param("i", $uid);
         $stmtVersion->execute();
@@ -286,6 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'chang
         $csrf_token = $_SESSION['csrf_token'];
 
         $success = "تم تغيير كلمة المرور بنجاح.";
+        }
     }
 }
 
