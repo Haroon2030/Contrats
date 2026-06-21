@@ -5,6 +5,27 @@ date_default_timezone_set('Asia/Riyadh');
 require_once dirname(__DIR__) . '/app/Core/VcDb.php';
 
 /**
+ * قراءة متغير بيئة — Docker/Apache قد لا يعرّضه عبر getenv() فقط.
+ */
+function vcEnv(string $key, ?string $default = null): ?string
+{
+    $value = getenv($key);
+    if ($value !== false && $value !== '') {
+        return $value;
+    }
+
+    if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+        return (string) $_ENV[$key];
+    }
+
+    if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+        return (string) $_SERVER[$key];
+    }
+
+    return $default;
+}
+
+/**
  * تحميل المتغيرات من .env
  */
 function vcLoadEnv(string $root): void
@@ -43,17 +64,17 @@ function vcLoadEnv(string $root): void
 $vcRoot = dirname(__DIR__);
 vcLoadEnv($vcRoot);
 
-$appEnv = strtolower(trim((string) (getenv('APP_ENV') ?: 'local')));
+$appEnv = strtolower(trim((string) (vcEnv('APP_ENV', 'local') ?? 'local')));
 
 try {
     if ($appEnv === 'production') {
-        $databaseUrl = getenv('DATABASE_URL') ?: '';
+        $databaseUrl = trim((string) (vcEnv('DATABASE_URL', '') ?? ''));
         if ($databaseUrl === '') {
             throw new RuntimeException('DATABASE_URL غير معرّف لبيئة الإنتاج');
         }
         $conn = VcDb::fromDatabaseUrl($databaseUrl);
     } else {
-        $sqlitePath = trim((string) (getenv('SQLITE_PATH') ?: 'database/local.sqlite'));
+        $sqlitePath = trim((string) (vcEnv('SQLITE_PATH', 'database/local.sqlite') ?? 'database/local.sqlite'));
         if (!preg_match('/^[A-Za-z]:[\\\\\\/]|^\//', $sqlitePath)) {
             $sqlitePath = $vcRoot . '/' . ltrim(str_replace('\\', '/', $sqlitePath), '/');
         }
