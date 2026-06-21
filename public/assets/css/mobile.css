@@ -21,53 +21,84 @@
     }
 
     .vc-header{
-        grid-template-columns:1fr !important;
+        grid-template-columns:auto minmax(0,1fr) auto !important;
+        grid-template-rows:auto !important;
+        align-items:center !important;
         max-width:calc(100% - 16px) !important;
         width:calc(100% - 16px) !important;
         min-height:auto !important;
         margin:10px auto 16px !important;
-        padding:12px !important;
-        gap:10px !important;
-        text-align:center !important;
-        border-radius:18px !important;
+        padding:8px 10px !important;
+        gap:8px !important;
+        border-radius:16px !important;
     }
 
     .vc-logo{
-        justify-content:center !important;
+        justify-content:flex-start !important;
     }
 
     .vc-logo a{
-        width:128px !important;
-        height:54px !important;
-        padding:6px !important;
-        border-radius:15px !important;
+        width:82px !important;
+        height:40px !important;
+        padding:5px !important;
+        border-radius:13px !important;
+        font-size:11px !important;
     }
 
     .vc-logo img{
-        max-width:116px !important;
-        max-height:42px !important;
+        max-width:72px !important;
+        max-height:30px !important;
         width:auto !important;
         height:auto !important;
         object-fit:contain !important;
     }
 
+    .vc-title{
+        min-width:0 !important;
+        padding:0 2px !important;
+    }
+
     .vc-title-main{
-        font-size:17px !important;
-        line-height:1.5 !important;
+        font-size:14px !important;
+        line-height:1.35 !important;
+        display:-webkit-box !important;
+        -webkit-line-clamp:2 !important;
+        -webkit-box-orient:vertical !important;
+        overflow:hidden !important;
     }
 
     .vc-title-sub{
-        font-size:11px !important;
+        display:none !important;
     }
 
     .vc-right{
-        justify-content:center !important;
-        flex-wrap:wrap !important;
-        gap:10px !important;
+        justify-content:flex-end !important;
+        flex-wrap:nowrap !important;
+        gap:8px !important;
     }
 
     .vc-user-box{
-        max-width:100% !important;
+        width:auto !important;
+        min-width:0 !important;
+        max-width:118px !important;
+        min-height:40px !important;
+        padding:4px 6px !important;
+        gap:6px !important;
+    }
+
+    .vc-avatar{
+        width:30px !important;
+        height:30px !important;
+        font-size:12px !important;
+        flex-shrink:0 !important;
+    }
+
+    .vc-name{
+        font-size:11px !important;
+    }
+
+    .vc-role{
+        font-size:9px !important;
     }
 
     .vc-notif-box{
@@ -78,8 +109,11 @@
     }
 
     .vc-dropdown{
-        right:50% !important;
-        transform:translateX(50%) !important;
+        top:calc(100% + 6px) !important;
+        right:0 !important;
+        left:auto !important;
+        transform:none !important;
+        min-width:160px !important;
     }
 
     .container,
@@ -247,7 +281,34 @@
 
     .vc-header{
         width:calc(100% - 10px) !important;
-        padding:10px !important;
+        padding:8px !important;
+        gap:6px !important;
+    }
+
+    .vc-logo a{
+        width:72px !important;
+        height:36px !important;
+        font-size:10px !important;
+    }
+
+    .vc-title-main{
+        font-size:13px !important;
+        -webkit-line-clamp:2 !important;
+    }
+
+    .vc-user-box{
+        max-width:104px !important;
+        min-height:36px !important;
+    }
+
+    .vc-avatar{
+        width:28px !important;
+        height:28px !important;
+        font-size:11px !important;
+    }
+
+    .vc-role{
+        display:none !important;
     }
 
     h1,
