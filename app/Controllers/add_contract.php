@@ -724,9 +724,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $stmtEdit->execute();
                 $stmtEdit->close();
 
-                $old_rents = $conn->query("SELECT * FROM rents WHERE contract_id=$id")->fetch_all(MYSQLI_ASSOC);
-                $old_annual = $conn->query("SELECT * FROM annual_discounts WHERE contract_id=$id")->fetch_all(MYSQLI_ASSOC);
-                $old_events = $conn->query("SELECT * FROM events WHERE contract_id=$id")->fetch_all(MYSQLI_ASSOC);
+                $old_rents = $conn->query("SELECT * FROM rents WHERE contract_id=$id")->fetch_all();
+                $old_annual = $conn->query("SELECT * FROM annual_discounts WHERE contract_id=$id")->fetch_all();
+                $old_events = $conn->query("SELECT * FROM events WHERE contract_id=$id")->fetch_all();
 
                 $new_fee = $_POST['new_item_fee'] ?? '';
                 $old_fee = '';

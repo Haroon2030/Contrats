@@ -3,8 +3,6 @@
 
 <?php
 
-
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 date_default_timezone_set('Asia/Riyadh');
 
 function vcDisabledManagerHook(VcDb $conn, int $createdByUserId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0, int $excludeUserId = 0): void {

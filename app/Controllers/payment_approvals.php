@@ -629,7 +629,7 @@ if ($viewId <= 0) {
 $stmt = $conn->prepare($sql);
 if ($dataParams) { $stmt->bind_param($dataTypes, ...$dataParams); }
 $stmt->execute();
-$requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$requests = $stmt->get_result()->fetch_all();
 $stmt->close();
 
 function pa_print_allowed(array $currentUser, int $uid, int $financeManagerId, bool $isAdmin): bool {

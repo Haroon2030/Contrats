@@ -31,7 +31,7 @@ function api_forbidden_readonly(): void {
     ], 403);
 }
 
-function api_fetch_all(mysqli_stmt $stmt): array {
+function api_fetch_all(VcDbStmt $stmt): array {
     $stmt->execute();
     $result = $stmt->get_result();
     $rows = [];
