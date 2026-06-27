@@ -41,35 +41,9 @@ function money($value): string {
     return number_format((float)$value, 2);
 }
 
-
-function vcNotifyColumnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-    if (!$stmt) return false;
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
-function vcDisabledHookSetup(VcDb $conn): void {
-    return;
-}
-
 function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0): void {
     return;
 }
-
-function vcDisabledAdminsHook(VcDb $conn, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0, int $excludeUserId = 0): void {
-    return;
-}
-
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();

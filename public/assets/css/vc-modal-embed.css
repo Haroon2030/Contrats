@@ -1,0 +1,499 @@
+/* نماذج داخل النافذة المنبثقة — تصميم عصري */
+body.vc-embed{
+    margin:0;
+    background:#f8fafc;
+    color:#0f172a;
+}
+.vc-embed .container{
+    margin:0;
+    max-width:none;
+    width:100%;
+    padding:16px 18px 24px;
+    box-shadow:none;
+    border-radius:0;
+    background:transparent;
+}
+.vc-embed .page-head{
+    display:none;
+}
+
+/* خطوات النموذج */
+.vc-embed .contract-tabs{
+    background:#ffffff;
+    border:1px solid #e2e8f0;
+    border-radius:16px;
+    padding:16px;
+    margin-bottom:14px;
+    box-shadow:0 1px 3px rgba(15,23,42,.06);
+}
+.vc-embed .contract-tabs-head{
+    margin-bottom:14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+}
+.vc-embed .contract-tabs-title{
+    font-size:13px;
+    font-weight:900;
+    color:#334155;
+    text-transform:none;
+    letter-spacing:0;
+}
+.vc-embed .contract-tab-progress{
+    font-size:12px;
+    font-weight:900;
+    color:#1d4ed8;
+    background:#dbeafe;
+    border:1px solid #93c5fd;
+    padding:7px 14px;
+    border-radius:999px;
+}
+.vc-embed .contract-tabs-inner{
+    gap:8px;
+}
+.vc-embed .contract-tab{
+    padding:11px 10px;
+    border-radius:12px;
+    border:2px solid #e2e8f0;
+    background:#ffffff;
+    color:#334155;
+    font-size:12px;
+    font-weight:800;
+    line-height:1.45;
+}
+.vc-embed .contract-tab span{
+    width:26px;
+    height:26px;
+    border-radius:8px;
+    background:#e2e8f0;
+    color:#475569;
+    font-size:12px;
+    font-weight:900;
+}
+.vc-embed .contract-tab:hover:not(.is-active){
+    border-color:#93c5fd;
+    background:#f8fafc;
+    color:#1e40af;
+}
+.vc-embed .contract-tab.is-active{
+    background:#4472c4;
+    border-color:#3564b8;
+    color:#ffffff;
+    font-weight:900;
+    font-size:13px;
+    box-shadow:0 6px 18px rgba(68,114,196,.32);
+}
+.vc-embed .contract-tab.is-active span{
+    background:rgba(255,255,255,.24);
+    color:#ffffff;
+    font-weight:900;
+}
+.vc-embed .contract-tab.is-done:not(.is-active){
+    border-color:#86efac;
+    background:#f0fdf4;
+    color:#166534;
+    font-weight:900;
+}
+.vc-embed .contract-tab.is-done:not(.is-active) span{
+    background:#dcfce7;
+    color:#15803d;
+}
+
+/* لوحات المحتوى */
+.vc-embed .form-panel{
+    background:#ffffff;
+    border:1px solid #e2e8f0;
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:12px;
+    box-shadow:0 1px 3px rgba(15,23,42,.05);
+}
+.vc-embed .section-title{
+    font-size:16px;
+    color:#0f172a;
+    border-bottom-color:#e2e8f0;
+    margin-bottom:18px;
+    padding-bottom:12px;
+}
+.vc-embed .section-title .step-num{
+    background:linear-gradient(145deg,#4472c4,#3564b8);
+    width:30px;
+    height:30px;
+    border-radius:10px;
+    font-size:13px;
+}
+
+/* حقول الإدخال */
+.vc-embed label,
+.vc-embed .option-title{
+    font-size:13px;
+    font-weight:800;
+    color:#334155;
+    margin-bottom:8px;
+}
+.vc-embed input,
+.vc-embed textarea,
+.vc-embed select{
+    min-height:46px;
+    padding:0 14px;
+    border-radius:12px;
+    border:1px solid #cbd5e1;
+    background:#ffffff;
+    color:#0f172a;
+    font-size:14px;
+    font-weight:600;
+    box-shadow:0 1px 2px rgba(15,23,42,.04);
+    transition:border-color .15s ease,box-shadow .15s ease;
+}
+.vc-embed textarea{
+    min-height:110px;
+    padding:12px 14px;
+}
+.vc-embed input::placeholder,
+.vc-embed textarea::placeholder{
+    color:#94a3b8;
+    font-weight:500;
+}
+.vc-embed input:focus,
+.vc-embed textarea:focus,
+.vc-embed select:focus{
+    border-color:#4472c4;
+    box-shadow:0 0 0 3px rgba(68,114,196,.15);
+    outline:none;
+}
+.vc-embed input:hover:not(:focus),
+.vc-embed textarea:hover:not(:focus),
+.vc-embed select:hover:not(:focus){
+    border-color:#94a3b8;
+}
+
+/* بطاقات اختيار المورد */
+.vc-embed .supplier-status{
+    gap:12px;
+}
+.vc-embed .status-card .card{
+    background:#ffffff;
+    border:2px solid #e2e8f0;
+    border-radius:14px;
+    box-shadow:0 1px 2px rgba(15,23,42,.04);
+    min-height:84px;
+    color:#0f172a;
+}
+.vc-embed .status-card strong{
+    display:block;
+    color:#0f172a;
+    font-size:16px;
+    font-weight:900;
+    line-height:1.35;
+}
+.vc-embed .status-card small{
+    display:block;
+    color:#64748b;
+    font-size:13px;
+    font-weight:700;
+    line-height:1.55;
+    margin-top:4px;
+}
+.vc-embed .status-card .icon{
+    background:#eff6ff;
+    font-size:20px;
+    flex-shrink:0;
+}
+.vc-embed .status-card .card:hover{
+    border-color:#93c5fd;
+    background:#f8fafc;
+}
+.vc-embed .status-card input:checked + .card{
+    border-color:#3564b8;
+    background:linear-gradient(145deg,#4472c4,#3564b8);
+    box-shadow:0 8px 22px rgba(68,114,196,.28);
+    color:#ffffff;
+}
+.vc-embed .status-card input:checked + .card strong{
+    color:#ffffff;
+    font-size:16px;
+    font-weight:900;
+}
+.vc-embed .status-card input:checked + .card small{
+    color:rgba(255,255,255,.92);
+    font-size:13px;
+    font-weight:700;
+}
+.vc-embed .status-card input:checked + .card .icon{
+    background:rgba(255,255,255,.22);
+}
+.vc-embed .status-card input:focus-visible + .card{
+    outline:3px solid rgba(68,114,196,.35);
+    outline-offset:2px;
+}
+
+/* أزرار الإجراءات السفلية */
+.vc-embed .form-actions-bar{
+    position:sticky;
+    bottom:0;
+    z-index:40;
+    margin:8px -4px 0;
+    padding:14px 16px;
+    background:rgba(255,255,255,.96);
+    border-top:1px solid #e2e8f0;
+    border-radius:0 0 14px 14px;
+    box-shadow:0 -8px 24px rgba(15,23,42,.06);
+    backdrop-filter:blur(8px);
+    gap:10px;
+}
+.vc-embed .btn-tab-nav{
+    min-height:44px;
+    padding:0 20px;
+    border-radius:12px;
+    border:1px solid #cbd5e1;
+    background:#ffffff;
+    color:#475569;
+    font-size:14px;
+    font-weight:800;
+}
+.vc-embed .btn-tab-nav:hover:not(:disabled){
+    background:#f1f5f9;
+    border-color:#94a3b8;
+    color:#0f172a;
+}
+.vc-embed #contractTabNext{
+    background:#4472c4;
+    border-color:#4472c4;
+    color:#ffffff;
+    min-width:120px;
+}
+.vc-embed #contractTabNext:hover:not(:disabled){
+    background:#3564b8;
+    border-color:#3564b8;
+    color:#ffffff;
+}
+.vc-embed .submit,
+.vc-embed .form-actions-bar .submit{
+    min-height:46px;
+    padding:0 28px;
+    border-radius:12px;
+    background:linear-gradient(145deg,#16a34a,#15803d);
+    color:#ffffff;
+    font-size:15px;
+    font-weight:900;
+    border:none;
+    box-shadow:0 6px 18px rgba(22,163,74,.28);
+    min-width:160px;
+}
+.vc-embed .submit:hover{
+    background:linear-gradient(145deg,#15803d,#166534);
+    transform:translateY(-1px);
+}
+
+/* أزرار إضافة صفوف */
+.vc-embed .add-btn{
+    background:#4472c4;
+    color:#ffffff;
+    min-height:40px;
+    padding:0 16px;
+    border-radius:10px;
+    font-size:13px;
+}
+.vc-embed .remove-btn{
+    background:#f1f5f9;
+    color:#64748b;
+    border:1px solid #e2e8f0;
+    min-height:40px;
+    border-radius:10px;
+}
+.vc-embed .remove-btn:hover{
+    background:#fef2f2;
+    color:#b91c1c;
+    border-color:#fecaca;
+}
+
+.vc-embed .box{
+    background:#f8fafc;
+    border:1px solid #e2e8f0;
+    border-radius:14px;
+    box-shadow:none;
+}
+.vc-embed .phone span,
+.vc-embed .currency-field span{
+    background:#4472c4;
+}
+.vc-embed .alert{
+    border-radius:12px;
+    font-size:13px;
+}
+@media(max-width:900px){
+    .vc-embed .contract-tabs-inner{
+        grid-template-columns:repeat(3,minmax(0,1fr));
+    }
+}
+@media(max-width:560px){
+    .vc-embed .contract-tabs-inner{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .vc-embed .rent-tabs-inner{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .vc-embed .supplier-status{
+        grid-template-columns:1fr;
+    }
+    .vc-embed .form-actions-bar{
+        flex-wrap:wrap;
+    }
+    .vc-embed .btn-tab-nav,
+    .vc-embed .submit{
+        flex:1;
+        min-width:0;
+    }
+}
+
+/* تبويبات عقد الإيجار */
+.vc-embed .rent-tabs{
+    background:#ffffff;
+    border:1px solid #e2e8f0;
+    border-radius:16px;
+    padding:16px;
+    margin-bottom:14px;
+    box-shadow:0 1px 3px rgba(15,23,42,.06);
+}
+.vc-embed .rent-tabs-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:14px;
+}
+.vc-embed .rent-tabs-title{
+    font-size:13px;
+    font-weight:900;
+    color:#334155;
+    text-transform:none;
+    letter-spacing:0;
+    margin:0;
+}
+.vc-embed .rent-tab-progress{
+    font-size:12px;
+    font-weight:900;
+    color:#1d4ed8;
+    background:#dbeafe;
+    border:1px solid #93c5fd;
+    padding:7px 14px;
+    border-radius:999px;
+}
+.vc-embed .rent-tabs-inner{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:8px;
+}
+.vc-embed .rent-tab{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:11px 10px;
+    border-radius:12px;
+    border:2px solid #e2e8f0;
+    background:#ffffff;
+    color:#334155;
+    font-size:12px;
+    font-weight:800;
+    line-height:1.45;
+    cursor:pointer;
+}
+.vc-embed .rent-tab span{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:26px;
+    height:26px;
+    border-radius:8px;
+    background:#e2e8f0;
+    color:#475569;
+    font-size:12px;
+    font-weight:900;
+    flex-shrink:0;
+}
+.vc-embed .rent-tab:hover:not(.is-active){
+    border-color:#93c5fd;
+    background:#f8fafc;
+    color:#1e40af;
+}
+.vc-embed .rent-tab.is-active{
+    background:#4472c4;
+    border-color:#3564b8;
+    color:#ffffff;
+    font-weight:900;
+    font-size:13px;
+    box-shadow:0 6px 18px rgba(68,114,196,.32);
+}
+.vc-embed .rent-tab.is-active span{
+    background:rgba(255,255,255,.24);
+    color:#ffffff;
+}
+.vc-embed .rent-tab.is-done:not(.is-active){
+    border-color:#86efac;
+    background:#f0fdf4;
+    color:#166534;
+    font-weight:900;
+}
+.vc-embed .rent-tab.is-done:not(.is-active) span{
+    background:#dcfce7;
+    color:#15803d;
+}
+
+/* لوحات طلب السداد والأصناف */
+.vc-embed .panel,
+.vc-embed .card{
+    background:#ffffff;
+    border:1px solid #e2e8f0;
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:12px;
+    box-shadow:0 1px 3px rgba(15,23,42,.05);
+}
+.vc-embed .actions{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid #e2e8f0;
+}
+.vc-embed .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:46px;
+    padding:0 24px;
+    border-radius:12px;
+    font-size:14px;
+    font-weight:800;
+    text-decoration:none;
+    border:1px solid transparent;
+    cursor:pointer;
+    transition:.15s ease;
+}
+.vc-embed .btn-primary{
+    background:linear-gradient(145deg,#4472c4,#3564b8);
+    color:#ffffff;
+    border-color:#4472c4;
+    box-shadow:0 6px 18px rgba(68,114,196,.25);
+    min-width:180px;
+}
+.vc-embed .btn-primary:hover{
+    background:linear-gradient(145deg,#3564b8,#2d5599);
+    transform:translateY(-1px);
+}
+.vc-embed .btn-muted{
+    background:#ffffff;
+    color:#64748b;
+    border-color:#cbd5e1;
+}
+.vc-embed .btn-muted:hover{
+    background:#f8fafc;
+    color:#334155;
+}
+.vc-embed.embed-hide-secondary .actions .btn-muted{
+    display:none;
+}

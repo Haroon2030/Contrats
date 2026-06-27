@@ -83,28 +83,6 @@ function highlightText($text, $search): string {
     return preg_replace($pattern, '<mark>$0</mark>', $safe);
 }
 
-
-function vcColumnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-
-    if (!$stmt) {
-        return false;
-    }
-
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
 function vcDisabledHookSetup(VcDb $conn): void {
     return;
 }

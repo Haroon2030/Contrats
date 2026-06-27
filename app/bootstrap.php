@@ -25,30 +25,6 @@ if (!function_exists('vc_asset')) {
     }
 }
 
-if (!function_exists('vc_icon')) {
-    function vc_icon(?string $path): string
-    {
-        $path = trim(str_replace('\\', '/', (string) $path));
-        if ($path === '') {
-            return 'public/assets/icons/add_contract.png';
-        }
-
-        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
-            return $path;
-        }
-
-        if (str_starts_with($path, 'public/assets/')) {
-            return $path;
-        }
-
-        if (str_starts_with($path, 'assets/')) {
-            return 'public/' . $path;
-        }
-
-        return vc_asset($path);
-    }
-}
-
 if (!function_exists('vc_url')) {
     function vc_url(string $page, array $query = []): string
     {

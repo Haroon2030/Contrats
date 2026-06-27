@@ -12,8 +12,6 @@ return [
     'view_contract',
     'admin_view_contract',
     'admin_review',
-    'delete_draft',
-    'update_reminder',
     'print_contract',
     'rents',
     'branch_rents',

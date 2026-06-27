@@ -8,28 +8,9 @@ if (!function_exists('vcColumnExists')) {
         }
 
         try {
-            if ($conn->driver() === 'sqlite') {
-                $stmt = $conn->prepare('SELECT COUNT(*) AS c FROM pragma_table_info(?) WHERE name = ?');
-            } else {
-                $stmt = $conn->prepare('
-                    SELECT COUNT(*) AS c
-                    FROM information_schema.columns
-                    WHERE table_schema = current_schema()
-                    AND table_name = ?
-                    AND column_name = ?
-                ');
-            }
+            $result = $conn->query("SHOW COLUMNS FROM {$table} LIKE '{$column}'");
 
-            if (!$stmt) {
-                return false;
-            }
-
-            $stmt->bind_param('ss', $table, $column);
-            $stmt->execute();
-            $row = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-
-            return !empty($row) && (int)($row['c'] ?? 0) > 0;
+            return $result !== false && $result->num_rows > 0;
         } catch (Throwable) {
             return false;
         }

@@ -7,41 +7,9 @@
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 date_default_timezone_set('Asia/Riyadh');
 
-function vcNotifyColumnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-    if (!$stmt) return false;
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
-function vcDisabledHookSetup(VcDb $conn): void {
-    return;
-}
-
-function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0): void {
-    return;
-}
-
-function vcDisabledAdminsHook(VcDb $conn, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0, int $excludeUserId = 0): void {
-    return;
-}
-
-
-
 function vcDisabledManagerHook(VcDb $conn, int $createdByUserId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0, int $excludeUserId = 0): void {
     return;
 }
-
-
 
 function e($value): string {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
@@ -545,7 +513,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             
 
-            header("Location: rents.php?success=1&id=" . $contract_id);
+            header('Location: ' . vcRedirectUrl('rents.php?success=1&id=' . $contract_id));
             exit();
 
         } catch (Throwable $e) {
@@ -575,11 +543,14 @@ if (!isset($_GET['success'])) {
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <?php vcRenderPageAssets(['forms' => true]); ?>
+<?php if (vcIsEmbedRequest()) { vcRenderEmbedShell(); } ?>
 </head>
 
-<body>
+<body<?= vcIsEmbedRequest() ? ' class="vc-embed"' : '' ?>>
 
+<?php if (!vcIsEmbedRequest()): ?>
 <?php include VC_VIEWS . '/layouts/header.php'; ?>
+<?php endif; ?>
 
 <div class="container">
 

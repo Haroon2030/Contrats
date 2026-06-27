@@ -1,5 +1,6 @@
 <?php
 
+require_once VC_HELPERS . '/scope_helper.php';
 
 header("Content-Type: text/html; charset=UTF-8");
 
@@ -16,24 +17,9 @@ function h($v): string {
     return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 }
 
-function vcColumnExistsSearch(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("\n        SELECT COUNT(*) AS c\n        FROM INFORMATION_SCHEMA.COLUMNS\n        WHERE TABLE_SCHEMA = DATABASE()\n        AND TABLE_NAME = ?\n        AND COLUMN_NAME = ?\n    ");
-
-    if (!$stmt) {
-        return false;
-    }
-
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
 function vcFirstExistingColumnSearch(VcDb $conn, string $table, array $columns): ?string {
     foreach ($columns as $column) {
-        if (vcColumnExistsSearch($conn, $table, $column)) {
+        if (vcColumnExists($conn, $table, $column)) {
             return $column;
         }
     }

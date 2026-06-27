@@ -139,300 +139,50 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VendorCore | تسجيل الدخول</title>
-
+<title>تسجيل الدخول | نظام إدارة العقود والإيجارات</title>
+<?php vcRenderSiteFavicon(); ?>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-
-<style>
-*{
-    box-sizing:border-box;
-    font-family:'Cairo', Tahoma, Arial, sans-serif;
-}
-
-html, body{
-    direction:rtl;
-}
-
-body{
-    margin:0;
-    min-height:100vh;
-    color:#172033;
-    background:
-        radial-gradient(circle at 20% 18%, rgba(109,74,255,.14), transparent 30%),
-        radial-gradient(circle at 82% 78%, rgba(14,165,233,.10), transparent 33%),
-        linear-gradient(135deg,#f8fafc 0%,#eef1f7 100%);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:24px;
-}
-
-.login-shell{
-    width:min(980px, 100%);
-    min-height:560px;
-    display:grid;
-    grid-template-columns:1fr 430px;
-    background:rgba(255,255,255,.58);
-    border:1px solid rgba(226,232,240,.95);
-    border-radius:34px;
-    overflow:hidden;
-    box-shadow:0 28px 70px rgba(23,32,51,.13);
-    backdrop-filter:blur(10px);
-}
-
-.brand-panel{
-    position:relative;
-    overflow:hidden;
-    background:
-        radial-gradient(circle at 18% 82%, rgba(14,165,233,.18), transparent 35%),
-        linear-gradient(145deg,#111b3f 0%,#342f86 52%,#5547e7 100%);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:42px;
-}
-
-.brand-panel::before{
-    content:"";
-    position:absolute;
-    width:430px;
-    height:430px;
-    border-radius:50%;
-    background:rgba(255,255,255,.07);
-    left:-150px;
-    top:-130px;
-}
-
-.brand-panel::after{
-    content:"";
-    position:absolute;
-    width:300px;
-    height:300px;
-    border-radius:50%;
-    border:1px solid rgba(255,255,255,.12);
-    right:-105px;
-    bottom:-105px;
-}
-
-.brand-logo-card{
-    position:relative;
-    z-index:1;
-    width:min(360px, 100%);
-    min-height:245px;
-    border-radius:34px;
-    background:rgba(255,255,255,.93);
-    border:1px solid rgba(255,255,255,.65);
-    box-shadow:0 24px 52px rgba(0,0,0,.20);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:30px;
-}
-
-.brand-logo-card img{
-    width:min(285px, 100%);
-    max-height:175px;
-    object-fit:contain;
-    display:block;
-}
-
-.login-card{
-    background:rgba(255,255,255,.86);
-    padding:48px 42px;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-}
-
-.card-head{
-    margin-bottom:26px;
-}
-
-.card-title{
-    margin:0;
-    font-size:30px;
-    font-weight:900;
-    color:#172033;
-    letter-spacing:-.3px;
-}
-
-.card-line{
-    width:54px;
-    height:5px;
-    border-radius:999px;
-    background:linear-gradient(90deg,#4f46e5,#0ea5e9);
-    margin-top:13px;
-}
-
-.error{
-    background:#fff1f2;
-    color:#b42318;
-    border:1px solid #fecdd3;
-    padding:12px 14px;
-    border-radius:14px;
-    margin-bottom:16px;
-    font-size:13px;
-    font-weight:900;
-    line-height:1.7;
-}
-
-.input-group{
-    margin-bottom:17px;
-}
-
-.input-group label{
-    display:block;
-    font-size:13px;
-    color:#172033;
-    font-weight:900;
-    margin-bottom:8px;
-}
-
-.input-wrap{
-    position:relative;
-}
-
-.input-wrap input{
-    width:100%;
-    min-height:54px;
-    padding:0 44px 0 14px;
-    border-radius:16px;
-    border:1px solid #dfe6f0;
-    background:#f3f6fb;
-    color:#172033;
-    box-shadow:inset 2px 2px 6px rgba(209,217,230,.8), inset -2px -2px 6px #fff;
-    font-size:15px;
-    font-weight:800;
-    outline:none;
-    transition:.18s ease;
-}
-
-.input-wrap input:focus{
-    border-color:#6d4aff;
-    background:#fff;
-    box-shadow:0 0 0 4px rgba(109,74,255,.11);
-}
-
-.input-icon{
-    position:absolute;
-    right:14px;
-    top:50%;
-    transform:translateY(-50%);
-    font-size:17px;
-    opacity:.72;
-}
-
-.toggle-pass{
-    position:absolute;
-    left:10px;
-    top:50%;
-    transform:translateY(-50%);
-    border:0;
-    background:transparent;
-    cursor:pointer;
-    font-weight:900;
-    color:#4f46e5;
-    padding:5px 8px;
-}
-
-.login-btn{
-    width:100%;
-    min-height:56px;
-    padding:0 18px;
-    background:linear-gradient(145deg,#6d4aff,#4f46e5);
-    color:#fff;
-    border:none;
-    border-radius:17px;
-    cursor:pointer;
-    font-size:16px;
-    font-weight:900;
-    margin-top:10px;
-    transition:.18s ease;
-    box-shadow:0 16px 28px rgba(79,70,229,.24);
-}
-
-.login-btn:hover{
-    transform:translateY(-1px);
-    filter:brightness(.98);
-}
-
-.login-footer{
-    margin-top:22px;
-    text-align:center;
-    font-size:12px;
-    color:#8a94a6;
-    font-weight:800;
-}
-
-@media(max-width:880px){
-    .login-shell{
-        grid-template-columns:1fr;
-        min-height:auto;
-    }
-
-    .brand-panel{
-        min-height:290px;
-    }
-
-    .brand-logo-card{
-        min-height:190px;
-        width:min(330px, 100%);
-    }
-
-    .brand-logo-card img{
-        width:min(260px, 100%);
-    }
-}
-
-@media(max-width:520px){
-    body{
-        padding:12px;
-    }
-
-    .login-shell{
-        border-radius:24px;
-    }
-
-    .brand-panel,
-    .login-card{
-        padding:26px;
-    }
-
-    .card-title{
-        font-size:24px;
-    }
-}
-</style>
+<link rel="stylesheet" href="<?= e(vc_asset('css/vc-login.css')) ?>?v=2">
 </head>
 <body>
 
-<div class="login-shell">
+<div class="login-page">
+    <div class="login-card">
 
-    <section class="brand-panel" aria-label="VendorCore">
-        <div class="brand-logo-card">
-            <img src="/uploads/vendorcore_header.png?v=30" alt="VendorCore">
-        </div>
-    </section>
+        <aside class="login-welcome" aria-label="ترحيب">
+            <div class="login-welcome-content">
+                <h2>مرحباً بعودتك!</h2>
+                <p>سجّل دخولك للوصول إلى حسابك وإدارة العقود والإيجارات</p>
+                <div class="login-hero">
+                    <img
+                        src="<?= e(vcSiteLogoUrl()) ?>"
+                        alt="إدارة الموردين والعقود"
+                        width="260"
+                        height="260"
+                        loading="lazy"
+                    >
+                </div>
+            </div>
+        </aside>
 
-    <section class="login-card">
+        <section class="login-form-panel">
 
-        <div class="card-head">
-            <h1 class="card-title">تسجيل الدخول</h1>
-            <div class="card-line"></div>
-        </div>
+            <div class="login-form-brand">
+                <img src="<?= e(vcSiteLogoUrl()) ?>" alt="نظام إدارة العقود والإيجارات" width="72" height="72" decoding="async">
+            </div>
 
-        <?php if (!empty($error)): ?>
-            <div class="error"><?= e($error) ?></div>
-        <?php endif; ?>
+            <h1>تسجيل الدخول</h1>
 
-        <form method="POST" autocomplete="off">
+            <?php if (!empty($error)): ?>
+                <div class="login-error" role="alert"><?= e($error) ?></div>
+            <?php endif; ?>
 
-            <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token']) ?>">
+            <form method="POST" autocomplete="off" novalidate>
 
-            <div class="input-group">
-                <label for="username">اسم المستخدم</label>
-                <div class="input-wrap">
-                    <span class="input-icon">👤</span>
+                <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token']) ?>">
+
+                <div class="login-field">
+                    <label for="username">اسم المستخدم</label>
                     <input
                         type="text"
                         id="username"
@@ -440,49 +190,50 @@ body{
                         required
                         autofocus
                         value="<?= e($_POST['username'] ?? '') ?>"
-                        placeholder="اسم المستخدم"
+                        placeholder="أدخل اسم المستخدم"
                     >
                 </div>
-            </div>
 
-            <div class="input-group">
-                <label for="password">كلمة المرور</label>
-                <div class="input-wrap">
-                    <span class="input-icon">🔐</span>
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        required
-                        placeholder="كلمة المرور"
-                    >
-                    <button type="button" class="toggle-pass" onclick="togglePassword()">إظهار</button>
+                <div class="login-field">
+                    <label for="password">كلمة المرور</label>
+                    <div class="login-password-wrap">
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            required
+                            placeholder="أدخل كلمة المرور"
+                        >
+                        <button type="button" class="login-toggle-pass" onclick="togglePassword()">إظهار</button>
+                    </div>
                 </div>
+
+                <button type="submit" class="login-submit">تسجيل الدخول</button>
+
+            </form>
+
+            <div class="login-footer">
+                <strong>نظام إدارة العقود والإيجارات</strong><br>
+                © <?= date('Y') ?> جميع الحقوق محفوظة
             </div>
 
-            <button type="submit" class="login-btn">دخول</button>
+        </section>
 
-        </form>
-
-        <div class="login-footer">
-            © <?= date("Y") ?> VendorCore
-        </div>
-
-    </section>
-
+    </div>
 </div>
 
 <script>
-function togglePassword(){
-    const input = document.getElementById("password");
-    const btn = document.querySelector(".toggle-pass");
+function togglePassword() {
+    const input = document.getElementById('password');
+    const btn = document.querySelector('.login-toggle-pass');
+    if (!input || !btn) return;
 
-    if(input.type === "password"){
-        input.type = "text";
-        btn.innerText = "إخفاء";
-    }else{
-        input.type = "password";
-        btn.innerText = "إظهار";
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'إخفاء';
+    } else {
+        input.type = 'password';
+        btn.textContent = 'إظهار';
     }
 }
 </script>

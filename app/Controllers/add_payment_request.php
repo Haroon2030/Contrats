@@ -63,23 +63,11 @@ function pr_due_color_class(?string $dueDate): string {
 }
 
 function pr_column_exists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("\n        SELECT COUNT(*) AS c\n        FROM INFORMATION_SCHEMA.COLUMNS\n        WHERE TABLE_SCHEMA = DATABASE()\n          AND TABLE_NAME = ?\n          AND COLUMN_NAME = ?\n    ");
-    if (!$stmt) return false;
-    $stmt->bind_param('ss', $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return (int)($row['c'] ?? 0) > 0;
+    return vcColumnExists($conn, $table, $column);
 }
 
 function pr_table_exists(VcDb $conn, string $table): bool {
-    $stmt = $conn->prepare("\n        SELECT COUNT(*) AS c\n        FROM INFORMATION_SCHEMA.TABLES\n        WHERE TABLE_SCHEMA = DATABASE()\n          AND TABLE_NAME = ?\n    ");
-    if (!$stmt) return false;
-    $stmt->bind_param('s', $table);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return (int)($row['c'] ?? 0) > 0;
+    return vcTableExists($conn, $table);
 }
 
 function pr_ensure_payment_due_columns(VcDb $conn): void {
@@ -369,7 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             pr_notify_user($conn, $sectionManagerId, $title, $message, $link, 'payment_request_approval', $requestId);
 
             $_SESSION['pr_flash_success'] = 'تم إرسال طلب السداد بنجاح إلى ' . pr_get_user_name($conn, $sectionManagerId) . ' للموافقة.';
-            header('Location: add_payment_request.php?saved=1');
+            header('Location: ' . vcRedirectUrl('add_payment_request.php?saved=1'));
             exit();
         } catch (Throwable $e) {
             $conn->rollback();
@@ -386,6 +374,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>طلب سداد جديد</title>
 <?php vcRenderPageAssets(['forms' => true]); ?>
+<?php if (vcIsEmbedRequest()) { vcRenderEmbedShell(); } ?>
 <style>
 .panel{background:rgba(255,255,255,.70);border:1px solid #e2e8f0;border-radius:24px;padding:18px;box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;margin-bottom:16px}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -402,8 +391,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 @media(max-width:850px){.grid-3,.grid-4,.route-box{grid-template-columns:1fr}}
 </style>
 </head>
-<body>
+<body<?= vcIsEmbedRequest() ? ' class="vc-embed embed-hide-secondary"' : '' ?>>
+<?php if (!vcIsEmbedRequest()): ?>
 <?php include VC_VIEWS . '/layouts/header.php'; ?>
+<?php endif; ?>
 <div class="container">
     <div class="page-head">
         <h1 class="page-title"> طلب سداد جديد</h1>

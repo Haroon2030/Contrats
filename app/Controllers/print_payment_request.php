@@ -1,5 +1,7 @@
 <?php
 
+require_once VC_HELPERS . '/scope_helper.php';
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -54,13 +56,7 @@ function pp_approval_ar($status): string {
 }
 
 function pp_column_exists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("\n        SELECT COUNT(*) AS c\n        FROM INFORMATION_SCHEMA.COLUMNS\n        WHERE TABLE_SCHEMA = DATABASE()\n          AND TABLE_NAME = ?\n          AND COLUMN_NAME = ?\n    ");
-    if (!$stmt) return false;
-    $stmt->bind_param('ss', $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return (int)($row['c'] ?? 0) > 0;
+    return vcColumnExists($conn, $table, $column);
 }
 
 function pp_get_settings(VcDb $conn): array {

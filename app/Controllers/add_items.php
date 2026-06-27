@@ -18,23 +18,6 @@ function e($value): string {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-
-function vcColumnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-    if (!$stmt) return false;
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
 function ensureItemsShadColumn(VcDb $conn): void {
     if (!vcColumnExists($conn, 'items', 'shad')) {
         @$conn->query("ALTER TABLE items ADD COLUMN shad INT NULL DEFAULT NULL AFTER name");
@@ -104,31 +87,6 @@ function vcCurrentUserCanEditItemsBatch(VcDb $conn, int $userId, int $createdBy)
 }
 
 
-function vcNotifyColumnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-    if (!$stmt) return false;
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
-function vcDisabledHookSetup(VcDb $conn): void {
-    return;
-}
-
-function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0): void {
-    return;
-}
-
-
 function getDirectManagerId(VcDb $conn, int $userId): int {
     if ($userId <= 0) return 0;
 
@@ -188,10 +146,6 @@ function vcDisabledItemsReviewHook(VcDb $conn, int $createdByUserId, string $tit
 }
 
 function vcDisabledManagerHook(VcDb $conn, int $createdByUserId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0): void {
-    return;
-}
-
-function vcDisabledAdminsHook(VcDb $conn, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0, int $excludeUserId = 0): void {
     return;
 }
 
@@ -475,9 +429,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $form_action === 'save') {
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <?php vcRenderPageAssets(['forms' => true]); ?>
+<?php if (vcIsEmbedRequest()) { vcRenderEmbedShell(); } ?>
 </head>
 
-<body>
+<body<?= vcIsEmbedRequest() ? ' class="vc-embed"' : '' ?>>
 
 <div id="savingOverlay" class="saving-overlay">
     <div class="saving-card">
@@ -490,7 +445,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $form_action === 'save') {
     </div>
 </div>
 
+<?php if (!vcIsEmbedRequest()): ?>
 <?php include VC_VIEWS . '/layouts/header.php'; ?>
+<?php endif; ?>
 
 <div class="container">
 
@@ -503,6 +460,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $form_action === 'save') {
         <div class="alert alert-success" id="successBox">
             <?= e($success) ?>
         </div>
+        <?php if (vcIsEmbedRequest()): ?>
+        <script>
+        if (window.parent && window.parent !== window && typeof window.parent.closeVcModal === 'function') {
+            setTimeout(function () { window.parent.closeVcModal(true); }, 1400);
+        }
+        </script>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if (!empty($errors)): ?>

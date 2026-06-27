@@ -14,22 +14,6 @@ function money($value): string {
     return number_format((float)$value, 2);
 }
 
-function vcColumnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-    if (!$stmt) return false;
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
 function ensureItemsShadColumn(VcDb $conn): void {
     if (!vcColumnExists($conn, 'items', 'shad')) {
         @$conn->query("ALTER TABLE items ADD COLUMN shad INT NULL DEFAULT NULL AFTER name");

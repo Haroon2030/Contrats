@@ -461,6 +461,7 @@ select:focus{
     font-weight:900;
     font-size:15px;
     margin-bottom:4px;
+    color:#172033;
 }
 
 .status-card small{
@@ -475,8 +476,12 @@ select:focus{
     border-color:rgba(255,255,255,.25);
 }
 
+.status-card input:checked + .card strong{
+    color:#ffffff;
+}
+
 .status-card input:checked + .card small{
-    color:rgba(255,255,255,.82);
+    color:rgba(255,255,255,.9);
 }
 
 .status-card input:checked + .card .icon{

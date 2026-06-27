@@ -64,17 +64,7 @@ function defaultReminderDate(?string $createdAt, ?string $reminderDate): string 
 
 
 function vcDraftColumnExists(VcDb $conn, string $table, string $column): bool {
-    try {
-        $stmt = $conn->prepare("\n            SELECT COUNT(*) AS c\n            FROM INFORMATION_SCHEMA.COLUMNS\n            WHERE TABLE_SCHEMA = DATABASE()\n              AND TABLE_NAME = ?\n              AND COLUMN_NAME = ?\n        ");
-        if (!$stmt) return false;
-        $stmt->bind_param("ss", $table, $column);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        return (int)($row['c'] ?? 0) > 0;
-    } catch (Throwable $e) {
-        return false;
-    }
+    return vcColumnExists($conn, $table, $column);
 }
 
 function vcDisabledDraftHookSetup(VcDb $conn): void {

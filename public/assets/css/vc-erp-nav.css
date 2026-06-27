@@ -1,0 +1,293 @@
+/* تنقل ERP الموحّد — الشريط الجانبي والقائمة المنزلقة */
+.sidebar-brand,
+.vc-nav-drawer-brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:8px 10px 14px;
+    margin-bottom:4px;
+    border-bottom:1px solid rgba(255,255,255,.12);
+    flex-shrink:0;
+}
+.vc-nav-drawer-brand{
+    padding:18px 16px 14px;
+    margin-bottom:0;
+}
+.vc-nav-drawer-brand .sidebar-brand-text{
+    flex:1;
+    min-width:0;
+}
+.sidebar-brand-icon{
+    width:42px;
+    height:42px;
+    border-radius:14px;
+    background:rgba(255,255,255,.18);
+    border:1px solid rgba(255,255,255,.22);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:22px;
+    color:#ffffff;
+    flex-shrink:0;
+    overflow:hidden;
+    padding:0;
+}
+.sidebar-brand-icon img,
+.vc-site-brand-mark img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+}
+.sidebar-brand-text{
+    min-width:0;
+    line-height:1.25;
+}
+.sidebar-brand-text strong{
+    display:block;
+    font-size:16px;
+    font-weight:900;
+    color:#ffffff;
+    line-height:1.45;
+}
+.sidebar-brand-text span{
+    display:block;
+    font-size:10px;
+    font-weight:800;
+    color:rgba(255,255,255,.85);
+    letter-spacing:.6px;
+    margin-top:2px;
+}
+
+.erp-nav{
+    flex:1;
+    min-height:0;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:6px 2px 10px;
+    margin:8px 0 10px;
+    scrollbar-width:thin;
+    scrollbar-color:rgba(255,255,255,.35) transparent;
+}
+.vc-nav-drawer .erp-nav{
+    margin:0;
+    padding:4px 12px 12px;
+}
+.erp-nav::-webkit-scrollbar{width:5px;}
+.erp-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:999px;}
+
+.erp-nav-home{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:11px 12px;
+    margin-bottom:10px;
+    border-radius:14px;
+    text-decoration:none;
+    color:#fff;
+    background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
+    transition:.2s;
+}
+.erp-nav-home:hover,
+.erp-nav-home.is-active{
+    background:rgba(255,255,255,.2);
+    border-color:rgba(255,255,255,.22);
+}
+.erp-nav-home-icon{
+    width:34px;
+    height:34px;
+    border-radius:11px;
+    background:rgba(255,255,255,.16);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:18px;
+    color:#ffffff;
+    flex-shrink:0;
+}
+.erp-nav-home-text{min-width:0;}
+.erp-nav-home-text strong{
+    display:block;
+    font-size:15px;
+    font-weight:900;
+    color:#ffffff;
+}
+.erp-nav-home-text small{
+    display:block;
+    font-size:12px;
+    font-weight:700;
+    color:rgba(255,255,255,.85);
+    margin-top:2px;
+}
+
+.erp-module{margin-bottom:8px;}
+.erp-module-head{
+    width:100%;
+    border:0;
+    background:rgba(255,255,255,.08);
+    color:#fff;
+    border-radius:14px;
+    padding:10px 11px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    cursor:pointer;
+    text-align:right;
+    transition:.2s;
+    border:1px solid rgba(255,255,255,.08);
+    font-family:inherit;
+}
+.erp-module-head:hover{background:rgba(255,255,255,.13);}
+.erp-module-icon{
+    width:34px;
+    height:34px;
+    border-radius:11px;
+    background:rgba(255,255,255,.16);
+    border:1px solid rgba(255,255,255,.14);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:17px;
+    color:#ffffff;
+    flex-shrink:0;
+}
+.erp-module-label{flex:1;min-width:0;text-align:right;}
+.erp-module-label strong{
+    display:block;
+    font-size:14px;
+    font-weight:900;
+    line-height:1.35;
+    color:#ffffff;
+}
+.erp-module-label small{
+    display:block;
+    font-size:11px;
+    font-weight:700;
+    color:rgba(255,255,255,.85);
+    margin-top:2px;
+    letter-spacing:.3px;
+}
+.erp-module-chevron{
+    font-size:18px;
+    opacity:.85;
+    transition:transform .2s;
+    color:#ffffff;
+}
+.erp-module.collapsed .erp-module-chevron{transform:rotate(-90deg);}
+.erp-module-body{
+    overflow:hidden;
+    max-height:520px;
+    transition:max-height .25s ease, opacity .2s ease;
+    opacity:1;
+}
+.erp-module.collapsed .erp-module-body{
+    max-height:0;
+    opacity:0;
+}
+
+.erp-module-list{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    padding:6px 4px 2px;
+}
+.erp-nav-link{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    padding:10px 12px;
+    border-radius:12px;
+    text-decoration:none;
+    color:#ffffff;
+    background:rgba(255,255,255,.06);
+    border:1px solid transparent;
+    transition:.18s;
+}
+.erp-nav-link:hover,
+.erp-nav-link.is-active{
+    background:rgba(255,255,255,.2);
+    border-color:rgba(255,255,255,.2);
+    box-shadow:0 4px 14px rgba(0,0,0,.1);
+}
+.erp-nav-link:hover{transform:translateX(-2px);}
+.erp-nav-link-icon{
+    width:30px;
+    height:30px;
+    border-radius:9px;
+    background:rgba(255,255,255,.16);
+    border:1px solid rgba(255,255,255,.14);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    color:#ffffff;
+}
+.erp-nav-link-icon i{
+    font-size:16px;
+    line-height:1;
+}
+.erp-nav-link-text{
+    flex:1;
+    min-width:0;
+    font-size:14px;
+    font-weight:800;
+    line-height:1.35;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    color:#ffffff;
+}
+.erp-nav-drag{
+    font-size:14px;
+    opacity:.35;
+    flex-shrink:0;
+    color:#ffffff;
+}
+.erp-nav-link.sortable-chosen{
+    background:rgba(255,255,255,.22);
+    box-shadow:0 8px 18px rgba(0,0,0,.18);
+}
+
+.sidebar.closed .sidebar-brand-text,
+.sidebar.closed .erp-nav-home-text,
+.sidebar.closed .erp-module-label,
+.sidebar.closed .erp-module-chevron,
+.sidebar.closed .erp-nav-link-text,
+.sidebar.closed .erp-nav-drag{
+    display:none;
+}
+.sidebar.closed .erp-nav-home-icon,
+.sidebar.closed .erp-module-icon{
+    margin:0 auto;
+}
+.sidebar.closed .sidebar-brand{
+    justify-content:center;
+    padding-inline:0;
+}
+.sidebar.closed .erp-nav-home,
+.sidebar.closed .erp-module-head{
+    justify-content:center;
+    padding-inline:8px;
+}
+.sidebar.closed .erp-module-body{
+    display:block!important;
+    max-height:none!important;
+    opacity:1!important;
+}
+.sidebar.closed .erp-module-list{
+    gap:6px;
+    padding:4px 0;
+}
+.sidebar.closed .erp-nav-link{
+    justify-content:center;
+    padding:10px 8px;
+}
+.sidebar.closed .erp-nav-link-icon{
+    width:34px;
+    height:34px;
+}
+.sidebar.closed .erp-nav-link-icon i{
+    font-size:18px;
+}

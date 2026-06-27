@@ -1159,7 +1159,6 @@ INSERT INTO `pages` (`id`, `name`, `title`, `icon`, `sort_order`, `description`,
 (32, 'data_entry_items', 'إدخال الأصناف', 'assets/icons/data_entry_items.png', 50, NULL, 1, 'items'),
 (35, 'my_account', 'حسابي', 'assets/icons/user.png', 999, NULL, 0, 'admin'),
 (40, 'add_payment_request', 'طلب سداد جديد', 'assets/icons/accounting.png', 60, NULL, 1, 'finance'),
-(41, 'payment_requests', 'متابعة طلبات السداد', 'assets/icons/accounting.png', 61, NULL, 0, 'finance'),
 (42, 'payment_approvals', 'اعتماد طلبات السداد', 'assets/icons/accounting.png', 62, NULL, 1, 'finance');
 
 -- --------------------------------------------------------

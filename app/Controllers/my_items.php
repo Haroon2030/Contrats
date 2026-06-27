@@ -31,23 +31,7 @@ function statusClass(string $status): string {
 }
 
 function tableExists(VcDb $conn, string $table): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-    ");
-
-    if (!$stmt) {
-        return false;
-    }
-
-    $stmt->bind_param("s", $table);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    return !empty($row) && (int)$row['c'] > 0;
+    return vcTableExists($conn, $table);
 }
 
 if (session_status() === PHP_SESSION_NONE) {

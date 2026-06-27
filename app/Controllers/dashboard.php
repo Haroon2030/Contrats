@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once VC_HELPERS . '/scope_helper.php';
+require_once VC_HELPERS . '/header_menu_helper.php';
 
 /* ================= SECURITY ================= */
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
@@ -429,22 +430,7 @@ function vcDashEnsureDismissalsTable(VcDb $conn): void {
 
 
 function vcDashColumnExists(VcDb $conn, string $table, string $column): bool {
-    try {
-        $stmt = $conn->prepare("\n            SELECT COUNT(*) AS c\n            FROM INFORMATION_SCHEMA.COLUMNS\n            WHERE TABLE_SCHEMA = DATABASE()\n            AND TABLE_NAME = ?\n            AND COLUMN_NAME = ?\n        ");
-
-        if (!$stmt) {
-            return false;
-        }
-
-        $stmt->bind_param("ss", $table, $column);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        return !empty($row) && (int)($row['c'] ?? 0) > 0;
-    } catch (Throwable $e) {
-        return false;
-    }
+    return vcColumnExists($conn, $table, $column);
 }
 
 function vcDashNormalizeNotifText(string $value): string {
@@ -1063,107 +1049,12 @@ $approved = (int)($myContracts['approved'] ?? 0);
 $rejected = (int)($myContracts['rejected'] ?? 0);
 
 /* ================= PAGES ================= */
-if($is_admin){
-    $stmt = $conn->prepare("
-        SELECT 
-            p.name, 
-            p.title, 
-            p.icon, 
-            p.section,
-            COALESCE(u.sort_order, p.sort_order) AS final_order
-        FROM pages p
-        LEFT JOIN user_page_order u 
-            ON p.name = u.page_name AND u.user_id = ?
-        WHERE p.status = 1
-        ORDER BY p.section, final_order ASC
-    ");
-    $stmt->bind_param("i", $uid);
-    $stmt->execute();
-    $result = $stmt->get_result();
-}else{
-    $stmt = $conn->prepare("
-        SELECT 
-            p.name, 
-            p.title, 
-            p.icon, 
-            p.section,
-            COALESCE(u.sort_order, p.sort_order) AS final_order
-        FROM user_permissions up
-        JOIN pages p ON up.page_id = p.id
-        LEFT JOIN user_page_order u 
-            ON p.name = u.page_name AND u.user_id = ?
-        WHERE up.user_id = ? AND p.status = 1
-        ORDER BY p.section, final_order ASC
-    ");
-
-    $stmt->bind_param("ii", $uid, $uid);
-    $stmt->execute();
-    $result = $stmt->get_result();
-}
-
-$contracts_group = [];
-$rents_group = [];
-$items_group = [];
-$finance_group = [];
-$admin_group = [];
-
-while($row = $result->fetch_assoc()){
-    if($row['section'] == 'contracts'){
-        $contracts_group[] = $row;
-    }
-    elseif($row['section'] == 'rents'){
-        $rents_group[] = $row;
-    }
-    elseif($row['section'] == 'items'){
-        $items_group[] = $row;
-    }
-    elseif($row['section'] == 'admin'){
-        $admin_group[] = $row;
-    }
-    else{
-        $finance_group[] = $row;
-    }
-}
-
-$stmt->close();
-
-$erp_modules = array_values(array_filter([
-    [
-        'id' => 'contracts',
-        'title' => 'الموردين والعقود',
-        'subtitle' => 'Procurement & Contracts',
-        'icon' => 'ri-file-text-line',
-        'items' => $contracts_group,
-    ],
-    [
-        'id' => 'rents',
-        'title' => 'العقارات والإيجارات',
-        'subtitle' => 'Lease Management',
-        'icon' => 'ri-building-2-line',
-        'items' => $rents_group,
-    ],
-    [
-        'id' => 'items',
-        'title' => 'المخزون والأصناف',
-        'subtitle' => 'Inventory & SKU',
-        'icon' => 'ri-barcode-box-line',
-        'items' => $items_group,
-    ],
-    [
-        'id' => 'finance',
-        'title' => 'المالية والمحاسبة',
-        'subtitle' => 'Finance & AP',
-        'icon' => 'ri-bank-card-line',
-        'items' => $finance_group,
-    ],
-    [
-        'id' => 'admin',
-        'title' => 'النظام والإعدادات',
-        'subtitle' => 'System Admin',
-        'icon' => 'ri-settings-3-line',
-        'items' => $admin_group,
-    ],
-], static fn(array $module): bool => !empty($module['items'])));
+$erp_modules = vcBuildHeaderNavModules($conn, $uid, $is_admin);
+$contracts_group = vcNavSectionItems($erp_modules, 'contracts');
+$rents_group = vcNavSectionItems($erp_modules, 'rents');
+$items_group = vcNavSectionItems($erp_modules, 'items');
+$finance_group = vcNavSectionItems($erp_modules, 'finance');
+$admin_group = vcNavSectionItems($erp_modules, 'admin');
 
 /* ================= USER PERMISSION PAGES ================= */
 $user_pages = [];
@@ -1419,17 +1310,7 @@ $item_donut = donutGradient([
 /* ================= FINANCE MANAGER DASHBOARD SIDE ANALYTICS ================= */
 if (!function_exists('vcDashTableExists')) {
     function vcDashTableExists(VcDb $conn, string $table): bool {
-        try {
-            $stmt = $conn->prepare("\n                SELECT COUNT(*) AS c\n                FROM INFORMATION_SCHEMA.TABLES\n                WHERE TABLE_SCHEMA = DATABASE()\n                AND TABLE_NAME = ?\n            ");
-            if (!$stmt) return false;
-            $stmt->bind_param("s", $table);
-            $stmt->execute();
-            $row = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-            return !empty($row) && (int)($row['c'] ?? 0) > 0;
-        } catch (Throwable $e) {
-            return false;
-        }
+        return vcTableExists($conn, $table);
     }
 }
 
@@ -1604,7 +1485,7 @@ if ($isFinanceDashboard && $finance_payment_total > 0) {
         'value' => number_format($finance_payment_total),
         'label' => 'طلبات السداد',
         'meta' => $finance_payment_pending_finance > 0 ? ($finance_payment_pending_finance . ' بانتظار المالي') : 'إجمالي الطلبات',
-        'href' => vcDashFindPageHref($finance_group, ['payment_requests', 'payment_approvals', 'payments']),
+        'href' => vcDashFindPageHref($finance_group, ['payment_approvals', 'add_payment_request', 'accounting']),
     ];
 }
 
@@ -1643,12 +1524,13 @@ $dashboard_today = date('Y/m/d');
 <title>Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<link rel="icon" href="https://vendorcore.online/uploads/vendorcore_favicon.ico?v=31" type="image/x-icon">
-<link rel="shortcut icon" href="https://vendorcore.online/uploads/vendorcore_favicon.ico?v=31" type="image/x-icon">
-<link rel="apple-touch-icon" href="https://vendorcore.online/uploads/vendorcore_favicon_extra_big_180.png?v=31">
+<link rel="icon" href="<?= e(vcSiteLogoUrl()) ?>" type="image/svg+xml">
+<link rel="apple-touch-icon" href="<?= e(vcSiteLogoUrl()) ?>">
 
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="<?= e(vc_asset('css/vc-erp-nav.css')) ?>?v=1">
+<?php vcRenderModalAssets(); ?>
 
 <style>
 *{
@@ -1662,10 +1544,8 @@ html, body{
 
 body{
     margin:0;
-    background:
-        radial-gradient(circle at top right, rgba(109,74,255,.12), transparent 35%),
-        #eef1f7;
-    color:#172033;
+    background:#ffffff;
+    color:#000000;
 }
 
 .container{
@@ -1677,14 +1557,14 @@ body{
 /* sidebar */
 .sidebar{
     width:292px;
-    background:linear-gradient(180deg,#5b21b6 0%,#4f46e5 42%,#4338ca 100%);
-    color:#fff;
+    background:#4472c4;
+    color:#ffffff;
     padding:16px 12px 18px;
     transition:.3s;
     position:relative;
     overflow:visible;
     flex-shrink:0;
-    box-shadow:0 0 30px rgba(79,70,229,.25);
+    box-shadow:2px 0 24px rgba(68,114,196,.28);
     min-height:100vh;
     display:flex;
     flex-direction:column;
@@ -1700,7 +1580,7 @@ body{
     top:95px;
     transform:none;
     background:#fff;
-    color:#4f46e5;
+    color:#4472c4;
     border-radius:50%;
     width:32px;
     height:32px;
@@ -1818,6 +1698,8 @@ body{
     flex:1;
     padding:26px;
     min-width:0;
+    background:#ffffff;
+    color:#000000;
 }
 
 /* header title */
@@ -2818,212 +2700,99 @@ body{
     color:#075985;
 }
 
-/* ERP sidebar navigation */
-.sidebar-brand{
-    display:flex;
-    align-items:center;
-    gap:12px;
-    padding:8px 10px 14px;
-    margin-bottom:4px;
-    border-bottom:1px solid rgba(255,255,255,.12);
-}
-.sidebar-brand-icon{
-    width:42px;
-    height:42px;
-    border-radius:14px;
-    background:rgba(255,255,255,.14);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:22px;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
-    flex-shrink:0;
-}
-.sidebar-brand-text{
-    min-width:0;
-    line-height:1.25;
-}
-.sidebar-brand-text strong{
-    display:block;
-    font-size:15px;
-    font-weight:900;
-}
-.sidebar-brand-text span{
-    display:block;
-    font-size:10px;
-    font-weight:800;
-    color:rgba(255,255,255,.72);
-    letter-spacing:.6px;
-    margin-top:2px;
-}
-
-.erp-nav{
-    flex:1;
-    min-height:0;
-    overflow-y:auto;
-    overflow-x:hidden;
-    padding:6px 2px 10px;
-    margin:8px 0 10px;
-    scrollbar-width:thin;
-    scrollbar-color:rgba(255,255,255,.35) transparent;
-}
-.erp-nav::-webkit-scrollbar{width:5px;}
-.erp-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:999px;}
-
-.erp-nav-home{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:11px 12px;
-    margin-bottom:10px;
-    border-radius:14px;
-    text-decoration:none;
-    color:#fff;
-    background:rgba(255,255,255,.12);
-    border:1px solid rgba(255,255,255,.14);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
-    transition:.2s;
-}
-.erp-nav-home:hover{background:rgba(255,255,255,.18);}
-.erp-nav-home-icon{
-    width:34px;
-    height:34px;
-    border-radius:11px;
-    background:rgba(255,255,255,.16);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:18px;
-    flex-shrink:0;
-}
-.erp-nav-home-text{min-width:0;}
-.erp-nav-home-text strong{display:block;font-size:13px;font-weight:900;}
-.erp-nav-home-text small{display:block;font-size:10px;font-weight:700;color:rgba(255,255,255,.72);margin-top:2px;}
-
-.erp-module{margin-bottom:8px;}
-.erp-module-head{
-    width:100%;
-    border:0;
-    background:rgba(255,255,255,.08);
-    color:#fff;
-    border-radius:14px;
-    padding:10px 11px;
-    display:flex;
-    align-items:center;
-    gap:10px;
-    cursor:pointer;
-    text-align:right;
-    transition:.2s;
-    border:1px solid rgba(255,255,255,.08);
-}
-.erp-module-head:hover{background:rgba(255,255,255,.13);}
-.erp-module-icon{
-    width:32px;
-    height:32px;
-    border-radius:10px;
-    background:rgba(255,255,255,.14);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:17px;
-    flex-shrink:0;
-}
-.erp-module-label{flex:1;min-width:0;text-align:right;}
-.erp-module-label strong{display:block;font-size:12px;font-weight:900;line-height:1.35;}
-.erp-module-label small{display:block;font-size:9px;font-weight:700;color:rgba(255,255,255,.68);margin-top:2px;letter-spacing:.3px;}
-.erp-module-chevron{font-size:18px;opacity:.85;transition:transform .2s;}
-.erp-module.collapsed .erp-module-chevron{transform:rotate(-90deg);}
-.erp-module-body{
-    overflow:hidden;
-    max-height:520px;
-    transition:max-height .25s ease, opacity .2s ease;
-    opacity:1;
-}
-.erp-module.collapsed .erp-module-body{max-height:0;opacity:0;}
-
-.erp-module-list{
-    display:flex;
-    flex-direction:column;
-    gap:4px;
-    padding:6px 4px 2px;
-}
-.erp-nav-link{
-    display:flex;
-    align-items:center;
-    gap:9px;
-    padding:8px 10px;
-    border-radius:12px;
-    text-decoration:none;
-    color:rgba(255,255,255,.95);
-    background:rgba(255,255,255,.06);
-    border:1px solid transparent;
-    transition:.18s;
-}
-.erp-nav-link:hover{
-    background:rgba(255,255,255,.14);
-    border-color:rgba(255,255,255,.12);
-    transform:translateX(-2px);
-}
-.erp-nav-link-icon{
-    width:28px;
-    height:28px;
-    border-radius:9px;
-    background:rgba(255,255,255,.92);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-shrink:0;
-    overflow:hidden;
-}
-.erp-nav-link-icon img{width:20px;height:20px;object-fit:contain;}
-.erp-nav-link-text{
-    flex:1;
-    min-width:0;
-    font-size:12px;
-    font-weight:800;
-    line-height:1.35;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-}
-.erp-nav-drag{
-    font-size:14px;
-    opacity:.35;
-    flex-shrink:0;
-}
-.erp-nav-link.sortable-chosen{
-    background:rgba(255,255,255,.22);
-    box-shadow:0 8px 18px rgba(0,0,0,.18);
-}
-
-.sidebar.closed .sidebar-brand-text,
-.sidebar.closed .erp-nav-home-text,
-.sidebar.closed .erp-module-label,
-.sidebar.closed .erp-module-chevron,
-.sidebar.closed .erp-nav-link-text,
-.sidebar.closed .erp-nav-drag{
-    display:none;
-}
-.sidebar.closed .sidebar-brand{
-    justify-content:center;
-    padding-inline:0;
-}
-.sidebar.closed .erp-nav-home,
-.sidebar.closed .erp-module-head{
-    justify-content:center;
-    padding-inline:8px;
-}
-.sidebar.closed .erp-module-body{display:block!important;max-height:none!important;opacity:1!important;}
-.sidebar.closed .erp-module-list{gap:6px;padding:4px 0;}
-.sidebar.closed .erp-nav-link{
-    justify-content:center;
-    padding:8px;
-}
-.sidebar.closed .erp-nav-link-icon{width:34px;height:34px;}
 .dashboard-home{
     display:flex;
     flex-direction:column;
     gap:28px;
+}
+.dashboard-board{
+    display:flex;
+    flex-direction:column;
+    gap:24px;
+}
+.dash-kpi-section{
+    margin-bottom:0;
+}
+.dash-charts-section{
+    margin-bottom:0;
+}
+.dash-analytics-section{
+    margin-top:0;
+}
+
+/* ثيم لوحة التحكم: أبيض + أسود */
+.dashboard-board,
+.dashboard-home{
+    color:#000000;
+}
+.dash-section-head h3{
+    color:#000000;
+}
+.dash-section-note{
+    color:#333333;
+}
+.dash-kpi-card{
+    background:#ffffff;
+    color:#000000;
+    box-shadow:0 1px 4px rgba(0,0,0,.07);
+}
+.dash-kpi-value,
+.dash-kpi-label{
+    color:#000000;
+}
+.dash-kpi-meta{
+    color:#333333;
+}
+.admin-analytics-head{
+    background:#ffffff;
+    box-shadow:0 1px 4px rgba(0,0,0,.07);
+}
+.admin-analytics-title,
+.admin-analytics-title span{
+    color:#000000;
+}
+.admin-donut-card{
+    background:#ffffff;
+    box-shadow:0 1px 4px rgba(0,0,0,.07);
+}
+.admin-donut-title,
+.admin-donut-title span{
+    color:#000000;
+}
+.admin-donut-sub{
+    color:#333333;
+}
+.admin-donut-center strong,
+.admin-donut-center span{
+    color:#000000;
+}
+.admin-donut::before{
+    background:#ffffff;
+    box-shadow:inset 0 0 0 1px #e5e7eb;
+}
+.admin-legend-name,
+.admin-legend-value{
+    color:#000000;
+}
+.admin-empty{
+    color:#333333;
+}
+.app-topbar{
+    background:#ffffff;
+    color:#000000;
+}
+.app-topbar-title,
+.app-topbar-title span{
+    color:#000000;
+}
+.app-topbar-btn{
+    background:#ffffff;
+    color:#000000;
+    border-color:#d0d5dd;
+}
+.app-topbar-btn:hover{
+    background:#f9fafb;
+    color:#000000;
 }
 .dash-section-head{
     display:flex;
@@ -3287,10 +3056,9 @@ a.dash-kpi-card:hover{
     gap:16px;
     margin:-26px -26px 22px;
     padding:14px 18px;
-    background:rgba(255,255,255,.94);
-    backdrop-filter:blur(14px);
-    border-bottom:1px solid rgba(226,232,240,.95);
-    box-shadow:0 10px 30px rgba(23,32,51,.06);
+    background:#ffffff;
+    border-bottom:1px solid #e5e7eb;
+    box-shadow:0 1px 4px rgba(0,0,0,.05);
 }
 .app-topbar-start{
     display:flex;
@@ -3307,25 +3075,28 @@ a.dash-kpi-card:hover{
     gap:10px;
     font-size:18px;
     font-weight:900;
-    color:#172033;
+    color:#000000;
     line-height:1.3;
 }
 .app-topbar-title span{
     overflow:hidden;
     text-overflow:ellipsis;
     white-space:nowrap;
+    color:#000000;
 }
 .app-topbar-title i{
     width:38px;
     height:38px;
     border-radius:13px;
-    background:linear-gradient(145deg,#7c5cff,#4f46e5);
-    color:#fff;
+    background:#ffffff;
+    color:#000000;
+    border:1px solid #e5e7eb;
     display:flex;
     align-items:center;
     justify-content:center;
     font-size:20px;
     flex-shrink:0;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);
 }
 .app-topbar-actions{
     display:flex;
@@ -3344,27 +3115,27 @@ a.dash-kpi-card:hover{
     padding:0 12px;
     border-radius:14px;
     border:1px solid #e5e7eb;
-    background:#fff;
-    color:#344054;
+    background:#ffffff;
+    color:#000000;
     font-size:13px;
     font-weight:800;
     cursor:pointer;
     text-decoration:none;
-    box-shadow:0 4px 12px rgba(23,32,51,.05);
+    box-shadow:0 1px 3px rgba(0,0,0,.05);
     transition:.18s;
     font-family:inherit;
 }
 .app-topbar-btn:hover{
-    border-color:#c7d2fe;
-    background:#f8f7ff;
-    color:#4f46e5;
+    border-color:#d0d5dd;
+    background:#f9fafb;
+    color:#000000;
     transform:translateY(-1px);
 }
 .app-topbar-toggle{
-    background:linear-gradient(145deg,#7c5cff,#4f46e5);
-    border-color:transparent;
-    color:#fff;
-    box-shadow:0 8px 20px rgba(79,70,229,.28);
+    background:#ffffff;
+    border-color:#e5e7eb;
+    color:#000000;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);
     padding:0;
     width:44px;
     height:44px;
@@ -3374,11 +3145,12 @@ a.dash-kpi-card:hover{
     font-size:24px;
     line-height:1;
     display:block;
+    color:#000000;
 }
 .app-topbar-toggle:hover{
-    background:linear-gradient(145deg,#6b4dff,#4338ca);
-    color:#fff;
-    border-color:transparent;
+    background:#f9fafb;
+    color:#000000;
+    border-color:#d0d5dd;
 }
 .app-topbar-account-wrap{
     position:relative;
@@ -3473,10 +3245,9 @@ a.dash-kpi-card:hover{
     <div class="sidebar" id="sidebar">
 
         <div class="sidebar-brand">
-            <div class="sidebar-brand-icon"><i class="ri-apps-2-line"></i></div>
+            <?php include VC_VIEWS . '/partials/site_brand_mark.php'; ?>
             <div class="sidebar-brand-text">
-                <strong>VendorCore</strong>
-                <span>ERP SUITE</span>
+                <strong>نظام إدارة العقود والإيجارات</strong>
             </div>
         </div>
 
@@ -3490,19 +3261,17 @@ a.dash-kpi-card:hover{
 
         <?php include VC_VIEWS . '/partials/dashboard_home.php'; ?>
 
+        <?php include VC_VIEWS . '/partials/dashboard_charts.php'; ?>
+
         <?php if($show_management_analytics): ?>
 
         <section class="dash-section dash-analytics-section">
         <div class="admin-analytics-wrap" id="adminAnalyticsWrap">
     <div class="admin-analytics-head">
         <div class="admin-analytics-title">
-            <i class="ri-pie-chart-2-line"></i>
+            <i class="ri-bar-chart-box-line"></i>
             <?php if($isFinanceDashboard): ?><span>تحليلات الإدارة المالية</span><?php else: ?><span>تحليلات الإدارة</span><?php endif; ?>
         </div>
-
-        <button type="button" class="admin-analytics-toggle" onclick="toggleAdminAnalytics()" title="طي / فتح التحليلات">
-            <i class="ri-arrow-up-s-line"></i>
-        </button>
     </div>
 
     <div class="admin-analytics-body">
@@ -3753,6 +3522,8 @@ a.dash-kpi-card:hover{
 
         <?php endif; ?>
 
+    </div><!-- /.dashboard-board -->
+
     </div>
 
 </div>
@@ -3822,28 +3593,7 @@ document.querySelectorAll('.erp-sortable-list').forEach(container => {
 
 
 <script>
-function toggleAdminAnalytics(){
-    const box = document.getElementById('adminAnalyticsWrap');
-    if(!box) return;
-
-    box.classList.toggle('closed');
-    localStorage.setItem('adminAnalyticsClosed', box.classList.contains('closed') ? '1' : '0');
-}
-
 document.addEventListener('DOMContentLoaded', function(){
-    const box = document.getElementById('adminAnalyticsWrap');
-
-    /*
-        يبدأ مفتوح افتراضيًا.
-        لو المستخدم قفله، نحفظ اختياره في نفس المتصفح.
-    */
-    if(box && localStorage.getItem('adminAnalyticsClosed') === '1'){
-        box.classList.add('closed');
-    }
-
-    /*
-        السلايدر الجانبي يبدأ مفتوح.
-    */
     const sidebar = document.querySelector('.sidebar');
     const toggleIcon = document.getElementById('sidebarToggleIcon');
     if(sidebar && localStorage.getItem('sidebarClosed') !== '1'){
@@ -4124,6 +3874,8 @@ fetchDashMessagesUnread();
 setInterval(fetchDashMessagesUnread, 5000);
 
 </script>
+
+<?php include VC_VIEWS . '/partials/vc_modal.php'; ?>
 
 </body>
 </html>

@@ -14,22 +14,6 @@ function money($value): string {
     return number_format((float)$value, 2);
 }
 
-function columnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
 function getUserPageScope(VcDb $conn, int $uid, string $pageName): string {
     $scope = 'none';
 
@@ -55,10 +39,6 @@ function getUserPageScope(VcDb $conn, int $uid, string $pageName): string {
     }
 
     return $scope;
-}
-
-function vcDisabledHookSetup(VcDb $conn): void {
-    return;
 }
 
 function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'items', int $relatedId = 0): void {
@@ -120,15 +100,15 @@ header("Pragma: no-cache");
 header("Expires: 0");
 
 
-if (!columnExists($conn, 'items', 'entry_done')) {
+if (!vcColumnExists($conn, 'items', 'entry_done')) {
     $conn->query("ALTER TABLE items ADD COLUMN entry_done TINYINT(1) NOT NULL DEFAULT 0");
 }
 
-if (!columnExists($conn, 'items', 'entered_by')) {
+if (!vcColumnExists($conn, 'items', 'entered_by')) {
     $conn->query("ALTER TABLE items ADD COLUMN entered_by INT NULL");
 }
 
-if (!columnExists($conn, 'items', 'entered_at')) {
+if (!vcColumnExists($conn, 'items', 'entered_at')) {
     $conn->query("ALTER TABLE items ADD COLUMN entered_at DATETIME NULL");
 }
 
@@ -139,7 +119,6 @@ if (empty($_SESSION['csrf_token'])) {
 $csrf_token = $_SESSION['csrf_token'];
 
 ensureApprovalWithdrawalsTable($conn);
-vcDisabledHookSetup($conn);
 
 
 $stmt = $conn->prepare("SELECT is_admin, username, role, job_role, is_supervisor FROM users WHERE id = ? LIMIT 1");
@@ -229,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_
         $conn->begin_transaction();
 
         try {
-            if (columnExists($conn, 'approval_withdrawals', 'target_type') && columnExists($conn, 'approval_withdrawals', 'target_id')) {
+            if (vcColumnExists($conn, 'approval_withdrawals', 'target_type') && vcColumnExists($conn, 'approval_withdrawals', 'target_id')) {
                 $sqlWithdrawals = "
                     DELETE FROM approval_withdrawals
                     WHERE target_type = 'items'

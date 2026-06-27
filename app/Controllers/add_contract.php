@@ -2,6 +2,7 @@
 
 
 require_once VC_HELPERS . '/auth.php';
+require_once VC_HELPERS . '/scope_helper.php';
 ?>
 
 <?php
@@ -199,28 +200,6 @@ function eventHistoryText(array $row): string {
     }
 
     return "{$name} (" . historyMoneyText($value) . " ريال)";
-}
-
-
-function vcColumnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-
-    if (!$stmt) {
-        return false;
-    }
-
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    return !empty($row) && (int)$row['c'] > 0;
 }
 
 
@@ -1213,7 +1192,7 @@ for ($i = 0; $i < $rowsCount; $i++) {
             }
 
             
-header("Location: add_contract.php?success=1");
+header('Location: ' . vcRedirectUrl('add_contract.php?success=1'));
             exit();
 
         } catch (Throwable $e) {
@@ -1243,11 +1222,14 @@ unset($_SESSION['success_id']);
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <?php vcRenderPageAssets(['forms' => true]); ?>
+<?php if (vcIsEmbedRequest()) { vcRenderEmbedShell(); } ?>
 
 </head>
-<body>
+<body<?= vcIsEmbedRequest() ? ' class="vc-embed"' : '' ?>>
 
+<?php if (!vcIsEmbedRequest()): ?>
 <?php include VC_VIEWS . '/layouts/header.php'; ?>
+<?php endif; ?>
 
 <div class="container">
 
@@ -1259,6 +1241,13 @@ unset($_SESSION['success_id']);
             <?= e($success_id) ?>
         </span>
     </div>
+    <?php if (vcIsEmbedRequest()): ?>
+    <script>
+    if (window.parent && window.parent !== window && typeof window.parent.closeVcModal === 'function') {
+        setTimeout(function () { window.parent.closeVcModal(true); }, 1400);
+    }
+    </script>
+    <?php endif; ?>
 <?php endif; ?>
 
 <div class="page-head">

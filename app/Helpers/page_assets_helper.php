@@ -29,3 +29,61 @@ if (!function_exists('vcRenderPageAssets')) {
         }
     }
 }
+
+if (!function_exists('vcRenderModalAssets')) {
+    function vcRenderModalAssets(): void
+    {
+        $version = '3';
+        echo '<link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">' . "\n";
+        echo '<link rel="stylesheet" href="' . vc_asset('css/vc-modal.css') . '?v=' . $version . '">' . "\n";
+        echo '<script src="' . vc_asset('js/vc-modal.js') . '?v=' . $version . '" defer></script>' . "\n";
+    }
+}
+
+if (!function_exists('vcIsEmbedRequest')) {
+    function vcIsEmbedRequest(): bool
+    {
+        return isset($_GET['embed']) && (string) $_GET['embed'] === '1';
+    }
+}
+
+if (!function_exists('vcRedirectUrl')) {
+    function vcRedirectUrl(string $url): string
+    {
+        if (!vcIsEmbedRequest()) {
+            return $url;
+        }
+        if (str_contains($url, 'embed=1')) {
+            return $url;
+        }
+        return $url . (str_contains($url, '?') ? '&' : '?') . 'embed=1';
+    }
+}
+
+if (!function_exists('vcRenderEmbedShell')) {
+    function vcRenderEmbedShell(): void
+    {
+        if (!vcIsEmbedRequest()) {
+            return;
+        }
+        $version = '4';
+        echo '<link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">' . "\n";
+        echo '<link rel="stylesheet" href="' . vc_asset('css/vc-modal-embed.css') . '?v=' . $version . '">' . "\n";
+    }
+}
+
+if (!function_exists('vcSiteLogoUrl')) {
+    function vcSiteLogoUrl(): string
+    {
+        return vc_asset('images/site-logo.svg') . '?v=1';
+    }
+}
+
+if (!function_exists('vcRenderSiteFavicon')) {
+    function vcRenderSiteFavicon(): void
+    {
+        $logo = htmlspecialchars(vcSiteLogoUrl(), ENT_QUOTES, 'UTF-8');
+        echo '<link rel="icon" href="' . $logo . '" type="image/svg+xml">' . "\n";
+        echo '<link rel="apple-touch-icon" href="' . $logo . '">' . "\n";
+    }
+}

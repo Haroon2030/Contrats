@@ -611,6 +611,16 @@ function usersRoleLabel(string $jobRole): string {
     return $roleMap[$jobRole] ?? 'مستخدم';
 }
 
+function usersRoleBadgeClass(string $jobRole): string {
+    return match ($jobRole) {
+        'admin', 'commercial_manager' => 'role-admin',
+        'section_manager' => 'role-manager',
+        'finance_manager' => 'role-finance',
+        'accountant' => 'role-accountant',
+        default => 'role-user',
+    };
+}
+
 /* بيانات عرض كروت الصلاحيات */
 function deptLabel(string $key): string {
     $map = [
@@ -941,30 +951,39 @@ usort($pages, function($a, $b) use ($groupOrder) {
 
 <title>إدارة المستخدمين</title>
 
-<?php vcRenderPageAssets(); ?>
+<?php vcRenderPageAssets(['extra' => ['vc-users.css']]); ?>
+<link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">
 </head>
 
 <body>
 
 <?php include VC_VIEWS . '/layouts/header.php'; ?>
 
-<div class="container">
+<div class="container vc-users-page">
 
-    <div class="page-head">
-        <h1 class="page-title">إدارة المستخدمين</h1>
-        <p class="page-subtitle">عرض الحسابات، البحث والتصفية، ثم إضافة أو تعديل المستخدم وصلاحياته.</p>
-    </div>
+    <header class="vc-users-hero">
+        <div class="vc-users-hero-text">
+            <h1>إدارة المستخدمين</h1>
+            <p>عرض الحسابات، البحث والتصفية، ثم إضافة أو تعديل المستخدم وصلاحياته من لوحة جانبية.</p>
+        </div>
+        <div class="vc-users-hero-actions">
+            <button type="button" class="vc-btn-icon primary" onclick="openUserForm(true)">
+                <i class="ri-user-add-line"></i>
+                <span>إضافة مستخدم</span>
+            </button>
+        </div>
+    </header>
 
     <?php if(isset($_GET['saved'])): ?>
-        <div class="alert alert-success">تم حفظ المستخدم والصلاحيات بنجاح ✅</div>
+        <div class="alert alert-success">تم حفظ المستخدم والصلاحيات بنجاح</div>
     <?php endif; ?>
 
     <?php if(isset($_GET['deactivated'])): ?>
-        <div class="alert alert-success">تم تعطيل المستخدم بنجاح ✅</div>
+        <div class="alert alert-success">تم تعطيل المستخدم بنجاح</div>
     <?php endif; ?>
 
     <?php if(isset($_GET['activated'])): ?>
-        <div class="alert alert-success">تم تفعيل المستخدم بنجاح ✅</div>
+        <div class="alert alert-success">تم تفعيل المستخدم بنجاح</div>
     <?php endif; ?>
 
     <?php if(isset($_GET['pass_changed'])): ?>
@@ -977,39 +996,56 @@ usort($pages, function($a, $b) use ($groupOrder) {
         <div class="alert alert-error"><?= e($error) ?></div>
     <?php endif; ?>
 
-    <div class="users-stats">
-        <div class="stat-card"><strong><?= (int)$userStats['total'] ?></strong><span>إجمالي المستخدمين</span></div>
-        <div class="stat-card"><strong><?= (int)$userStats['active'] ?></strong><span>نشط</span></div>
-        <div class="stat-card"><strong><?= (int)$userStats['inactive'] ?></strong><span>معطّل</span></div>
-        <div class="stat-card"><strong><?= (int)$userStats['managers'] ?></strong><span>مدراء وإشراف</span></div>
+    <div class="vc-users-kpi-grid">
+        <div class="vc-users-kpi tone-indigo">
+            <div class="vc-users-kpi-icon"><i class="ri-group-line"></i></div>
+            <div class="vc-users-kpi-body"><strong><?= (int)$userStats['total'] ?></strong><span>إجمالي المستخدمين</span></div>
+        </div>
+        <div class="vc-users-kpi tone-emerald">
+            <div class="vc-users-kpi-icon"><i class="ri-user-star-line"></i></div>
+            <div class="vc-users-kpi-body"><strong><?= (int)$userStats['active'] ?></strong><span>نشط</span></div>
+        </div>
+        <div class="vc-users-kpi tone-rose">
+            <div class="vc-users-kpi-icon"><i class="ri-user-unfollow-line"></i></div>
+            <div class="vc-users-kpi-body"><strong><?= (int)$userStats['inactive'] ?></strong><span>معطّل</span></div>
+        </div>
+        <div class="vc-users-kpi tone-violet">
+            <div class="vc-users-kpi-icon"><i class="ri-shield-user-line"></i></div>
+            <div class="vc-users-kpi-body"><strong><?= (int)$userStats['managers'] ?></strong><span>مدراء وإشراف</span></div>
+        </div>
     </div>
 
-    <div class="table-box">
-        <div class="users-toolbar">
-            <div class="users-toolbar-filters">
-                <input type="search" id="userSearch" placeholder="بحث بالاسم أو الرقم..." oninput="filterUsersTable()">
-                <select id="userRoleFilter" onchange="filterUsersTable()">
-                    <option value="">كل الأنواع</option>
-                    <option value="admin">أدمن</option>
-                    <option value="commercial_manager">مدير تجاري</option>
-                    <option value="finance_manager">مدير مالي</option>
-                    <option value="section_manager">مدير قسم</option>
-                    <option value="accountant">محاسب</option>
-                    <option value="user">مستخدم</option>
-                </select>
-                <select id="userStatusFilter" onchange="filterUsersTable()">
-                    <option value="">كل الحالات</option>
-                    <option value="1">نشط فقط</option>
-                    <option value="0">معطّل فقط</option>
-                </select>
+    <section class="vc-users-list-card">
+        <div class="vc-users-list-head">
+            <div class="vc-users-list-title">
+                <i class="ri-team-line"></i>
+                <span>قائمة المستخدمين</span>
             </div>
-            <div class="users-toolbar-actions">
-                <button type="button" class="btn btn-primary" onclick="openUserForm(true)">+ إضافة مستخدم</button>
-            </div>
+            <span class="vc-users-list-count"><?= (int)$userStats['total'] ?> حساب</span>
         </div>
 
-        <div class="section-title">قائمة المستخدمين</div>
+        <div class="vc-users-toolbar">
+            <div class="vc-users-search-wrap">
+                <i class="ri-search-line"></i>
+                <input type="search" id="userSearch" placeholder="بحث بالاسم أو الرقم أو المدير..." oninput="filterUsersTable()">
+            </div>
+            <select id="userRoleFilter" onchange="filterUsersTable()">
+                <option value="">كل الأنواع</option>
+                <option value="admin">أدمن</option>
+                <option value="commercial_manager">مدير تجاري</option>
+                <option value="finance_manager">مدير مالي</option>
+                <option value="section_manager">مدير قسم</option>
+                <option value="accountant">محاسب</option>
+                <option value="user">مستخدم</option>
+            </select>
+            <select id="userStatusFilter" onchange="filterUsersTable()">
+                <option value="">كل الحالات</option>
+                <option value="1">نشط فقط</option>
+                <option value="0">معطّل فقط</option>
+            </select>
+        </div>
 
+        <div class="vc-users-table-wrap">
         <table class="table" id="usersTable">
             <thead>
                 <tr>
@@ -1029,11 +1065,14 @@ usort($pages, function($a, $b) use ($groupOrder) {
                         <?php
                             $jobRole = usersRoleKey($u);
                             $roleText = usersRoleLabel($jobRole);
-                            $roleClass = in_array($jobRole, ['admin','commercial_manager','finance_manager'], true) ? 'role-admin' : 'role-user';
+                            $roleClass = usersRoleBadgeClass($jobRole);
                             $isActive = (int)($u['is_active'] ?? 1) === 1;
                             $lastChange = !empty($u['last_password_change'])
                                 ? date("Y-m-d H:i", strtotime($u['last_password_change']))
                                 : '-';
+                            $userInitial = function_exists('mb_substr')
+                                ? mb_substr((string)$u['username'], 0, 1, 'UTF-8')
+                                : substr((string)$u['username'], 0, 1);
                             $searchText = strtolower(trim(
                                 (string)$u['username'] . ' ' .
                                 (string)($u['whatsapp_number'] ?? '') . ' ' .
@@ -1041,49 +1080,54 @@ usort($pages, function($a, $b) use ($groupOrder) {
                             ));
                         ?>
 
-                        <tr class="user-row"
+                        <tr class="user-row<?= $isActive ? '' : ' is-inactive' ?>"
                             data-role="<?= e($jobRole) ?>"
                             data-active="<?= $isActive ? '1' : '0' ?>"
                             data-search="<?= e($searchText) ?>">
                             <td>#<?= (int)$u['id'] ?></td>
 
-                            <td class="user-name">
-                                <?= e($u['username']) ?>
-                                <div class="user-meta-line">جلسة v<?= (int)($u['session_version'] ?? 1) ?> · آخر تغيير مرور: <?= e($lastChange) ?></div>
+                            <td>
+                                <div class="vc-user-cell">
+                                    <div class="vc-user-avatar<?= $isActive ? '' : ' is-muted' ?>"><?= e(mb_strtoupper($userInitial, 'UTF-8')) ?></div>
+                                    <div class="vc-user-name-block">
+                                        <strong><?= e($u['username']) ?></strong>
+                                        <div class="vc-user-meta-line">جلسة v<?= (int)($u['session_version'] ?? 1) ?> · آخر مرور: <?= e($lastChange) ?></div>
+                                    </div>
+                                </div>
                             </td>
 
                             <td>
-                                <span class="role-badge <?= e($roleClass) ?>"><?= e($roleText) ?></span>
+                                <span class="vc-role-badge <?= e($roleClass) ?>"><?= e($roleText) ?></span>
                             </td>
 
                             <td>
                                 <?php if(!empty($u['manager_id']) && isset($userNamesById[(int)$u['manager_id']])): ?>
-                                    <span class="session-badge">تحت: <?= e($userNamesById[(int)$u['manager_id']]) ?></span>
+                                    <span class="vc-chip"><i class="ri-git-branch-line"></i><?= e($userNamesById[(int)$u['manager_id']]) ?></span>
                                 <?php else: ?>
-                                    <span class="session-badge">بدون مدير</span>
+                                    <span class="vc-chip">بدون مدير</span>
                                 <?php endif; ?>
                             </td>
 
                             <td>
                                 <?php if(!empty($u['whatsapp_number'])): ?>
-                                    <span class="session-badge" title="<?= ((int)($u['whatsapp_enabled'] ?? 1) === 1) ? 'واتساب مفعل' : 'واتساب موقوف' ?>">
-                                        <?= e($u['whatsapp_number']) ?>
+                                    <span class="vc-chip" title="<?= ((int)($u['whatsapp_enabled'] ?? 1) === 1) ? 'واتساب مفعل' : 'واتساب موقوف' ?>">
+                                        <i class="ri-whatsapp-line"></i><?= e($u['whatsapp_number']) ?>
                                     </span>
                                 <?php else: ?>
-                                    <span class="session-badge">—</span>
+                                    <span class="vc-chip">—</span>
                                 <?php endif; ?>
                             </td>
 
                             <td>
-                                <span class="status-pill <?= $isActive ? 'active' : 'inactive' ?>">
+                                <span class="vc-status-pill <?= $isActive ? 'active' : 'inactive' ?>">
                                     <?= $isActive ? 'نشط' : 'معطّل' ?>
                                 </span>
                             </td>
 
                             <td>
-                                <div class="actions">
+                                <div class="vc-users-actions">
                                     <button type="button"
-                                            class="btn btn-edit"
+                                            class="vc-btn-icon edit"
                                             onclick='editUser(<?= json_encode([
                                                 "id" => (int)$u["id"],
                                                 "username" => $u["username"],
@@ -1094,7 +1138,8 @@ usort($pages, function($a, $b) use ($groupOrder) {
                                                 "is_supervisor" => (int)($u["is_supervisor"] ?? 0),
                                                 "is_active" => (int)($u["is_active"] ?? 1)
                                             ], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
-                                        تعديل
+                                        <i class="ri-edit-line"></i>
+                                        <span>تعديل</span>
                                     </button>
 
                                     <?php if((int)$u['id'] !== $uid): ?>
@@ -1103,14 +1148,14 @@ usort($pages, function($a, $b) use ($groupOrder) {
                                                 <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
                                                 <input type="hidden" name="action" value="deactivate_user">
                                                 <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-                                                <button type="submit" class="btn btn-delete">تعطيل</button>
+                                                <button type="submit" class="vc-btn-icon warn"><i class="ri-user-forbid-line"></i><span>تعطيل</span></button>
                                             </form>
                                         <?php else: ?>
                                             <form method="POST" onsubmit="return confirm('تفعيل المستخدم مرة أخرى؟')">
                                                 <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
                                                 <input type="hidden" name="action" value="activate_user">
                                                 <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-                                                <button type="submit" class="btn btn-edit">تفعيل</button>
+                                                <button type="submit" class="vc-btn-icon ok"><i class="ri-user-follow-line"></i><span>تفعيل</span></button>
                                             </form>
                                         <?php endif; ?>
                                     <?php endif; ?>
@@ -1125,20 +1170,25 @@ usort($pages, function($a, $b) use ($groupOrder) {
                 <?php endif; ?>
             </tbody>
         </table>
+        </div>
 
         <?php vcRenderPagination($page, $totalPages); ?>
 
-        <div class="users-empty-filter" id="usersEmptyFilter">لا توجد نتائج مطابقة للبحث أو التصفية.</div>
-    </div>
+        <div class="vc-users-empty-filter" id="usersEmptyFilter">لا توجد نتائج مطابقة للبحث أو التصفية.</div>
+    </section>
 
-    <div class="user-form-panel" id="userFormPanel">
-    <div class="panel">
-        <div class="panel-head">
-            <div class="section-title" id="userFormTitle">إضافة مستخدم</div>
-            <button type="button" class="btn btn-muted" onclick="closeUserForm()">إغلاق</button>
+</div>
+
+<div class="vc-users-drawer-overlay" id="userFormOverlay" onclick="if(event.target===this) closeUserForm()">
+    <aside class="vc-users-drawer" id="userFormPanel" role="dialog" aria-modal="true" aria-labelledby="userFormTitle">
+        <div class="vc-users-drawer-head">
+            <h2 id="userFormTitle"><i class="ri-user-settings-line"></i> <span id="userFormTitleText">إضافة مستخدم</span></h2>
+            <button type="button" class="vc-users-drawer-close" onclick="closeUserForm()" aria-label="إغلاق">
+                <i class="ri-close-line"></i>
+            </button>
         </div>
 
-        <form method="POST" id="userForm" autocomplete="off">
+        <form method="POST" id="userForm" class="vc-users-form vc-users-drawer-body" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?= e($csrf_token) ?>">
             <input type="hidden" name="action" value="save_user">
             <input type="hidden" name="id" id="id" value="0">
@@ -1147,7 +1197,7 @@ usort($pages, function($a, $b) use ($groupOrder) {
 
             <div class="form-sections">
             <div class="form-section">
-            <h3 class="form-section-title">البيانات الأساسية</h3>
+            <h3 class="form-section-title"><i class="ri-id-card-line"></i> البيانات الأساسية</h3>
             <div class="form-grid">
                 <div class="input-group">
                     <label for="username">اسم المستخدم</label>
@@ -1209,7 +1259,7 @@ usort($pages, function($a, $b) use ($groupOrder) {
             </div>
 
             <div class="form-section">
-            <h3 class="form-section-title">كلمة المرور</h3>
+            <h3 class="form-section-title"><i class="ri-lock-password-line"></i> كلمة المرور</h3>
             <div class="password-row">
                 <label class="check-line">
                     <input type="checkbox" id="changePass" onchange="togglePass()" checked>
@@ -1224,7 +1274,7 @@ usort($pages, function($a, $b) use ($groupOrder) {
             </div>
 
             <div class="form-section" id="permissionsArea">
-                <h3 class="form-section-title">الصلاحيات والصفحات</h3>
+                <h3 class="form-section-title"><i class="ri-shield-keyhole-line"></i> الصلاحيات والصفحات</h3>
                 <div class="permissions-head">
                     <div class="permissions-note" id="rolePermissionNote">اختار الإدارة، أو فعّل الصفحات يدويًا. بعض الصفحات لا تحتاج صلاحيات أخرى.</div>
                 </div>
@@ -1416,14 +1466,19 @@ usort($pages, function($a, $b) use ($groupOrder) {
             </div>
             </div>
 
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">حفظ المستخدم</button>
-                <button type="button" class="btn btn-muted" onclick="resetForm()">تفريغ النموذج</button>
-            </div>
         </form>
-    </div>
-    </div>
 
+        <div class="vc-users-drawer-foot">
+            <button type="submit" form="userForm" class="vc-btn-icon primary">
+                <i class="ri-save-line"></i>
+                <span>حفظ المستخدم</span>
+            </button>
+            <button type="button" class="vc-btn-icon edit" onclick="resetForm()">
+                <i class="ri-refresh-line"></i>
+                <span>تفريغ</span>
+            </button>
+        </div>
+    </aside>
 </div>
 
 <script>
@@ -1456,10 +1511,11 @@ function filterUsersTable(){
 }
 
 function openUserForm(isNew){
-    const panel = document.getElementById("userFormPanel");
-    const title = document.getElementById("userFormTitle");
-    if(panel){
-        panel.classList.add("is-open");
+    const overlay = document.getElementById("userFormOverlay");
+    const title = document.getElementById("userFormTitleText");
+    if(overlay){
+        overlay.classList.add("is-open");
+        document.body.style.overflow = "hidden";
     }
     if(title){
         title.textContent = isNew ? "إضافة مستخدم" : "تعديل مستخدم";
@@ -1467,13 +1523,13 @@ function openUserForm(isNew){
     if(isNew){
         clearUserFormFields();
     }
-    panel?.scrollIntoView({behavior:"smooth", block:"start"});
 }
 
 function closeUserForm(){
-    const panel = document.getElementById("userFormPanel");
-    if(panel){
-        panel.classList.remove("is-open");
+    const overlay = document.getElementById("userFormOverlay");
+    if(overlay){
+        overlay.classList.remove("is-open");
+        document.body.style.overflow = "";
     }
 }
 
@@ -1740,7 +1796,7 @@ function applyDepartment(dept){
 
 function resetForm(){
     clearUserFormFields();
-    const title = document.getElementById("userFormTitle");
+    const title = document.getElementById("userFormTitleText");
     if(title){
         title.textContent = "إضافة مستخدم";
     }
@@ -1800,6 +1856,12 @@ document.addEventListener("DOMContentLoaded", function(){
     prepareNewUserPassword();
     bindUserFormSubmit();
     filterUsersTable();
+});
+
+document.addEventListener("keydown", function(e){
+    if(e.key === "Escape"){
+        closeUserForm();
+    }
 });
 </script>
 

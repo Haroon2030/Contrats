@@ -1,5 +1,5 @@
 <?php
-require_once VC_HELPERS . '/auth.php';
+require_once VC_HELPERS . '/scope_helper.php';
 
 
 
@@ -42,48 +42,7 @@ function money($value): string {
     return number_format((float)$value, 2);
 }
 
-function columnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
-
-function vcNotifyColumnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-    if (!$stmt) return false;
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return !empty($row) && (int)$row['c'] > 0;
-}
-
-function vcDisabledHookSetup(VcDb $conn): void {
-    return;
-}
-
 function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0): void {
-    return;
-}
-
-function vcDisabledAdminsHook(VcDb $conn, string $title, string $message, string $link = '', string $type = 'general', int $relatedId = 0, int $excludeUserId = 0): void {
     return;
 }
 
@@ -131,15 +90,15 @@ if (!$canAccessDataEntryItems) {
 
 
 
-if (!columnExists($conn, 'items', 'entry_done')) {
+if (!vcColumnExists($conn, 'items', 'entry_done')) {
     $conn->query("ALTER TABLE items ADD COLUMN entry_done TINYINT(1) NOT NULL DEFAULT 0");
 }
 
-if (!columnExists($conn, 'items', 'entered_by')) {
+if (!vcColumnExists($conn, 'items', 'entered_by')) {
     $conn->query("ALTER TABLE items ADD COLUMN entered_by INT NULL");
 }
 
-if (!columnExists($conn, 'items', 'entered_at')) {
+if (!vcColumnExists($conn, 'items', 'entered_at')) {
     $conn->query("ALTER TABLE items ADD COLUMN entered_at DATETIME NULL");
 }
 
@@ -231,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
         $conn->begin_transaction();
 
         try {
-            if (columnExists($conn, 'approval_withdrawals', 'target_type') && columnExists($conn, 'approval_withdrawals', 'target_id')) {
+            if (vcColumnExists($conn, 'approval_withdrawals', 'target_type') && vcColumnExists($conn, 'approval_withdrawals', 'target_id')) {
                 $stmtWithdrawals = $conn->prepare("
                     DELETE FROM approval_withdrawals
                     WHERE target_type = 'items'

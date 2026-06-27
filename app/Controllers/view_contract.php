@@ -83,46 +83,12 @@ function normalizeArabicName(string $value): string {
 
 function getExistingColumn(VcDb $conn, string $table, array $candidates): ?string {
     foreach ($candidates as $column) {
-        $stmt = $conn->prepare("
-            SELECT COUNT(*) AS c
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-            AND TABLE_NAME = ?
-            AND COLUMN_NAME = ?
-        ");
-        $stmt->bind_param("ss", $table, $column);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!empty($row) && (int)$row['c'] > 0) {
+        if (vcColumnExists($conn, $table, $column)) {
             return $column;
         }
     }
 
     return null;
-}
-
-
-function vcColumnExists(VcDb $conn, string $table, string $column): bool {
-    $stmt = $conn->prepare("
-        SELECT COUNT(*) AS c
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-    ");
-
-    if (!$stmt) {
-        return false;
-    }
-
-    $stmt->bind_param("ss", $table, $column);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    return !empty($row) && (int)$row['c'] > 0;
 }
 
 function vcDisabledHookSetup(VcDb $conn): void {
