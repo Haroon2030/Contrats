@@ -136,18 +136,44 @@ final class Migrator
             return [];
         }
 
-        $parts = preg_split('/;\s*\n/', $sql) ?: [];
         $statements = [];
+        $buffer = '';
+        $inDollarQuote = false;
+        $length = strlen($sql);
 
-        foreach ($parts as $part) {
-            $part = trim($part);
-            if ($part === '') {
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            $next = ($i + 1 < $length) ? $sql[$i + 1] : '';
+
+            if (!$inDollarQuote && $char === '$' && $next === '$') {
+                $inDollarQuote = true;
+                $buffer .= '$$';
+                $i++;
                 continue;
             }
-            if (!str_ends_with($part, ';')) {
-                $part .= ';';
+
+            if ($inDollarQuote && $char === '$' && $next === '$') {
+                $inDollarQuote = false;
+                $buffer .= '$$';
+                $i++;
+                continue;
             }
-            $statements[] = $part;
+
+            if (!$inDollarQuote && $char === ';') {
+                $part = trim($buffer);
+                if ($part !== '') {
+                    $statements[] = str_ends_with($part, ';') ? $part : $part . ';';
+                }
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $part = trim($buffer);
+        if ($part !== '') {
+            $statements[] = str_ends_with($part, ';') ? $part : $part . ';';
         }
 
         return $statements;

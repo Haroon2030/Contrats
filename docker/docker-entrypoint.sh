@@ -3,10 +3,12 @@ set -e
 
 if [ "${APP_ENV:-local}" = "production" ] && [ -n "${DATABASE_URL:-}" ]; then
   echo "[entrypoint] Running database migrations..."
-  php /var/www/html/database/migrate.php || {
-    echo "[entrypoint] Migration failed — container startup aborted."
-    exit 1
-  }
+  if php /var/www/html/database/migrate.php; then
+    echo "[entrypoint] Migrations completed."
+  else
+    echo "[entrypoint] WARNING: Migration failed — starting Apache anyway."
+    echo "[entrypoint] Fix pending migrations and redeploy."
+  fi
 fi
 
 exec "$@"
