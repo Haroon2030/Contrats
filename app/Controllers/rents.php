@@ -515,7 +515,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             exit();
 
         } catch (Throwable $e) {
-            die("ERROR: " . $e->getMessage());
+            vcFailWithLog('حدث خطأ أثناء معالجة الإيجار.', $e);
         }
     }
 }

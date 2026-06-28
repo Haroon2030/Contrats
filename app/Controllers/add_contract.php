@@ -252,6 +252,27 @@ function vcHandleSupplierContractUpload(array &$errors, string $currentFile = ''
         return $currentFile;
     }
 
+    $allowedMimes = [
+        'pdf' => ['application/pdf'],
+        'doc' => ['application/msword'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'jpg' => ['image/jpeg'],
+        'jpeg' => ['image/jpeg'],
+        'png' => ['image/png'],
+        'webp' => ['image/webp'],
+    ];
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = $finfo ? (string) finfo_file($finfo, (string) $file['tmp_name']) : '';
+        if ($finfo) {
+            finfo_close($finfo);
+        }
+        if ($mime === '' || !in_array($mime, $allowedMimes[$ext] ?? [], true)) {
+            $errors[] = 'نوع ملف عقد المورد غير مسموح.';
+            return $currentFile;
+        }
+    }
+
     $uploadDir = VC_PUBLIC . '/uploads/supplier_contracts';
     if (!is_dir($uploadDir)) {
         @mkdir($uploadDir, 0755, true);
@@ -1196,7 +1217,7 @@ header('Location: ' . vcRedirectUrl('add_contract.php?success=1'));
             exit();
 
         } catch (Throwable $e) {
-            die("ERROR: " . $e->getMessage());
+            vcFailWithLog('حدث خطأ أثناء حفظ العقد.', $e);
         }
     }
 }
@@ -1696,7 +1717,10 @@ unset($_SESSION['success_id']);
                 <label>ملف عقد المورد الرسمي</label>
                 <input type="file" name="supplier_contract_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">
                 <?php if(!empty($form['supplier_contract_file'])): ?>
-                    <a class="current-file-link" target="_blank" href="<?= e($form['supplier_contract_file']) ?>">عرض الملف الحالي</a>
+                    <?php $safeContractFile = vcSafeUploadHref((string)($form['supplier_contract_file'] ?? '')); ?>
+                    <?php if($safeContractFile !== ''): ?>
+                    <a class="current-file-link" target="_blank" rel="noopener" href="<?= e($safeContractFile) ?>">عرض الملف الحالي</a>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

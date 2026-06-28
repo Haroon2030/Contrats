@@ -1,10 +1,7 @@
 <?php
 
+require_once VC_HELPERS . '/auth.php';
 require_once VC_HELPERS . '/scope_helper.php';
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
@@ -75,12 +72,6 @@ function pp_find_logo(): string {
     return is_file(__DIR__ . '/' . $path) ? $path : '';
 }
 
-$uid = (int)($_SESSION['user_id'] ?? 0);
-if ($uid <= 0) {
-    header("Location: login.php");
-    exit();
-}
-
 $requestId = (int)($_GET['id'] ?? 0);
 if ($requestId <= 0) {
     http_response_code(400);
@@ -95,16 +86,14 @@ $stmtUser->close();
 
 $settings = pp_get_settings($conn);
 $financeManagerId = (int)($settings['finance_manager'] ?? 0);
-if ($financeManagerId <= 0) {
-    $financeManagerId = 19;
-}
 
 $currentRole = (string)($currentUser['role'] ?? '');
 $currentJobRole = (string)($currentUser['job_role'] ?? '');
 $isAdmin = ((int)($currentUser['is_admin'] ?? 0) === 1) || $currentRole === 'admin' || $currentJobRole === 'admin';
 $isCommercialManager = ($currentJobRole === 'commercial_manager');
 $isAccountant = ($currentJobRole === 'accountant');
-$isFinanceManager = ($uid === $financeManagerId);
+$isFinanceManager = ($financeManagerId > 0 && $uid === $financeManagerId)
+    || in_array($currentJobRole, ['finance_manager', 'financial_manager', 'finance', 'accounts_manager', 'accounting_manager'], true);
 
 $canPrintPaymentRequest = $isAdmin || $isCommercialManager || $isFinanceManager || $isAccountant;
 if (!$canPrintPaymentRequest) {

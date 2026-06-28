@@ -1,0 +1,98 @@
+/* أصنافي — عرض جدول واسع بأعمدة واضحة */
+
+.my-items-page .search-box {
+    grid-template-columns: 1fr minmax(160px, 220px);
+}
+
+.my-items-page .table-box .table {
+    width: 100%;
+    min-width: 1040px;
+    table-layout: auto;
+}
+
+.my-items-page .table-box .table.table-all {
+    min-width: 1160px;
+}
+
+.my-items-page .table th,
+.my-items-page .table td {
+    white-space: nowrap;
+}
+
+.my-items-page .table th {
+    font-size: 12px;
+    padding: 12px 8px;
+    line-height: 1.35;
+}
+
+.my-items-page .table td {
+    font-size: 13px;
+    padding: 11px 8px;
+}
+
+.my-items-page .col-batch {
+    width: 96px;
+    min-width: 96px;
+}
+
+.my-items-page .col-supplier {
+    min-width: 140px;
+    max-width: 220px;
+    white-space: normal;
+}
+
+.my-items-page .col-supplier.supplier-name,
+.my-items-page td.supplier-name {
+    white-space: normal;
+    text-align: right;
+}
+
+.my-items-page .col-creator {
+    width: 108px;
+    min-width: 108px;
+}
+
+.my-items-page .col-count {
+    width: 88px;
+    min-width: 88px;
+}
+
+.my-items-page .col-fee {
+    width: 100px;
+    min-width: 100px;
+}
+
+.my-items-page .col-created {
+    width: 104px;
+    min-width: 104px;
+}
+
+.my-items-page .col-status {
+    width: 108px;
+    min-width: 108px;
+}
+
+.my-items-page .col-paid {
+    width: 96px;
+    min-width: 96px;
+}
+
+.my-items-page .col-deducted {
+    width: 120px;
+    min-width: 120px;
+}
+
+.my-items-page .col-actions {
+    width: 148px;
+    min-width: 148px;
+}
+
+@media (max-width: 1100px) {
+    .my-items-page .table-box .table {
+        min-width: 1040px;
+    }
+
+    .my-items-page .table-box .table.table-all {
+        min-width: 1160px;
+    }
+}

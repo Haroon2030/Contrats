@@ -34,15 +34,11 @@ function logApprovalWithdrawal(VcDb $conn, string $targetType, string $targetId,
 }
 
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    vcEnsureSession();
 }
 
 require_once VC_HELPERS . '/scope_helper.php';
-
-if (empty($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
+require_once VC_HELPERS . '/auth.php';
 
 
 
@@ -147,21 +143,9 @@ function getUserPageScope(VcDb $conn, int $uid, string $pageName): string {
     return $scope;
 }
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
 header("Expires: 0");
-
-if (empty($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-
-$uid = (int)$_SESSION['user_id'];
 
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -194,9 +178,10 @@ $isAdminLike = ($is_admin || $isCommercialManager);
 
 
 $contractsScope = getUserPageScope($conn, $uid, 'contracts');
+$adminReviewScope = getUserPageScope($conn, $uid, 'admin_review');
 
-
-$canReviewAllContracts = ($is_admin || $contractsScope !== 'none');
+$canModerateContracts = ($is_admin || $isCommercialManager || $adminReviewScope !== 'none');
+$canWithdrawContracts = ($is_admin || $isCommercialManager);
 
 
 $myContractsScope = getUserPageScope($conn, $uid, 'my_contracts');
@@ -250,7 +235,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['id'
     $postId = (int)($_POST['id'] ?? 0);
     $action = $_POST['action'] ?? '';
 
-    if (!$canReviewAllContracts && !in_array($action, ['signed_received', 'signed_not_received'], true)) {
+    if (in_array($action, ['approve', 'reject'], true) && !$canModerateContracts) {
+        http_response_code(403);
+        echo json_encode([
+            "success" => false,
+            "message" => "غير مصرح"
+        ], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if (in_array($action, ['withdraw_return', 'withdraw_delete'], true) && !$canWithdrawContracts) {
         http_response_code(403);
         echo json_encode([
             "success" => false,
@@ -355,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['id'
         }
 
         $ownerId = (int)($contractRow['created_by'] ?? 0);
-        if (!$canReviewAllContracts && $ownerId !== $uid) {
+        if (!$canModerateContracts && $ownerId !== $uid) {
             http_response_code(403);
             echo json_encode(["success" => false, "message" => "غير مصرح"], JSON_UNESCAPED_UNICODE);
             exit();
@@ -408,6 +402,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['id'
     }
 
     if ($action === 'approve') {
+        $stmtContractScope = $conn->prepare("SELECT id, created_by, status FROM contracts WHERE id = ? LIMIT 1");
+        $stmtContractScope->bind_param("i", $postId);
+        $stmtContractScope->execute();
+        $contractForScope = $stmtContractScope->get_result()->fetch_assoc();
+        $stmtContractScope->close();
+
+        if (empty($contractForScope) || ($contractForScope['status'] ?? '') !== 'review') {
+            echo json_encode([
+                "success" => false,
+                "message" => "العقد ليس في حالة مراجعة"
+            ], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+
+        if (!$is_admin && !$isCommercialManager) {
+            $reviewScopedIds = vcGetScopedUserIds($conn, $uid, $adminReviewScope, false);
+            if (!vcIsUserInScope((int)($contractForScope['created_by'] ?? 0), $reviewScopedIds)) {
+                http_response_code(403);
+                echo json_encode([
+                    "success" => false,
+                    "message" => "غير مصرح لمراجعة هذا العقد"
+                ], JSON_UNESCAPED_UNICODE);
+                exit();
+            }
+        }
+
         $stmt = $conn->prepare("
             UPDATE contracts 
             SET status='approved',
@@ -418,6 +438,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['id'
             LIMIT 1
         ");
     } else {
+        $stmtContractScope = $conn->prepare("SELECT id, created_by, status FROM contracts WHERE id = ? LIMIT 1");
+        $stmtContractScope->bind_param("i", $postId);
+        $stmtContractScope->execute();
+        $contractForScope = $stmtContractScope->get_result()->fetch_assoc();
+        $stmtContractScope->close();
+
+        if (empty($contractForScope) || ($contractForScope['status'] ?? '') !== 'review') {
+            echo json_encode([
+                "success" => false,
+                "message" => "العقد ليس في حالة مراجعة"
+            ], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+
+        if (!$is_admin && !$isCommercialManager) {
+            $reviewScopedIds = vcGetScopedUserIds($conn, $uid, $adminReviewScope, false);
+            if (!vcIsUserInScope((int)($contractForScope['created_by'] ?? 0), $reviewScopedIds)) {
+                http_response_code(403);
+                echo json_encode([
+                    "success" => false,
+                    "message" => "غير مصرح لمراجعة هذا العقد"
+                ], JSON_UNESCAPED_UNICODE);
+                exit();
+            }
+        }
+
         $stmt = $conn->prepare("
             UPDATE contracts 
             SET status='rejected',
@@ -871,7 +917,7 @@ $hasDiscounts = (
 $supplierSignedReceived = ((int)($contract['supplier_signed_received'] ?? 0) === 1);
 $canUpdateSupplierSignedReceived = (
     (($contract['status'] ?? '') === 'approved') &&
-    ($canReviewAllContracts || $isContractOwner)
+    ($canModerateContracts || $isContractOwner)
 );
 ?>
 
@@ -1712,7 +1758,7 @@ body{
 
             <div class="top-actions">
 
-                <?php if($canReviewAllContracts && $isReview): ?>
+                <?php if($canModerateContracts && $isReview): ?>
                     <div class="action-row">
                         <button class="btn btn-approve action-btn" onclick="updateStatus(<?= (int)$id ?>, 'approve')">
                             موافقة العقد
@@ -1724,7 +1770,7 @@ body{
                     </div>
                 <?php endif; ?>
 
-                <?php if($is_admin && (($contract['status'] ?? '') === 'approved')): ?>
+                <?php if($canWithdrawContracts && (($contract['status'] ?? '') === 'approved')): ?>
                     <div class="action-row">
                         <button class="btn btn-withdraw action-btn" onclick="updateStatus(<?= (int)$id ?>, 'withdraw_return')">
                             سحب للتفاوض
@@ -1783,7 +1829,10 @@ body{
             <div class="supplier-contract-alert">
                 هذا العقد مسجل على نموذج مورد خارجي
                 <?php if($supplierContractFile !== ''): ?>
-                    <br><a target="_blank" href="<?= e($supplierContractFile) ?>">عرض / تحميل عقد المورد الرسمي</a>
+                    <?php $safeSupplierFile = vcSafeUploadHref($supplierContractFile); ?>
+                    <?php if($safeSupplierFile !== ''): ?>
+                    <br><a target="_blank" rel="noopener" href="<?= e($safeSupplierFile) ?>">عرض / تحميل عقد المورد الرسمي</a>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         <?php endif; ?>

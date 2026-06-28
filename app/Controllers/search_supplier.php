@@ -1,8 +1,9 @@
 <?php
 
+require_once VC_HELPERS . '/auth.php';
 require_once VC_HELPERS . '/scope_helper.php';
 
-header("Content-Type: text/html; charset=UTF-8");
+header('Content-Type: text/html; charset=UTF-8');
 
 $q = trim($_GET['q'] ?? '');
 $listAll = (($_GET['list'] ?? '') === '1');

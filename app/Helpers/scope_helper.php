@@ -200,6 +200,127 @@ if (!function_exists('vcIsUserInScope')) {
     }
 }
 
+if (!function_exists('vcUserHasPagePermission')) {
+    function vcUserHasPagePermission(VcDb $conn, int $uid, string $pageName): bool
+    {
+        if ($uid <= 0 || $pageName === '') {
+            return false;
+        }
+
+        $stmt = $conn->prepare('
+            SELECT COUNT(*) AS c
+            FROM user_permissions up
+            JOIN pages p ON p.id = up.page_id
+            WHERE up.user_id = ?
+            AND p.name = ?
+            AND p.status = 1
+        ');
+
+        if (!$stmt) {
+            return false;
+        }
+
+        $stmt->bind_param('is', $uid, $pageName);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        return (int) ($row['c'] ?? 0) > 0;
+    }
+}
+
+if (!function_exists('vcUserHasAnyPagePermission')) {
+    function vcUserHasAnyPagePermission(VcDb $conn, int $uid, array $pageNames): bool
+    {
+        foreach ($pageNames as $pageName) {
+            if (vcUserHasPagePermission($conn, $uid, (string) $pageName)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+if (!function_exists('vcSafeUploadHref')) {
+    function vcSafeUploadHref(string $path): string
+    {
+        $path = trim(str_replace('\\', '/', $path));
+
+        if ($path === '' || preg_match('#^(javascript:|data:|vbscript:)#i', $path)) {
+            return '';
+        }
+
+        if (preg_match('#^uploads/(supplier_contracts|payment_requests)/[A-Za-z0-9._-]+$#', $path)) {
+            return $path;
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('vcFailWithLog')) {
+    function vcFailWithLog(string $userMessage, ?Throwable $e = null, int $code = 500): never
+    {
+        if ($e !== null) {
+            error_log($userMessage . ': ' . $e->getMessage());
+        }
+
+        if ($code >= 400) {
+            http_response_code($code);
+        }
+
+        die($userMessage);
+    }
+}
+
+if (!function_exists('vcCommercialManagerAllowedPages')) {
+    /**
+     * صفحات المدير التجاري الافتراضية — ليست صلاحية كاملة مثل الأدمن.
+     *
+     * @return string[]
+     */
+    function vcCommercialManagerAllowedPages(): array
+    {
+        return [
+            'dashboard',
+            'my_account',
+            'add_contract',
+            'drafts',
+            'under_review',
+            'contracts',
+            'my_contracts',
+            'view_contract',
+            'admin_view_contract',
+            'admin_review',
+            'print_contract',
+            'rents',
+            'branch_rents',
+            'add_items',
+            'my_items',
+            'under_review_items',
+            'view_items',
+            'items_admin',
+            'data_entry_items',
+            'finance_items',
+            'accounting',
+            'accounting_api',
+            'add_payment_request',
+            'payment_approvals',
+            'print_payment_request',
+            'search_supplier',
+            'supplier_name_check',
+        ];
+    }
+}
+
+if (!function_exists('vcCommercialManagerPageAllowed')) {
+    function vcCommercialManagerPageAllowed(string $pageName): bool
+    {
+        return in_array($pageName, vcCommercialManagerAllowedPages(), true);
+    }
+}
+
 if (!function_exists('vcJobRoleArabic')) {
     function vcJobRoleArabic(array $userRow): string {
         $jobRole = (string)($userRow['job_role'] ?? '');

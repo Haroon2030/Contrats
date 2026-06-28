@@ -8,7 +8,6 @@ if (file_exists(VC_HELPERS . '/disabled_helper.php')) {
 
 
 date_default_timezone_set('Asia/Riyadh');
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
 function pa_e($value): string { return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8'); }
 function pa_money($value): string { return number_format((float)$value, 2); }
@@ -246,7 +245,7 @@ function pa_can_act(array $row, int $uid, array $settings, bool $isFinanceManage
     if ($status === 'pending_commercial_manager' && ($uid === (int)($settings['commercial_manager'] ?? 0) || $isCommercialManager)) return true;
 
     
-    if ($status === 'pending_finance_manager' && ($uid === (int)($settings['finance_manager'] ?? 19) || $isFinanceManager)) return true;
+    if ($status === 'pending_finance_manager' && ($uid === (int)($settings['finance_manager'] ?? 0) || $isFinanceManager)) return true;
 
     return false;
 }
@@ -289,17 +288,13 @@ $settings = pa_get_settings($conn);
 $foodManagerId = (int)($settings['food_section_manager'] ?? 0);
 $nonFoodManagerId = (int)($settings['non_food_section_manager'] ?? 0);
 $commercialManagerId = (int)($settings['commercial_manager'] ?? 0);
-$financeManagerId = (int)($settings['finance_manager'] ?? 19);
-if ($financeManagerId <= 0) {
-    $financeManagerId = 19;
-}
+$financeManagerId = (int)($settings['finance_manager'] ?? 0);
 
 $currentJobRole = (string)($currentUser['job_role'] ?? '');
 $isAdmin = ((int)($currentUser['is_admin'] ?? 0) === 1) || (($currentUser['role'] ?? '') === 'admin') || ($currentJobRole === 'admin');
 $isSectionManager = in_array($uid, [$foodManagerId, $nonFoodManagerId], true);
 $isCommercialManager = ($uid === $commercialManagerId) || ($currentJobRole === 'commercial_manager');
-$isFinanceManager = ($uid === $financeManagerId)
-    || ($uid === 19)
+$isFinanceManager = ($financeManagerId > 0 && $uid === $financeManagerId)
     || in_array($currentJobRole, ['finance_manager','financial_manager','finance','accounts_manager','accounting_manager'], true);
 if ($isFinanceManager) {
     
@@ -703,7 +698,7 @@ function pa_can_print_request(array $row, array $currentUser, int $uid, int $fin
             $canAct = pa_can_act($row, $uid, $settings, $isFinanceManager, $isCommercialManager);
             $hint = pa_action_hint($row, $uid, $settings, $isFinanceManager, $isCommercialManager);
             $status = (string)$row['status'];
-            $isFinanceStepForCurrentUser = ($canAct && $status === 'pending_finance_manager' && ($isFinanceManager || $uid === (int)($settings['finance_manager'] ?? 19)));
+            $isFinanceStepForCurrentUser = ($canAct && $status === 'pending_finance_manager' && ($isFinanceManager || ($financeManagerId > 0 && $uid === $financeManagerId)));
             $currentFinal = (float)($row['final_amount'] ?? $row['amount_required']);
             if ($currentFinal <= 0) $currentFinal = (float)$row['amount_required'];
             $suggestedAmount = (float)($row['supplier_financial_balance'] ?? 0) - (float)($row['supplier_branch_balance'] ?? 0);
@@ -755,7 +750,7 @@ function pa_can_print_request(array $row, array $currentUser, int $uid, int $fin
                 <div class="info"><span>تاريخ الفاتورة</span><b><?= pa_date($row['invoice_date']) ?></b></div>
                 <div class="info"><span>فترة السداد المتفق عليها</span><b><?= !empty($row['agreed_payment_days']) ? (int)$row['agreed_payment_days'] . ' يوم' : '-' ?></b></div>
                 <div class="info"><span>تاريخ السداد المستحق</span><b><span class="due-pill <?= pa_e(pa_due_class($row['payment_due_date'] ?? '')) ?>"><?= pa_date($row['payment_due_date'] ?? '') ?></span><span class="due-note <?= pa_e(pa_due_class($row['payment_due_date'] ?? '')) ?>"><?= pa_e(pa_due_label($row['payment_due_date'] ?? '')) ?></span></b></div>
-                <div class="info"><span>المرفق</span><b><?php if(!empty($row['attachment_file'])): ?><a href="<?= pa_e($row['attachment_file']) ?>" target="_blank">عرض المرفق</a><?php else: ?>-<?php endif; ?></b></div>
+                <div class="info"><span>المرفق</span><b><?php if(!empty($row['attachment_file'])): ?><?php $safeAttachment = vcSafeUploadHref((string)$row['attachment_file']); ?><?php if($safeAttachment !== ''): ?><a href="<?= pa_e($safeAttachment) ?>" target="_blank" rel="noopener">عرض المرفق</a><?php else: ?>-<?php endif; ?><?php else: ?>-<?php endif; ?></b></div>
             </div>
 
             <div class="balances-grid">

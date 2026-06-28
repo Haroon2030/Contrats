@@ -1,5 +1,6 @@
 <?php
 require_once VC_HELPERS . '/auth.php';
+require_once VC_HELPERS . '/scope_helper.php';
 
 
 date_default_timezone_set('Asia/Riyadh');
@@ -45,17 +46,6 @@ function vcDisabledUserHook(VcDb $conn, int $userId, string $title, string $mess
     return;
 }
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-$uid = (int)($_SESSION['user_id'] ?? 0);
-
-if ($uid <= 0) {
-    header("Location: login.php");
-    exit();
-}
-
 $stmtUser = $conn->prepare("SELECT is_admin, role FROM users WHERE id = ? LIMIT 1");
 $stmtUser->bind_param("i", $uid);
 $stmtUser->execute();
@@ -66,6 +56,9 @@ $is_admin = !empty($currentUser) && (
     (int)($currentUser['is_admin'] ?? 0) === 1 ||
     ($currentUser['role'] ?? '') === 'admin'
 );
+
+$financeScope = getUserPageScope($conn, $uid, 'finance_items');
+$financeScopedIds = vcGetScopedUserIds($conn, $uid, $financeScope, $is_admin);
 
 
 if (empty($_SESSION['csrf_token'])) {
@@ -102,6 +95,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $stmtInfo->execute();
             $deductInfo = $stmtInfo->get_result()->fetch_assoc();
             $stmtInfo->close();
+        }
+
+        if (!empty($deductInfo) && !empty($financeScopedIds)) {
+            $ownerId = (int) ($deductInfo['created_by'] ?? 0);
+            if (!vcIsUserInScope($ownerId, $financeScopedIds)) {
+                http_response_code(403);
+                die('غير مصرح لخصم هذه الدفعة');
+            }
         }
 
         $stmt = $conn->prepare("

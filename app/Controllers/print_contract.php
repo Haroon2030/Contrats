@@ -1,8 +1,5 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
+require_once VC_HELPERS . '/auth.php';
 require_once VC_HELPERS . '/scope_helper.php';
 
 
@@ -73,15 +70,9 @@ function supplierStatusArabic($value): string {
     return $map[$value] ?? ($value !== '' ? $value : '-');
 }
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+date_default_timezone_set('Asia/Riyadh');
 
-$user_id = (int)($_SESSION['user_id'] ?? 0);
-
-if ($user_id <= 0) {
-    die("❌ لازم تسجل دخول");
-}
+$user_id = $uid;
 
 $id = (int)($_GET['id'] ?? 0);
 

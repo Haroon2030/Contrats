@@ -144,6 +144,28 @@ function pr_upload_attachment(array $file, string &$error): string {
         return '';
     }
 
+    $allowedMimes = [
+        'pdf' => ['application/pdf'],
+        'jpg' => ['image/jpeg'],
+        'jpeg' => ['image/jpeg'],
+        'png' => ['image/png'],
+        'xls' => ['application/vnd.ms-excel'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'doc' => ['application/msword'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    ];
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = $finfo ? (string) finfo_file($finfo, (string) $file['tmp_name']) : '';
+        if ($finfo) {
+            finfo_close($finfo);
+        }
+        if ($mime === '' || !in_array($mime, $allowedMimes[$ext] ?? [], true)) {
+            $error = 'نوع المرفق غير مسموح.';
+            return '';
+        }
+    }
+
     $uploadDir = VC_PUBLIC . '/uploads/payment_requests';
     if (!is_dir($uploadDir)) {
         @mkdir($uploadDir, 0755, true);

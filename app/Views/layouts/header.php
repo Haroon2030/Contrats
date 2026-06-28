@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once VC_HELPERS . '/header_menu_helper.php';
 
 echo '<link rel="stylesheet" href="' . vc_asset('css/mobile.css') . '?v=2">';
-echo '<link rel="stylesheet" href="' . vc_asset('css/vc-erp-nav.css') . '?v=1">';
+echo '<link rel="stylesheet" href="' . vc_asset('css/vc-erp-nav.css') . '?v=2">';
 echo '<link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">';
 vcRenderModalAssets();
 if (!function_exists('h')) {

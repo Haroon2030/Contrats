@@ -1,8 +1,5 @@
 <?php
 
-
-session_start();
-
 date_default_timezone_set('Asia/Riyadh');
 
 function e($value): string {
@@ -78,30 +75,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                     $user = $result->fetch_assoc();
 
-                    $storedPassword = trim((string)($user['password'] ?? ''));
-                    $loginOk = false;
-
-                    if (hash_equals($storedPassword, $password)) {
-                        $loginOk = true;
-                    }
-
-                    if (!$loginOk && password_verify($password, $storedPassword)) {
-                        $loginOk = true;
-                    }
-
-                    if (!$loginOk && hash_equals($storedPassword, md5($password))) {
-                        $loginOk = true;
-                    }
-
-                    if (!$loginOk && hash_equals($storedPassword, sha1($password))) {
-                        $loginOk = true;
-                    }
+                    $storedPassword = (string) ($user['password'] ?? '');
+                    $loginOk = $storedPassword !== '' && password_verify($password, $storedPassword);
 
                     if ($loginOk) {
 
                         if ((int)($user['is_active'] ?? 1) !== 1) {
                             $error = "هذا الحساب معطل، تواصل مع الإدارة.";
                         } else {
+
+                            if (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+                                $newHash = password_hash($password, PASSWORD_DEFAULT);
+                                $rehashStmt = $conn->prepare('UPDATE users SET password = ?, last_password_change = NOW() WHERE id = ? LIMIT 1');
+                                if ($rehashStmt) {
+                                    $userId = (int) $user['id'];
+                                    $rehashStmt->bind_param('si', $newHash, $userId);
+                                    $rehashStmt->execute();
+                                    $rehashStmt->close();
+                                }
+                            }
 
                             session_regenerate_id(true);
 

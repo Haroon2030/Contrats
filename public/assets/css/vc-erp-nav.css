@@ -291,3 +291,45 @@
 .sidebar.closed .erp-nav-link-icon i{
     font-size:18px;
 }
+
+/* على الجوال: الشريط بعرض كامل — إظهار الأسماء حتى لو بقي class closed */
+@media (max-width: 900px) {
+    .sidebar.closed .sidebar-brand-text,
+    .sidebar.closed .erp-nav-home-text,
+    .sidebar.closed .erp-module-label,
+    .sidebar.closed .erp-nav-link-text {
+        display: block;
+    }
+
+    .sidebar.closed .erp-module-chevron {
+        display: inline-block;
+    }
+
+    .sidebar.closed .sidebar-brand {
+        justify-content: flex-start;
+        padding-inline: 10px;
+    }
+
+    .sidebar.closed .erp-nav-home,
+    .sidebar.closed .erp-module-head,
+    .sidebar.closed .erp-nav-link {
+        justify-content: flex-start;
+        padding-inline: 11px;
+    }
+
+    .sidebar.closed .erp-nav-home-icon,
+    .sidebar.closed .erp-module-icon {
+        margin: 0;
+    }
+
+    .sidebar.closed .erp-module-body {
+        display: block;
+        max-height: 520px;
+        opacity: 1;
+    }
+
+    .sidebar.closed .erp-module.collapsed .erp-module-body {
+        max-height: 0;
+        opacity: 0;
+    }
+}

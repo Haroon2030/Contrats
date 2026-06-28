@@ -1,18 +1,7 @@
 <?php
-session_start();
+require_once VC_HELPERS . '/auth.php';
 require_once VC_HELPERS . '/scope_helper.php';
 require_once VC_HELPERS . '/header_menu_helper.php';
-
-/* ================= SECURITY ================= */
-header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-header("Pragma: no-cache");
-
-if (!isset($_SESSION['user_id']) || !is_numeric($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-
-$uid = (int)$_SESSION['user_id'];
 
 /* CSRF */
 if (empty($_SESSION['csrf_token'])) {
@@ -1529,7 +1518,7 @@ $dashboard_today = date('Y/m/d');
 
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">
-<link rel="stylesheet" href="<?= e(vc_asset('css/vc-erp-nav.css')) ?>?v=1">
+<link rel="stylesheet" href="<?= e(vc_asset('css/vc-erp-nav.css')) ?>?v=2">
 <?php vcRenderModalAssets(); ?>
 
 <style>
@@ -3532,12 +3521,30 @@ a.dash-kpi-card:hover{
 function toggleSidebar(){
     const sidebar = document.getElementById('sidebar');
     const icon = document.getElementById('sidebarToggleIcon');
-    if (!sidebar) return;
+    if (!sidebar || window.innerWidth <= 900) return;
     sidebar.classList.toggle('closed');
     const closed = sidebar.classList.contains('closed');
     localStorage.setItem('sidebarClosed', closed ? '1' : '0');
     if (icon) {
         icon.className = closed ? 'ri-menu-unfold-fill' : 'ri-menu-fold-fill';
+    }
+}
+
+function applySidebarLayoutState(){
+    const sidebar = document.querySelector('.sidebar');
+    const toggleIcon = document.getElementById('sidebarToggleIcon');
+    if (!sidebar) return;
+
+    if (window.innerWidth <= 900) {
+        sidebar.classList.remove('closed');
+    } else if (localStorage.getItem('sidebarClosed') === '1') {
+        sidebar.classList.add('closed');
+    } else {
+        sidebar.classList.remove('closed');
+    }
+
+    if (toggleIcon) {
+        toggleIcon.className = sidebar.classList.contains('closed') ? 'ri-menu-unfold-fill' : 'ri-menu-fold-fill';
     }
 }
 
@@ -3594,16 +3601,8 @@ document.querySelectorAll('.erp-sortable-list').forEach(container => {
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-    const sidebar = document.querySelector('.sidebar');
-    const toggleIcon = document.getElementById('sidebarToggleIcon');
-    if(sidebar && localStorage.getItem('sidebarClosed') !== '1'){
-        sidebar.classList.remove('closed');
-    } else if (sidebar) {
-        sidebar.classList.add('closed');
-    }
-    if (toggleIcon && sidebar) {
-        toggleIcon.className = sidebar.classList.contains('closed') ? 'ri-menu-unfold-fill' : 'ri-menu-fold-fill';
-    }
+    applySidebarLayoutState();
+    window.addEventListener('resize', applySidebarLayoutState);
 
     let erpState = {};
     try { erpState = JSON.parse(localStorage.getItem('erpModulesCollapsed') || '{}'); } catch (e) { erpState = {}; }

@@ -238,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bulk_
             $_SESSION['items_bulk_delete_msg'] = "تم إرسال " . count($cleanBatches) . " دفعة للحذف، وتم حذف " . (int)$deletedRows . " صنف فعليًا.";
         } catch (Throwable $e) {
             $conn->rollback();
-            die("ERROR: " . $e->getMessage());
+            vcFailWithLog('حدث خطأ أثناء حذف دفعات الأصناف.', $e);
         }
     } else {
         $_SESSION['items_bulk_delete_msg'] = "لم يتم تحديد أي دفعات للحذف.";

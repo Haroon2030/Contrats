@@ -1,0 +1,96 @@
+/* الأصناف تحت المراجعة — جدول مضغوط بأعمدة واضحة */
+
+.under-review-items-page .search-box {
+    grid-template-columns: 1fr minmax(160px, 220px);
+}
+
+.under-review-items-page .table-box .table {
+    width: 100%;
+    min-width: 860px;
+    table-layout: auto;
+}
+
+.under-review-items-page .table-box .table.table-team {
+    min-width: 980px;
+}
+
+.under-review-items-page .table th,
+.under-review-items-page .table td {
+    white-space: nowrap;
+}
+
+.under-review-items-page .table th {
+    font-size: 12px;
+    padding: 12px 8px;
+    line-height: 1.35;
+}
+
+.under-review-items-page .table td {
+    font-size: 13px;
+    padding: 11px 8px;
+}
+
+.under-review-items-page .col-batch {
+    width: 96px;
+    min-width: 96px;
+}
+
+.under-review-items-page .col-supplier {
+    min-width: 140px;
+    max-width: 220px;
+}
+
+.under-review-items-page td.supplier-name {
+    white-space: normal;
+    text-align: right;
+}
+
+.under-review-items-page .col-user {
+    width: 108px;
+    min-width: 108px;
+}
+
+.under-review-items-page .col-count {
+    width: 96px;
+    min-width: 96px;
+}
+
+.under-review-items-page .col-fee {
+    width: 108px;
+    min-width: 108px;
+}
+
+.under-review-items-page .col-created {
+    width: 104px;
+    min-width: 104px;
+}
+
+.under-review-items-page .col-status {
+    width: 112px;
+    min-width: 112px;
+}
+
+.under-review-items-page .col-actions {
+    width: 168px;
+    min-width: 168px;
+}
+
+.under-review-items-page .batch-id {
+    color: #4f46e5;
+    font-weight: 900;
+}
+
+.under-review-items-page .money {
+    font-weight: 900;
+    color: #172033;
+}
+
+@media (max-width: 1100px) {
+    .under-review-items-page .table-box .table {
+        min-width: 860px;
+    }
+
+    .under-review-items-page .table-box .table.table-team {
+        min-width: 980px;
+    }
+}
