@@ -33,6 +33,9 @@ if (!in_array($statusFilter, ['all', 'completed', 'active', 'carry', 'upcoming']
 $searchQuery = trim((string) ($_GET['q'] ?? ''));
 $selectedBranchKey = trim((string) ($_GET['branch'] ?? ''));
 
+$sortKey = (string) ($_GET['sort'] ?? 'branch');
+$sortDir = strtolower((string) ($_GET['dir'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
+
 $monthCounts = br_load_month_counts($conn, $currentYear, $months);
 $rentData = br_load_rents($conn, $month, $currentYear);
 $rows = $rentData['rows'];
@@ -60,6 +63,8 @@ if ($view === 'branches' && $selectedBranchName === '') {
 } else {
     $stats = br_build_stats($displayRows, $period);
 }
+
+$displayRows = br_sort_rows($displayRows, $sortKey, $sortDir, $period);
 
 $selectedMonthName = ($month === 'all') ? 'كل الشهور' : ($months[$month] ?? 'كل الشهور');
 

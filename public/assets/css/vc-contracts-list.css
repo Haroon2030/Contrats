@@ -1,0 +1,89 @@
+/* قوائم العقود — تحت المراجعة، عقودي، وما شابه */
+
+.contracts-list-page .table-box .table {
+    width: 100%;
+    min-width: 1020px;
+    table-layout: auto;
+    border-collapse: collapse;
+}
+
+.contracts-list-page .table-box .table.table-team {
+    min-width: 1140px;
+}
+
+.contracts-list-page .table th,
+.contracts-list-page .table td {
+    white-space: nowrap;
+}
+
+.contracts-list-page .table th {
+    font-size: 12px;
+    padding: 12px 8px;
+    line-height: 1.35;
+}
+
+.contracts-list-page .table td {
+    font-size: 13px;
+    padding: 11px 8px;
+}
+
+.contracts-list-page .col-id {
+    width: 84px;
+    min-width: 84px;
+}
+
+.contracts-list-page .col-supplier {
+    min-width: 130px;
+    max-width: 220px;
+}
+
+.contracts-list-page .col-supplier,
+.contracts-list-page td.supplier-name {
+    white-space: normal;
+    text-align: right;
+}
+
+.contracts-list-page .col-user {
+    width: 100px;
+    min-width: 100px;
+}
+
+.contracts-list-page .col-type {
+    width: 96px;
+    min-width: 96px;
+}
+
+.contracts-list-page .col-created {
+    width: 112px;
+    min-width: 112px;
+}
+
+.contracts-list-page .col-action-date {
+    width: 104px;
+    min-width: 104px;
+}
+
+.contracts-list-page .col-status {
+    width: 96px;
+    min-width: 96px;
+}
+
+.contracts-list-page .col-signed {
+    width: 108px;
+    min-width: 108px;
+}
+
+.contracts-list-page .col-actions {
+    width: 148px;
+    min-width: 148px;
+}
+
+@media (max-width: 1100px) {
+    .contracts-list-page .table-box .table {
+        min-width: 1020px;
+    }
+
+    .contracts-list-page .table-box .table.table-team {
+        min-width: 1140px;
+    }
+}

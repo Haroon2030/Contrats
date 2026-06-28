@@ -70,21 +70,6 @@ $currentPage = basename((string) ($_SERVER['PHP_SELF'] ?? ''));
 <style>
 .vc-header{background:rgba(255,255,255,.62);padding:14px 22px;display:grid;grid-template-columns:auto minmax(0,1fr) 260px;align-items:center;gap:18px;border-radius:22px;margin:15px auto 24px;width:min(1500px,calc(100% - 48px));min-height:108px;box-shadow:8px 8px 18px #d1d9e6,-8px -8px 18px #fff;border:1px solid rgba(226,232,240,.95)}
 .vc-header-start{display:flex;align-items:center;gap:10px;min-width:0}
-.vc-site-logo{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    width:52px;
-    height:52px;
-    border-radius:16px;
-    background:#eef1f7;
-    border:1px solid #e2e8f0;
-    box-shadow:inset 2px 2px 6px #d1d9e6,inset -2px -2px 6px #fff;
-    flex-shrink:0;
-    overflow:hidden;
-    text-decoration:none;
-}
-.vc-site-logo img{width:100%;height:100%;object-fit:cover;display:block}
 .vc-menu-btn{display:flex;align-items:center;justify-content:center;width:52px;height:52px;border:none;border-radius:16px;background:#eef1f7;color:#4f46e5;font-size:22px;font-weight:900;cursor:pointer;box-shadow:inset 2px 2px 6px #d1d9e6,inset -2px -2px 6px #fff;flex-shrink:0}
 .vc-menu-btn:hover,.vc-menu-btn.is-open{background:#4f46e5;color:#fff}
 .vc-title{text-align:center;min-width:0}
@@ -184,7 +169,6 @@ $currentPage = basename((string) ($_SERVER['PHP_SELF'] ?? ''));
 .vc-nav-footer a i{font-size:16px}
 @media(max-width:900px){
     .vc-header{grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto;align-items:center;padding:10px 12px;width:calc(100% - 24px);min-height:auto;gap:10px;margin:12px auto 18px}
-    .vc-site-logo{width:44px;height:44px;border-radius:14px}
     .vc-menu-btn{width:44px;height:44px;font-size:18px;border-radius:14px}
     .vc-title{text-align:center;padding:0 4px;min-width:0}
     .vc-title-main{font-size:15px;line-height:1.35;color:#0f172a}
@@ -207,9 +191,6 @@ $currentPage = basename((string) ($_SERVER['PHP_SELF'] ?? ''));
 
 <div class="vc-header">
     <div class="vc-header-start">
-        <a href="dashboard.php" class="vc-site-logo" title="نظام إدارة العقود والإيجارات">
-            <img src="<?= h(vcSiteLogoUrl()) ?>" alt="نظام إدارة العقود والإيجارات" width="52" height="52" decoding="async">
-        </a>
         <button type="button" class="vc-menu-btn" id="vcMenuBtn" onclick="toggleAppMenu(event)" aria-label="فتح القائمة" title="القائمة">☰</button>
     </div>
     <div class="vc-title">
@@ -234,7 +215,6 @@ $currentPage = basename((string) ($_SERVER['PHP_SELF'] ?? ''));
 <div class="vc-nav-overlay" id="vcNavOverlay" onclick="closeAppMenu()"></div>
 <aside class="vc-nav-drawer" id="vcNavDrawer" aria-label="قائمة التنقل">
     <div class="sidebar-brand vc-nav-drawer-brand">
-        <?php include VC_VIEWS . '/partials/site_brand_mark.php'; ?>
         <div class="sidebar-brand-text">
             <strong>نظام إدارة العقود والإيجارات</strong>
         </div>

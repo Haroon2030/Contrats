@@ -262,10 +262,10 @@ $stmtCount->close();
 
 <title>تحت المراجعة</title>
 
-<?php vcRenderPageAssets(); ?>
+<?php vcRenderPageAssets(['extra' => ['vc-contracts-list.css']]); ?>
 </head>
 
-<body class="<?= $showUserColumn ? 'wide-table-mode' : 'normal-table-mode' ?>">
+<body class="contracts-list-page <?= $showUserColumn ? 'wide-table-mode' : 'normal-table-mode' ?>">
 
 <?php include VC_VIEWS . '/layouts/header.php'; ?>
 
@@ -317,7 +317,7 @@ $stmtCount->close();
 
     <div class="table-box">
 
-        <table class="table">
+        <table class="table contracts-table <?= $showUserColumn ? 'table-team' : 'table-own' ?>">
             <thead>
                 <tr>
                     <th class="col-id">رقم العقد</th>

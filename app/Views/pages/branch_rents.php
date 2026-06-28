@@ -7,6 +7,8 @@
  * @var string $searchQuery
  * @var string $selectedBranchKey
  * @var string $selectedBranchName
+ * @var string $sortKey
+ * @var string $sortDir
  * @var array $months
  * @var array $monthCounts
  * @var array $stats
@@ -24,9 +26,9 @@
 <title>إيجارات الفروع المكتملة</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">
-<link rel="stylesheet" href="<?= br_e(vc_asset('css/vc-branch-rents.css')) ?>?v=2">
+<link rel="stylesheet" href="<?= br_e(vc_asset('css/vc-branch-rents.css')) ?>?v=5">
 </head>
-<body>
+<body class="br-page-body">
 
 <?php include VC_VIEWS . '/layouts/header.php'; ?>
 
@@ -86,6 +88,8 @@
         <form method="get" class="br-toolbar">
             <input type="hidden" name="month" value="<?= br_e($month) ?>">
             <input type="hidden" name="view" value="<?= br_e($view) ?>">
+            <input type="hidden" name="sort" value="<?= br_e($sortKey) ?>">
+            <input type="hidden" name="dir" value="<?= br_e($sortDir) ?>">
             <?php if ($selectedBranchKey !== ''): ?>
                 <input type="hidden" name="branch" value="<?= br_e($selectedBranchKey) ?>">
             <?php endif; ?>

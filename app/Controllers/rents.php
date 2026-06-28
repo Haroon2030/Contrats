@@ -687,12 +687,6 @@ if (!isset($_GET['success'])) {
                 <table class="table" id="rentTable">
                     <thead>
                         <tr>
-                            <th colspan="2" class="th-group th-group--item">بيانات البند</th>
-                            <th colspan="2" class="th-group th-group--period">الكمية والسعر</th>
-                            <th colspan="2" class="th-group th-group--period">الفترة</th>
-                            <th colspan="2" class="th-group">الإجمالي والإجراء</th>
-                        </tr>
-                        <tr>
                             <th>الفرع</th>
                             <th>الإيجار</th>
                             <th>العدد</th>

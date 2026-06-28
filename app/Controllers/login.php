@@ -132,7 +132,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تسجيل الدخول | نظام إدارة العقود والإيجارات</title>
-<?php vcRenderSiteFavicon(); ?>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="<?= e(vc_asset('css/vc-login.css')) ?>?v=2">
 </head>
@@ -145,23 +144,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <div class="login-welcome-content">
                 <h2>مرحباً بعودتك!</h2>
                 <p>سجّل دخولك للوصول إلى حسابك وإدارة العقود والإيجارات</p>
-                <div class="login-hero">
-                    <img
-                        src="<?= e(vcSiteLogoUrl()) ?>"
-                        alt="إدارة الموردين والعقود"
-                        width="260"
-                        height="260"
-                        loading="lazy"
-                    >
-                </div>
             </div>
         </aside>
 
         <section class="login-form-panel">
-
-            <div class="login-form-brand">
-                <img src="<?= e(vcSiteLogoUrl()) ?>" alt="نظام إدارة العقود والإيجارات" width="72" height="72" decoding="async">
-            </div>
 
             <h1>تسجيل الدخول</h1>
 

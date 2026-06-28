@@ -367,3 +367,90 @@ if (!function_exists('br_query_string')) {
         return $params === [] ? '?' : '?' . http_build_query($params);
     }
 }
+
+if (!function_exists('br_sort_rows')) {
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<array<string, mixed>>
+     */
+    function br_sort_rows(array $rows, string $sortKey, string $sortDir, ?array $period): array
+    {
+        $allowed = ['branch', 'supplier', 'type', 'qty', 'start', 'total', 'status'];
+        if (!in_array($sortKey, $allowed, true)) {
+            $sortKey = 'branch';
+        }
+
+        $sortDir = $sortDir === 'desc' ? 'desc' : 'asc';
+        $multiplier = $sortDir === 'desc' ? -1 : 1;
+
+        usort($rows, static function (array $a, array $b) use ($sortKey, $multiplier, $period): int {
+            $cmp = match ($sortKey) {
+                'supplier' => strcmp((string) ($a['supplier_name'] ?? ''), (string) ($b['supplier_name'] ?? '')),
+                'type' => strcmp((string) ($a['type'] ?? ''), (string) ($b['type'] ?? '')),
+                'qty' => ((float) ($a['qty'] ?? 0)) <=> ((float) ($b['qty'] ?? 0)),
+                'start' => strcmp((string) ($a['start_date'] ?? ''), (string) ($b['start_date'] ?? '')),
+                'total' => ((float) ($a['total'] ?? 0)) <=> ((float) ($b['total'] ?? 0)),
+                'status' => strcmp(
+                    br_rent_status($a, $period)['key'],
+                    br_rent_status($b, $period)['key']
+                ),
+                default => strcmp(
+                    br_normalize_branch((string) ($a['branch'] ?? '')),
+                    br_normalize_branch((string) ($b['branch'] ?? ''))
+                ),
+            };
+
+            if ($cmp === 0) {
+                $cmp = strcmp((string) ($a['start_date'] ?? ''), (string) ($b['start_date'] ?? ''));
+            }
+
+            if ($cmp === 0) {
+                $cmp = ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0));
+            }
+
+            return $cmp * $multiplier;
+        });
+
+        return $rows;
+    }
+}
+
+if (!function_exists('br_sort_link')) {
+    function br_sort_link(string $column, string $label, string $currentSort, string $currentDir): string
+    {
+        $nextDir = ($currentSort === $column && $currentDir === 'asc') ? 'desc' : 'asc';
+        $href = br_query_string(['sort' => $column, 'dir' => $nextDir]);
+        $isActive = $currentSort === $column;
+        $iconClass = $isActive
+            ? ($currentDir === 'asc' ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line')
+            : 'ri-expand-up-down-line';
+
+        return '<a href="' . br_e($href) . '" class="br-th-sort' . ($isActive ? ' is-active' : '') . '">'
+            . '<span>' . br_e($label) . '</span>'
+            . '<i class="' . br_e($iconClass) . '" aria-hidden="true"></i>'
+            . '</a>';
+    }
+}
+
+if (!function_exists('br_table_totals')) {
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array{count: int, qty: float, total: float}
+     */
+    function br_table_totals(array $rows): array
+    {
+        $qty = 0.0;
+        $total = 0.0;
+
+        foreach ($rows as $row) {
+            $qty += (float) ($row['qty'] ?? 0);
+            $total += (float) ($row['total'] ?? 0);
+        }
+
+        return [
+            'count' => count($rows),
+            'qty' => $qty,
+            'total' => $total,
+        ];
+    }
+}

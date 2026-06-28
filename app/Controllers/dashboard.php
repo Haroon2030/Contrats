@@ -1135,13 +1135,6 @@ if ($can_add_contract) {
     $annual_rejected    = (int)($row['rejected'] ?? 0);
 }
 
-$annual_donut = donutGradient([
-    ['value'=>$annual_approved,    'color'=>'#47e6a1'],
-    ['value'=>$annual_negotiation, 'color'=>'#ffd166'],
-    ['value'=>$annual_review,      'color'=>'#6bb7ff'],
-    ['value'=>$annual_rejected,    'color'=>'#ff6b8a'],
-]);
-
 /*
     أصناف للتكويد:
     - إجمالي الطلبات من المستخدم = items.created_by
@@ -1180,12 +1173,6 @@ if ($can_items_coding) {
     $coding_rejected = (int)($row['rejected'] ?? 0);
     $coding_review   = (int)($row['review'] ?? 0);
 }
-
-$coding_donut = donutGradient([
-    ['value'=>$coding_approved, 'color'=>'#47e6a1'],
-    ['value'=>$coding_rejected, 'color'=>'#ff6b8a'],
-    ['value'=>$coding_review,   'color'=>'#6bb7ff'],
-]);
 
 /*
     عقود الإيجار:
@@ -1228,73 +1215,6 @@ if ($can_add_contract && $can_add_rent) {
     $rent_rejected  = (int)($row['rejected'] ?? 0);
     $rent_review    = (int)($row['review'] ?? 0);
 }
-
-$rent_donut = donutGradient([
-    ['value'=>$rent_completed, 'color'=>'#47e6a1'],
-    ['value'=>$rent_rejected,  'color'=>'#ff6b8a'],
-    ['value'=>$rent_review,    'color'=>'#6bb7ff'],
-]);
-
-/*
-    إدخال الأصناف:
-    - للأدمن / المدير التجاري: تم إدخاله / لم يتم إدخاله
-    - لمدخل الأصناف أو مديره: بواسطتي / باقي المدخلين
-*/
-$item_total_approved = 0;
-$item_by_me = 0;
-$item_others = 0;
-
-$item_entry_label_1 = 'بواسطتي';
-$item_entry_label_2 = 'باقي المدخلين';
-
-if ($can_item_entry) {
-    if ($dashboardIsAllScope) {
-
-        $item_entry_label_1 = 'تم إدخاله';
-        $item_entry_label_2 = 'لم يتم إدخاله';
-
-        $stmt = $conn->prepare("
-            SELECT
-                COUNT(*) total_approved,
-                SUM(CASE WHEN entry_done=1 AND entered_by IS NOT NULL THEN 1 ELSE 0 END) by_me,
-                SUM(CASE WHEN entry_done=0 OR entry_done IS NULL OR entered_by IS NULL THEN 1 ELSE 0 END) others
-            FROM items
-            WHERE status='approved'
-        ");
-        $stmt->execute();
-    } else {
-        $entryIds = !empty($item_entry_visible_ids) ? $item_entry_visible_ids : [$uid];
-        $entryParams = [];
-        $entryTypes = '';
-        $entryWhere = vcDashApplyScopeWhere('entered_by', $entryIds, $entryParams, $entryTypes);
-        $stmt = $conn->prepare("
-            SELECT
-                COUNT(*) total_approved,
-                SUM(status='approved' AND entry_done=1 {$entryWhere}) by_me,
-                SUM(status='approved' AND entry_done=1 AND entered_by IS NOT NULL AND NOT (entered_by IN (" . implode(',', array_fill(0, count($entryIds), '?')) . "))) others
-            FROM items
-            WHERE status='approved'
-        ");
-        $allParams = array_merge($entryParams, $entryIds);
-        $allTypes = $entryTypes . str_repeat('i', count($entryIds));
-        if ($allTypes !== '') {
-            $stmt->bind_param($allTypes, ...$allParams);
-        }
-        $stmt->execute();
-    }
-
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    $item_total_approved = (int)($row['total_approved'] ?? 0);
-    $item_by_me          = (int)($row['by_me'] ?? 0);
-    $item_others         = (int)($row['others'] ?? 0);
-}
-
-$item_donut = donutGradient([
-    ['value'=>$item_by_me,  'color'=>'#47e6a1'],
-    ['value'=>$item_others, 'color'=>'#6bb7ff'],
-]);
 
 /* ================= FINANCE MANAGER DASHBOARD SIDE ANALYTICS ================= */
 if (!function_exists('vcDashTableExists')) {
@@ -1512,9 +1432,6 @@ $dashboard_today = date('Y/m/d');
 <meta charset="UTF-8">
 <title>Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<link rel="icon" href="<?= e(vcSiteLogoUrl()) ?>" type="image/svg+xml">
-<link rel="apple-touch-icon" href="<?= e(vcSiteLogoUrl()) ?>">
 
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">
@@ -2702,9 +2619,6 @@ body{
 .dash-kpi-section{
     margin-bottom:0;
 }
-.dash-charts-section{
-    margin-bottom:0;
-}
 .dash-analytics-section{
     margin-top:0;
 }
@@ -3234,7 +3148,6 @@ a.dash-kpi-card:hover{
     <div class="sidebar" id="sidebar">
 
         <div class="sidebar-brand">
-            <?php include VC_VIEWS . '/partials/site_brand_mark.php'; ?>
             <div class="sidebar-brand-text">
                 <strong>نظام إدارة العقود والإيجارات</strong>
             </div>
@@ -3249,8 +3162,6 @@ a.dash-kpi-card:hover{
         <?php include VC_VIEWS . '/partials/dashboard_app_topbar.php'; ?>
 
         <?php include VC_VIEWS . '/partials/dashboard_home.php'; ?>
-
-        <?php include VC_VIEWS . '/partials/dashboard_charts.php'; ?>
 
         <?php if($show_management_analytics): ?>
 

@@ -183,7 +183,8 @@ select:focus{
     width:100%;
     border-collapse:separate;
     border-spacing:0;
-    table-layout:fixed;
+    table-layout:auto;
+    min-width:920px;
 }
 
 .table th{
@@ -224,8 +225,10 @@ select:focus{
 }
 
 .col-id{width:70px;}
-.col-supplier{width:34%;}
-.col-user{width:110px;}
+.col-supplier{min-width:130px;max-width:220px;}
+.col-user{width:110px;min-width:110px;}
+.col-created{width:108px;min-width:108px;}
+.col-action-date{width:104px;min-width:104px;}
 
 .type-badge{
     min-width:88px;
