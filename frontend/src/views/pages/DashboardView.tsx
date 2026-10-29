@@ -53,7 +53,7 @@ export function DashboardView() {
           ) : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
               {summary.awaiting.map((c) => (
-                <li key={c.id} style={{ borderBottom: '1px solid var(--line)', padding: '10px 0' }}>
+                <li key={c.id} style={{ borderBottom: '0.5px solid var(--hair)', padding: '10px 0' }}>
                   <Link href={`/contracts/${c.id}`} className="row" style={{ justifyContent: 'space-between' }}>
                     <span>
                       <span className="ltr">{c.contractNumber}</span> — {c.vendorName}
@@ -111,8 +111,8 @@ export function DashboardView() {
                     <span>{d.department}</span>
                     <strong>{fmtMoney(d.estimatedDiscount)}</strong>
                   </div>
-                  <div style={{ height: 8, background: '#e7e3dc' }}>
-                    <div style={{ height: 8, width: `${(d.estimatedDiscount / maxDept) * 100}%`, background: 'var(--accent)' }} />
+                  <div style={{ height: 8, borderRadius: 999, overflow: 'hidden', background: 'rgba(47, 52, 58, 0.1)' }}>
+                    <div style={{ height: 8, width: `${(d.estimatedDiscount / maxDept) * 100}%`, background: 'var(--accent)', borderRadius: 999 }} />
                   </div>
                 </div>
               ))}
@@ -131,8 +131,8 @@ export function DashboardView() {
                   <span>{t.label}</span>
                   <strong>{t.count}</strong>
                 </div>
-                <div style={{ height: 8, background: '#e7e3dc' }}>
-                  <div style={{ height: 8, width: `${(t.count / maxType) * 100}%`, background: 'var(--ink)' }} />
+                <div style={{ height: 8, borderRadius: 999, overflow: 'hidden', background: 'rgba(47, 52, 58, 0.1)' }}>
+                  <div style={{ height: 8, width: `${(t.count / maxType) * 100}%`, background: 'var(--ink)', borderRadius: 999 }} />
                 </div>
               </div>
             ))}
