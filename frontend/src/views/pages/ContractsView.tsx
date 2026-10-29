@@ -40,9 +40,9 @@ export function ContractsView() {
       />
 
       <div className="stats">
-        <Stat label="النتائج" value={stats.total} />
-        <Stat label="بانتظار إجرائي" value={stats.awaiting} accent />
-        <Stat label="تنتهي خلال 90 يوماً" value={stats.expiringSoon} />
+        <Stat label="النتائج" value={stats.total} icon="layers" />
+        <Stat label="بانتظار إجرائي" value={stats.awaiting} accent icon="clock" />
+        <Stat label="تنتهي خلال 90 يوماً" value={stats.expiringSoon} icon="calendar" />
       </div>
 
       <Panel>

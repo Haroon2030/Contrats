@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { STATUS_TONE } from '@/models/labels';
 import type { ContractStatus } from '@/models/types';
+import { Icon, type IconName } from './icons';
 
 /** نص الزر: أفعال أمر بين «» كما في المواصفة. */
 export function ActionLabel({ children }: { children: ReactNode }) {
@@ -60,11 +61,34 @@ export function StatusBadge({ status, label }: { status: ContractStatus; label: 
   return <span className={`badge ${STATUS_TONE[status] ?? 'neutral'}`}>{label}</span>;
 }
 
-export function Stat({ label, value, accent }: { label: string; value: ReactNode; accent?: boolean }) {
+/** بطاقة إحصاء: عنوان وأيقونة في الأعلى، ثم القيمة الكبيرة، ثم ملاحظة اختيارية. */
+export function Stat({
+  label,
+  value,
+  accent,
+  tone,
+  icon,
+  hint,
+}: {
+  label: string;
+  value: ReactNode;
+  accent?: boolean;
+  tone?: 'danger';
+  icon?: IconName;
+  hint?: ReactNode;
+}) {
   return (
-    <div className={`stat${accent ? ' accent' : ''}`}>
+    <div className={`stat${accent ? ' accent' : ''}${tone === 'danger' ? ' danger' : ''}`}>
+      <div className="stat-top">
+        <span className="stat-label">{label}</span>
+        {icon && (
+          <span className="icon-chip">
+            <Icon name={icon} />
+          </span>
+        )}
+      </div>
       <div className="value">{value}</div>
-      <div className="label">{label}</div>
+      {hint && <div className="hint">{hint}</div>}
     </div>
   );
 }
@@ -99,12 +123,11 @@ export function ErrorBox({ children }: { children: ReactNode }) {
 export function PageHead({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
     <div className="page-head">
-      <div>
+      <div className="page-title">
         <h1>{title}</h1>
         {subtitle && <div className="muted">{subtitle}</div>}
       </div>
-      <span className="spacer" />
-      {actions}
+      {actions && <div className="page-actions">{actions}</div>}
     </div>
   );
 }

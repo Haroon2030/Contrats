@@ -281,9 +281,21 @@ h3 {
 .page-head {
   display: flex;
   align-items: flex-end;
-  gap: 16px;
+  justify-content: space-between;
+  gap: 16px 20px;
   flex-wrap: wrap;
   padding-inline: 4px;
+}
+
+.page-title {
+  min-width: 0;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* ═════ الأزرار (كبسولة) ═════ */
@@ -475,30 +487,94 @@ h3 {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
   gap: 14px;
 }
 
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 20px;
+}
+
 .stat {
-  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 132px;
   padding: 18px 20px;
+  border-radius: var(--r-lg);
+}
+
+.stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stat-label {
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.icon-chip {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  color: var(--ink);
+  background: rgba(47, 52, 58, 0.08);
+}
+
+.icon-chip svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .stat .value {
-  font-size: 32px;
+  margin-top: auto;
+  font-size: 38px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
+}
+
+.stat .hint {
+  color: var(--ink-3);
+  font-size: 12.5px;
 }
 
 .stat.accent .value {
   color: var(--accent);
 }
 
-.stat .label {
-  color: var(--ink-2);
-  font-size: 13px;
-  margin-top: 2px;
+.stat.accent .icon-chip {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.stat.danger .value {
+  color: var(--danger);
+}
+
+.stat.danger .icon-chip {
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 .empty,
@@ -839,6 +915,114 @@ dl.info {
   background: var(--glass-strong);
 }
 
+/* ═════ توزيع الحالات والمقاييس والقوائم ═════ */
+.dist-bar {
+  display: flex;
+  gap: 3px;
+  height: 14px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: rgba(47, 52, 58, 0.08);
+}
+
+.dist-bar span {
+  min-width: 8px;
+  border-radius: var(--r-pill);
+}
+
+.legend {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px 20px;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.legend .dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend strong {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meter + .meter {
+  margin-top: 18px;
+}
+
+.meter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.meter-head strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: rgba(47, 52, 58, 0.08);
+}
+
+.meter-fill {
+  height: 100%;
+  min-width: 4px;
+  border-radius: var(--r-pill);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list li {
+  padding: 12px 0;
+  border-bottom: 0.5px solid var(--hair);
+}
+
+.list li:first-child {
+  padding-top: 0;
+}
+
+.list li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.table-flat .table th {
+  background: transparent;
+  padding-inline: 4px;
+}
+
+.table-flat .table td {
+  padding-inline: 4px;
+}
+
 /* ═════ تخطيط النماذج ═════ */
 .form-layout {
   display: grid;
@@ -846,13 +1030,41 @@ dl.info {
 }
 
 /* ═════ شاشات أصغر ═════ */
+@media (max-width: 1100px) {
+  .kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .main {
     margin-inline-start: 0;
   }
 
+  .topbar {
+    flex-wrap: wrap;
+  }
+
+  .topbar .search-box {
+    order: -1;
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .page-head {
+    align-items: stretch;
+  }
+
+  .page-actions {
+    width: 100%;
+  }
+
+  .page-actions > * {
+    flex: 1 1 auto;
+  }
+
   .sidebar {
-    position: static;
+    position: relative;
     width: auto;
     margin: 12px 12px 0;
     border-radius: 24px;
@@ -866,12 +1078,36 @@ dl.info {
 
   .sidebar nav {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .sidebar nav::-webkit-scrollbar {
+    display: none;
   }
 
   .sidebar nav a {
+    flex: none;
     min-height: 40px;
-    padding: 0 12px;
+    padding: 0 14px;
+    white-space: nowrap;
+    border-radius: var(--r-pill);
+  }
+
+  .sidebar .brand span {
+    display: none;
+  }
+
+  .sidebar .brand {
+    padding-bottom: 12px;
+    margin-bottom: 0;
+  }
+
+  .stats > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   .topbar {
