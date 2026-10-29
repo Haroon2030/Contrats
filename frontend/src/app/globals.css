@@ -677,6 +677,155 @@ dl.info {
   gap: 18px;
 }
 
+/* ───── الخلفية الزجاجية ───── */
+:root {
+  --glass: rgba(255, 255, 255, 0.58);
+  --glass-strong: rgba(255, 255, 255, 0.78);
+  --glass-edge: rgba(255, 255, 255, 0.75);
+  --glass-shadow: 0 8px 32px rgba(31, 38, 50, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  --glass-blur: blur(16px) saturate(150%);
+}
+
+body {
+  background-color: #e8e4de;
+  background-image:
+    radial-gradient(60% 55% at 12% 8%, rgba(194, 87, 12, 0.28) 0%, transparent 70%),
+    radial-gradient(55% 60% at 92% 18%, rgba(58, 63, 69, 0.28) 0%, transparent 70%),
+    radial-gradient(60% 55% at 78% 96%, rgba(194, 87, 12, 0.2) 0%, transparent 70%),
+    radial-gradient(50% 50% at 8% 90%, rgba(120, 140, 160, 0.25) 0%, transparent 70%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+.panel,
+.stat,
+.login-card,
+.modal,
+.dropdown,
+.toast,
+.stepper,
+.empty,
+.notice,
+.table-wrap {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+}
+
+.stat {
+  border-top: 3px solid var(--ink);
+}
+
+.stat.accent {
+  border-top-color: var(--accent);
+}
+
+.modal,
+.login-card {
+  background: var(--glass-strong);
+  border-top: 4px solid var(--accent);
+}
+
+.topbar {
+  background: rgba(255, 255, 255, 0.5);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-edge);
+  box-shadow: 0 4px 24px rgba(31, 38, 50, 0.06);
+}
+
+.sidebar {
+  background: rgba(58, 63, 69, 0.82);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border-inline-end: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.table th {
+  background: rgba(238, 235, 230, 0.7);
+}
+
+.table td {
+  background-color: transparent;
+}
+
+.table tbody tr:hover td {
+  background: rgba(247, 230, 218, 0.75);
+}
+
+.input,
+.select,
+.textarea {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(120, 125, 130, 0.45);
+}
+
+.btn {
+  background: rgba(255, 255, 255, 0.62);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.btn.primary {
+  background: var(--accent);
+}
+
+.btn.danger {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.bell {
+  background: rgba(255, 255, 255, 0.62);
+  border-color: var(--glass-edge);
+}
+
+.modal-backdrop {
+  background: rgba(20, 22, 25, 0.35);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+/* متصفحات بلا دعم الضبابية، أو مستخدم يفضّل شفافية أقل: أسطح معتمة مقروءة */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .panel,
+  .stat,
+  .login-card,
+  .modal,
+  .dropdown,
+  .toast,
+  .stepper,
+  .empty,
+  .notice,
+  .table-wrap,
+  .topbar {
+    background: #ffffff;
+  }
+
+  .sidebar {
+    background: var(--ink);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .panel,
+  .stat,
+  .login-card,
+  .modal,
+  .dropdown,
+  .toast,
+  .stepper,
+  .empty,
+  .notice,
+  .table-wrap,
+  .topbar {
+    background: #ffffff;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 /* ───── الهاتف ───── */
 @media (max-width: 900px) {
   .shell {
