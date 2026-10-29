@@ -679,20 +679,21 @@ dl.info {
 
 /* ───── الخلفية الزجاجية ───── */
 :root {
-  --glass: rgba(255, 255, 255, 0.58);
-  --glass-strong: rgba(255, 255, 255, 0.78);
-  --glass-edge: rgba(255, 255, 255, 0.75);
-  --glass-shadow: 0 8px 32px rgba(31, 38, 50, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  --glass-blur: blur(16px) saturate(150%);
+  --glass: rgba(255, 255, 255, 0.46);
+  --glass-strong: rgba(255, 255, 255, 0.72);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --glass-shadow: 0 10px 36px rgba(31, 38, 50, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+  --glass-blur: blur(22px) saturate(170%);
 }
 
 body {
-  background-color: #e8e4de;
+  background-color: #dcd6cd;
   background-image:
-    radial-gradient(60% 55% at 12% 8%, rgba(194, 87, 12, 0.28) 0%, transparent 70%),
-    radial-gradient(55% 60% at 92% 18%, rgba(58, 63, 69, 0.28) 0%, transparent 70%),
-    radial-gradient(60% 55% at 78% 96%, rgba(194, 87, 12, 0.2) 0%, transparent 70%),
-    radial-gradient(50% 50% at 8% 90%, rgba(120, 140, 160, 0.25) 0%, transparent 70%);
+    radial-gradient(38% 42% at 10% 12%, rgba(240, 130, 50, 0.62) 0%, transparent 72%),
+    radial-gradient(36% 44% at 88% 10%, rgba(70, 110, 160, 0.5) 0%, transparent 72%),
+    radial-gradient(40% 40% at 70% 55%, rgba(240, 130, 50, 0.38) 0%, transparent 72%),
+    radial-gradient(42% 46% at 18% 78%, rgba(90, 120, 150, 0.45) 0%, transparent 72%),
+    radial-gradient(36% 40% at 92% 92%, rgba(194, 87, 12, 0.48) 0%, transparent 72%);
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
@@ -729,7 +730,7 @@ body {
 }
 
 .topbar {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.42);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--glass-edge);
