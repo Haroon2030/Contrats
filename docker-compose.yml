@@ -1,5 +1,4 @@
 # نشر النظام الجديد (Next.js + NestJS) كـ Compose في Dokploy.
-# لا يغيّر خدمة Django الحالية (Dockerfile في الجذر) ولا قاعدة بياناتها.
 # كل القيم الحساسة تُضبط من واجهة Dokploy (Environment) وليس هنا.
 services:
   contracts-api:
@@ -20,7 +19,7 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-0}
       PORT: 4000
     volumes:
-      # نفس مجلد مرفقات Django. اربطه بنفس volume الذي يستخدمه تطبيق Django.
+      # نفس مجلد المرفقات القديم حتى تبقى الملفات متاحة.
       - contracts-media:/app/media
     expose:
       - "4000"
