@@ -1,0 +1,46 @@
+# نشر النظام الجديد (Next.js + NestJS) كـ Compose في Dokploy.
+# لا يغيّر خدمة Django الحالية (Dockerfile في الجذر) ولا قاعدة بياناتها.
+# كل القيم الحساسة تُضبط من واجهة Dokploy (Environment) وليس هنا.
+services:
+  contracts-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DB_DRIVER: mysql
+      MYSQL_HOST: ${MYSQL_HOST:?set MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?set MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      MEDIA_ROOT: /app/media
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      JWT_EXPIRES_SECONDS: ${JWT_EXPIRES_SECONDS:-28800}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      PORT: 4000
+    volumes:
+      # نفس مجلد مرفقات Django. اربطه بنفس volume الذي يستخدمه تطبيق Django.
+      - contracts-media:/app/media
+    expose:
+      - "4000"
+
+  contracts-web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # يُحسب توجيه /api وقت البناء، ويشير إلى خدمة الـ API داخل الشبكة.
+        BACKEND_URL: http://contracts-api:4000
+    restart: unless-stopped
+    depends_on:
+      - contracts-api
+    environment:
+      PORT: 3000
+    expose:
+      - "3000"
+
+volumes:
+  contracts-media:
+    external: true
+    name: ${MEDIA_VOLUME:-contracts-media}

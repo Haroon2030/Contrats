@@ -12,3 +12,7 @@ staticfiles
 *.log
 _prior_extract
 _extract_prior.py
+
+backend
+frontend
+docker-compose.yml
