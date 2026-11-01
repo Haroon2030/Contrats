@@ -121,7 +121,7 @@ export class UsersService {
     const role = normalizeRole(String(body.role ?? ''));
     const departmentId = body.departmentId ? Number(body.departmentId) : null;
 
-    if (username.length < 3) errors.username = 'اسم المستخدم 3 أحرف على الأقل.';
+    if (username.length < 1) errors.username = 'اسم المستخدم مطلوب.';
     if (!fullName) errors.fullName = 'الاسم الكامل مطلوب.';
     if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) errors.email = 'البريد الإلكتروني غير صالح.';
     if (!ROLES.includes(role)) errors.role = 'اختر دوراً صحيحاً.';
