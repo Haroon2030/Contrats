@@ -2,6 +2,8 @@
 # Next يمرّر /api إلى NestJS عبر localhost، لذلك BACKEND_URL ثابت هنا.
 FROM node:22-alpine AS api-build
 WORKDIR /app/backend
+# ملفات القفل مولّدة بـ npm 11؛ npm 10 (الافتراضي في الصورة) يرفضها في npm ci
+RUN npm install -g npm@11
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci
 COPY backend/tsconfig.json backend/nest-cli.json ./
@@ -12,6 +14,7 @@ FROM node:22-alpine AS web-build
 ENV BACKEND_URL=http://localhost:4000 \
     NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app/frontend
+RUN npm install -g npm@11
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
