@@ -1187,3 +1187,107 @@ dl.info {
     transition: none !important;
   }
 }
+
+/* ═════ BRD v3.0: إضافات ═════ */
+.badge.ok {
+  color: #1d6b43;
+  background: rgba(46, 160, 100, 0.14);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line, rgba(47, 52, 58, 0.15));
+  background: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  font-weight: 500;
+}
+.chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.chip.off {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.chip input {
+  accent-color: var(--accent);
+}
+.line-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.45);
+  margin-bottom: 10px;
+}
+.section-title {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+.split {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 1000px) {
+  .split.two {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+.bar-line {
+  display: grid;
+  grid-template-columns: 110px 1fr 70px;
+  gap: 10px;
+  align-items: center;
+  margin: 6px 0;
+  font-size: 13.5px;
+}
+.bar-line .track {
+  height: 10px;
+  border-radius: 99px;
+  background: rgba(47, 52, 58, 0.08);
+  overflow: hidden;
+}
+.bar-line .fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+}
+.reason-box {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  margin-bottom: 10px;
+}
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-inline-end: 6px;
+}
+.dropdown .item {
+  display: block;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(47, 52, 58, 0.08);
+}

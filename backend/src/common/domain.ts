@@ -1,171 +1,216 @@
 /**
- * ثوابت النطاق — مطابقة لقيم Django في contracts/models.py و accounts/models.py.
+ * ثوابت المجال — مطابقة لوثيقة المتطلبات BRD v3.0 (انظر docs/brd-v3-digest.md).
  */
 
 export const Role = {
-  CONTRACTS_OFFICER: 'contracts_officer',
-  PURCHASING_OFFICER: 'purchasing_officer',
-  PURCHASING_HEAD: 'purchasing_head',
+  SYSTEM_ADMIN: 'system_admin',
   CONTRACTS_MANAGER: 'contracts_manager',
-  LEGAL: 'legal',
-  ADMIN: 'admin',
+  CONTRACTS_OFFICER: 'contracts_officer',
+  PURCHASING_MANAGER: 'purchasing_manager',
+  DEPARTMENT_MANAGER: 'department_manager',
+  DEPARTMENT_OFFICIAL: 'department_official',
+  OPERATIONS: 'operations',
 } as const;
-export type Role = (typeof Role)[keyof typeof Role];
-export const ROLES = Object.values(Role);
+export type RoleName = (typeof Role)[keyof typeof Role];
+export const ROLES: string[] = Object.values(Role);
 
-export const ContractType = {
-  SUPPLY: 'supply',
-  SHELF_RENT: 'shelf_rent',
-  MARKETING: 'marketing',
-  SERVICES: 'services',
-} as const;
+export const ROLE_LABELS: Record<string, string> = {
+  system_admin: 'مسؤول النظام',
+  contracts_manager: 'مدير قسم العقود',
+  contracts_officer: 'موظف قسم العقود',
+  purchasing_manager: 'مدير المشتريات',
+  department_manager: 'مدير قسم',
+  department_official: 'مسؤول قسم',
+  operations: 'قسم التشغيل',
+};
 
-export const ContractSubtype = {
-  FRESH: 'fresh',
-  FOOD: 'food',
-  NON_FOOD: 'non_food',
-  ACCOUNT_OPENING: 'account_opening',
-} as const;
+/** قيم قديمة في قواعد البيانات السابقة تُقرأ بمعناها الجديد. */
+export function normalizeRole(role: string | null | undefined): string {
+  if (role === 'admin') return Role.SYSTEM_ADMIN;
+  if (role === 'purchasing_head') return Role.PURCHASING_MANAGER;
+  if (role === 'purchasing_officer') return Role.PURCHASING_MANAGER;
+  if (role === 'legal') return Role.CONTRACTS_OFFICER;
+  return role ?? '';
+}
 
-export const ContractStatus = {
+export const Status = {
   DRAFT: 'draft',
   UNDER_REVIEW: 'under_review',
-  PENDING_APPROVAL: 'pending_approval',
-  PENDING_SIGNATURE: 'pending_signature',
+  AWAITING_SIGNATURE: 'awaiting_signature',
   ACTIVE: 'active',
-  EXPIRED: 'expired',
+  ENDED: 'ended',
   CANCELLED: 'cancelled',
 } as const;
-
-export const ApprovalDecision = {
-  PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
-} as const;
-
-export const ApproverRole = {
-  DEPARTMENT_HEAD: 'department_head',
-  CONTRACTS_MANAGER: 'contracts_manager',
-  LEGAL: 'legal',
-} as const;
-
-export const AttachmentKind = {
-  ORIGINAL: 'original',
-  LEGAL_REVIEW: 'legal_review',
-  SIGNED: 'signed',
-  ADDENDUM: 'addendum',
-  RENEWAL_LETTER: 'renewal_letter',
-  TERMINATION_LETTER: 'termination_letter',
-  OTHER: 'other',
-} as const;
-
-export const AlertType = {
-  EXPIRY_90: 'expiry_90',
-  EXPIRY_60: 'expiry_60',
-  EXPIRY_30: 'expiry_30',
-  RENEWAL_NOTICE: 'renewal_notice',
-  UNSIGNED_APPROVED: 'unsigned_approved',
-  EXPIRED_STILL_ACTIVE: 'expired_still_active',
-  SHELF_PRICE_DEVIATION: 'shelf_price_deviation',
-} as const;
-
-export const AlertSeverity = {
-  INFO: 'info',
-  WARNING: 'warning',
-  CRITICAL: 'critical',
-} as const;
-
-export const HIGH_VALUE_THRESHOLD = 15000;
-
-/** مدة العقد القصوى سنة واحدة، ولا تجديد تلقائي (المواصفة). */
-export const MAX_CONTRACT_DAYS = 365;
-
-/** مسارات الحالات المسموحة — مطابقة لـ ALLOWED_TRANSITIONS في Django. */
-export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  draft: ['under_review', 'pending_approval', 'cancelled'],
-  under_review: ['pending_approval', 'draft', 'cancelled'],
-  pending_approval: ['pending_signature', 'draft', 'cancelled'],
-  pending_signature: ['active', 'cancelled'],
-  active: ['expired', 'cancelled'],
-  expired: [],
-  cancelled: [],
-};
+export type StatusName = (typeof Status)[keyof typeof Status];
 
 export const STATUS_LABELS: Record<string, string> = {
   draft: 'مسودة',
   under_review: 'تحت المراجعة',
-  pending_approval: 'بانتظار الموافقة',
-  pending_signature: 'بانتظار التوقيع',
+  awaiting_signature: 'بانتظار التوقيع',
   active: 'نشط',
-  expired: 'منتهي',
-  cancelled: 'ملغى',
+  ended: 'منتهي',
+  cancelled: 'ملغي',
 };
+
+/** الجهة الحالية المطلوب منها اتخاذ إجراء. */
+export const Party = {
+  CREATOR: 'creator',
+  DEPARTMENT_MANAGER: 'department_manager',
+  CONTRACTS_MANAGER: 'contracts_manager',
+  PURCHASING_MANAGER: 'purchasing_manager',
+} as const;
+
+export const PARTY_LABELS: Record<string, string> = {
+  creator: 'المنشئ',
+  department_manager: 'مدير القسم',
+  contracts_manager: 'مدير قسم العقود',
+  purchasing_manager: 'مدير المشتريات',
+};
+
+/** ترتيب الأولوية: توريد ثم إيجار ثم تسويق ثم خدمات. */
+export const ContractType = {
+  SUPPLY: 'supply',
+  RENT: 'rent',
+  MARKETING: 'marketing',
+  ADD_ITEM: 'add_item',
+  OPEN_ACCOUNT: 'open_account',
+} as const;
+export const TYPE_ORDER: string[] = ['supply', 'rent', 'marketing', 'add_item', 'open_account'];
 
 export const TYPE_LABELS: Record<string, string> = {
   supply: 'توريد',
-  shelf_rent: 'إيجار أرفف',
+  rent: 'إيجار أرفف',
   marketing: 'تسويق',
-  services: 'خدمات',
+  add_item: 'خدمات — إضافة صنف جديد',
+  open_account: 'خدمات — فتح حساب',
 };
 
-export const SUBTYPE_LABELS: Record<string, string> = {
-  fresh: 'فريش',
-  food: 'غذائي',
-  non_food: 'لا غذائي',
-  account_opening: 'فتح حساب',
+export const SERVICE_TYPES = ['add_item', 'open_account'];
+
+export function sortTypes(types: string[]): string[] {
+  return [...new Set(types)].sort((a, b) => TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b));
+}
+
+export function primaryType(types: string[]): string {
+  return sortTypes(types)[0] ?? '';
+}
+
+export function isServicesOnly(types: string[]): boolean {
+  return types.length > 0 && types.every((t) => SERVICE_TYPES.includes(t));
+}
+
+export const AttachmentKind = {
+  READY_SIGNED: 'ready_signed', // ملف العقد الجاهز الموقّع
+  SIGNED: 'signed', // النسخة الموقعة بعد التوقيع
+  ADDENDUM_SIGNED: 'addendum_signed',
+  ACCOUNT_LICENSE: 'account_license',
+  ACCOUNT_ADDRESS: 'account_address',
+  ACCOUNT_REGISTRATION: 'account_registration',
+  ACCOUNT_TAX: 'account_tax',
+  ACCOUNT_OWNER_ID: 'account_owner_id',
+  OTHER: 'other',
+} as const;
+
+export const ACCOUNT_DOC_KINDS = [
+  'account_license',
+  'account_address',
+  'account_registration',
+  'account_tax',
+  'account_owner_id',
+];
+
+export const ATTACHMENT_LABELS: Record<string, string> = {
+  ready_signed: 'العقد الجاهز الموقّع',
+  signed: 'النسخة الموقعة',
+  addendum_signed: 'الملحق الموقّع',
+  account_license: 'رخصة النشاط التجاري',
+  account_address: 'وثيقة العنوان الوطني',
+  account_registration: 'شهادة تسجيل الشركة',
+  account_tax: 'شهادة تسجيل الضريبة',
+  account_owner_id: 'هوية المالك',
+  other: 'مرفق آخر',
 };
 
-export const ROLE_LABELS: Record<string, string> = {
-  contracts_officer: 'موظف قسم العقود',
-  purchasing_officer: 'موظف المشتريات',
-  purchasing_head: 'رئيس قسم المشتريات',
-  contracts_manager: 'مدير إدارة العقود',
-  legal: 'الشؤون القانونية',
-  admin: 'مدير النظام',
+export const RefList = {
+  BRANCH: 'branch',
+  SHELF_TYPE: 'shelf_type',
+  SERVICE_TYPE: 'service_type',
+  EVENT: 'event',
+} as const;
+
+export const REF_LIST_LABELS: Record<string, string> = {
+  branch: 'الفروع',
+  shelf_type: 'أنواع الرفوف',
+  service_type: 'أنواع الخدمات',
+  event: 'الفعاليات التسويقية',
 };
 
-/**
- * صلاحيات الدور — مطابقة لخصائص UserProfile في Django.
- */
-export interface RoleFlags {
-  isContractsStaff: boolean;
-  isPurchasingStaff: boolean;
-  canApproveAsHead: boolean;
-  canApproveAsContractsManager: boolean;
-  canLegalReview: boolean;
+export const DEFAULT_REFS: Record<string, string[]> = {
+  shelf_type: ['جندولة', 'ستاند', 'عرض أرضي'],
+  service_type: ['إضافة صنف جديد', 'فتح حساب'],
+  event: [
+    'صورة في المجلة',
+    'صفحة كاملة في المجلة',
+    'افتتاح فرع جديد',
+    'عيد الأضحى',
+    'عيد الفطر',
+    'يوم التأسيس',
+    'اليوم الوطني',
+    'رمضان',
+    'العودة للمدارس',
+  ],
+};
+
+export const DEFAULT_DEPARTMENTS = [
+  { name: 'فريش', code: 'FRESH' },
+  { name: 'غذائي', code: 'FOOD' },
+  { name: 'لا غذائي', code: 'NONFOOD' },
+];
+
+/** Threshold: الصفحة الرقمية القابلة للتعديل من مسؤول النظام. */
+export const SETTING_DEFAULTS = {
+  reminder_days: '90,60,30',
+  escalation_days: '7',
+};
+
+export const MAX_CONTRACT_MONTHS = 12;
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+/** صلاحيات الدور (مصفوفة 3.2 في الوثيقة). */
+export interface Caps {
+  canViewAllDepartments: boolean; // يرى كل الأقسام (مع قراءة فقط لمدير القسم)
+  operationsOnly: boolean;
+  createAnyDepartment: boolean;
+  canCreate: boolean;
+  canRaiseAlert: boolean;
+  canNoteOnAlert: boolean;
+  canViewAudit: boolean;
   canManageUsers: boolean;
+  canManageRefs: boolean;
+  canManageTemplates: boolean;
+  isPurchasingManager: boolean;
+  isContractsManager: boolean;
+  seesAccountDocs: boolean; // يرى مستندات فتح الحساب (القسم صاحب العقد دائماً)
+  canSeeGoals: boolean;
 }
 
-export function roleFlags(role: string | null | undefined): RoleFlags {
-  const r = role ?? '';
-  const is = (...roles: Role[]) => (roles as string[]).includes(r);
+export function capsOf(rawRole: string | null | undefined): Caps {
+  const role = normalizeRole(rawRole);
+  const is = (...r: string[]) => r.includes(role);
   return {
-    isContractsStaff: is(Role.CONTRACTS_OFFICER, Role.CONTRACTS_MANAGER, Role.ADMIN),
-    isPurchasingStaff: is(Role.PURCHASING_OFFICER, Role.PURCHASING_HEAD, Role.ADMIN),
-    canApproveAsHead: is(Role.PURCHASING_HEAD, Role.ADMIN),
-    canApproveAsContractsManager: is(Role.CONTRACTS_MANAGER, Role.ADMIN),
-    canLegalReview: is(Role.LEGAL, Role.ADMIN),
-    canManageUsers: r === Role.ADMIN,
+    canViewAllDepartments: is(Role.SYSTEM_ADMIN, Role.CONTRACTS_MANAGER, Role.CONTRACTS_OFFICER, Role.PURCHASING_MANAGER, Role.DEPARTMENT_MANAGER),
+    operationsOnly: is(Role.OPERATIONS),
+    createAnyDepartment: is(Role.SYSTEM_ADMIN),
+    canCreate: is(Role.SYSTEM_ADMIN, Role.DEPARTMENT_MANAGER, Role.DEPARTMENT_OFFICIAL),
+    canRaiseAlert: is(Role.CONTRACTS_MANAGER, Role.CONTRACTS_OFFICER, Role.PURCHASING_MANAGER, Role.DEPARTMENT_MANAGER),
+    canNoteOnAlert: is(Role.CONTRACTS_MANAGER, Role.CONTRACTS_OFFICER),
+    canViewAudit: is(Role.SYSTEM_ADMIN, Role.CONTRACTS_MANAGER, Role.CONTRACTS_OFFICER, Role.PURCHASING_MANAGER, Role.DEPARTMENT_MANAGER),
+    canManageUsers: is(Role.SYSTEM_ADMIN),
+    canManageRefs: is(Role.SYSTEM_ADMIN),
+    canManageTemplates: is(Role.CONTRACTS_MANAGER, Role.SYSTEM_ADMIN),
+    isPurchasingManager: is(Role.PURCHASING_MANAGER),
+    isContractsManager: is(Role.CONTRACTS_MANAGER),
+    seesAccountDocs: is(Role.SYSTEM_ADMIN, Role.CONTRACTS_MANAGER, Role.CONTRACTS_OFFICER, Role.PURCHASING_MANAGER, Role.DEPARTMENT_MANAGER, Role.DEPARTMENT_OFFICIAL),
+    canSeeGoals: !is(Role.DEPARTMENT_OFFICIAL, Role.OPERATIONS),
   };
-}
-
-export function requiredApproverRole(c: {
-  hasNonStandardTerms: boolean;
-  manuallyEscalated: boolean;
-  contractType: string;
-  actualValue: number;
-  shelfRateStandardPrice?: number | null;
-  shelfActualPrice?: number | null;
-}): string {
-  const hasShelfDeviation =
-    c.contractType === ContractType.SHELF_RENT &&
-    c.shelfActualPrice != null &&
-    c.shelfRateStandardPrice != null &&
-    c.shelfActualPrice !== c.shelfRateStandardPrice;
-  const standardShelfRent = c.contractType === ContractType.SHELF_RENT && !hasShelfDeviation && !c.hasNonStandardTerms;
-
-  if (c.hasNonStandardTerms || c.manuallyEscalated) return ApproverRole.CONTRACTS_MANAGER;
-  if (standardShelfRent) return ApproverRole.DEPARTMENT_HEAD;
-  if (c.actualValue > HIGH_VALUE_THRESHOLD) return ApproverRole.CONTRACTS_MANAGER;
-  return ApproverRole.DEPARTMENT_HEAD;
 }

@@ -4,11 +4,13 @@ import type { ApiErrorBody } from './types';
 export class ApiError extends Error {
   status: number;
   fields: Record<string, string>;
+  code?: string;
 
-  constructor(status: number, message: string, fields: Record<string, string> = {}) {
+  constructor(status: number, message: string, fields: Record<string, string> = {}, code?: string) {
     super(message);
     this.status = status;
     this.fields = fields;
+    this.code = code;
   }
 }
 
@@ -34,7 +36,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const data = (await res.json().catch(() => ({}))) as ApiErrorBody & Record<string, unknown>;
   if (!res.ok) {
     const message = Array.isArray(data.message) ? data.message.join(' ') : data.message;
-    throw new ApiError(res.status, message || FALLBACK_MESSAGE, data.errors ?? {});
+    throw new ApiError(res.status, message || FALLBACK_MESSAGE, data.errors ?? {}, data.code);
   }
   return data as T;
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { STATUS_TONE } from '@/models/labels';
+import { STATUS_LABELS, STATUS_TONE } from '@/models/labels';
 import type { ContractStatus } from '@/models/types';
 import { Icon, type IconName } from './icons';
 
@@ -57,8 +57,8 @@ export function Field({
   );
 }
 
-export function StatusBadge({ status, label }: { status: ContractStatus; label: string }) {
-  return <span className={`badge ${STATUS_TONE[status] ?? 'neutral'}`}>{label}</span>;
+export function StatusBadge({ status, label }: { status: ContractStatus; label?: string }) {
+  return <span className={`badge ${STATUS_TONE[status] ?? 'neutral'}`}>{label ?? STATUS_LABELS[status] ?? status}</span>;
 }
 
 /** بطاقة إحصاء: عنوان وأيقونة في الأعلى، ثم القيمة الكبيرة، ثم ملاحظة اختيارية. */

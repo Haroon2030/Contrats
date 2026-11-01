@@ -16,7 +16,7 @@ export function verifyDjangoPassword(password: string, encoded: string): boolean
 }
 
 /** إنشاء hash بصيغة Django حتى يبقى الحساب صالحاً في النظامين. */
-export function makeDjangoPassword(password: string, iterations = 1_000_000): string {
+export function makeDjangoPassword(password: string, iterations = 600_000): string {
   const salt = randomBytes(12).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 22);
   const hash = pbkdf2Sync(password, salt, iterations, 32, 'sha256').toString('base64');
   return `pbkdf2_sha256$${iterations}$${salt}$${hash}`;

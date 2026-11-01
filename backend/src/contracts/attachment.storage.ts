@@ -2,23 +2,20 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { MAX_FILE_BYTES } from '../common/domain';
 
-/** امتدادات مسموحة للمرفقات. */
-export const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
-export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+/** المرفقات: PDF أو صورة حتى 10 ميغابايت. */
+export const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png'];
+export const MAX_ATTACHMENT_BYTES = MAX_FILE_BYTES;
 
-/**
- * تخزين المرفقات في مجلد media الخاص بـ Django بنفس التخطيط: contracts/YYYY/MM/<name>.
- * بهذه الطريقة تبقى المرفقات القديمة والجديدة قابلة للقراءة من النظامين.
- */
 @Injectable()
 export class AttachmentStorage {
-  private readonly root = path.resolve(process.env.MEDIA_ROOT || path.join(process.cwd(), '..', 'media'));
+  private readonly root = path.resolve(process.env.MEDIA_ROOT || path.join(process.cwd(), 'data', 'media'));
 
-  async save(file: Express.Multer.File): Promise<{ relativePath: string; originalName: string }> {
+  async save(file: Express.Multer.File, folder = 'contracts'): Promise<{ relativePath: string; originalName: string; size: number }> {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      throw new BadRequestException(`نوع الملف غير مسموح. المسموح: ${ALLOWED_EXTENSIONS.join(' ')}`);
+      throw new BadRequestException('الملف يجب أن يكون PDF أو صورة (jpg/png).');
     }
     if (file.size > MAX_ATTACHMENT_BYTES) throw new BadRequestException('حجم الملف يتجاوز 10 ميغابايت.');
 
@@ -28,11 +25,11 @@ export class AttachmentStorage {
     const base = path.basename(file.originalname, path.extname(file.originalname)).replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 80) || 'file';
     const name = `${base}_${randomBytes(4).toString('hex')}${ext}`;
 
-    const relativePath = ['contracts', yyyy, mm, name].join('/');
+    const relativePath = [folder, yyyy, mm, name].join('/');
     const absolute = this.absolutePath(relativePath);
     fs.mkdirSync(path.dirname(absolute), { recursive: true });
     await fs.promises.writeFile(absolute, file.buffer);
-    return { relativePath, originalName: file.originalname.slice(0, 255) };
+    return { relativePath, originalName: file.originalname.slice(0, 255), size: file.size };
   }
 
   /** يمنع الخروج من مجلد الميديا عند القراءة أو الحذف. */
@@ -46,7 +43,7 @@ export class AttachmentStorage {
     try {
       fs.unlinkSync(this.absolutePath(relativePath));
     } catch {
-      /* الملف غير موجود — لا شيء للتنظيف */
+      /* الملف غير موجود */
     }
   }
 }

@@ -1,45 +1,49 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ENTITIES } from './entities';
+import { BootstrapService } from './bootstrap.service';
 
 /**
- * اختيار قاعدة البيانات من البيئة:
- * - DB_DRIVER=mysql  → نفس قاعدة الإنتاج الحالية (متغيرات MYSQL_* كما في Django).
- * - DB_DRIVER=sqlite → ملف db.sqlite3 الموجود للتطوير المحلي.
- * synchronize مُعطّل دائماً: لا يلمس الجداول التي يديرها Django.
+ * قاعدة البيانات:
+ * - DB_DRIVER=mysql  → قاعدة الإنتاج (MYSQL_HOST/PORT/DATABASE/USER/PASSWORD).
+ * - DB_DRIVER=sqlite → ملف للتطوير المحلي (DB_SQLITE_PATH).
+ * DB_SYNC=1 ينشئ الجداول الناقصة ويطابقها مع الكيانات عند التشغيل.
+ *   الافتراضي: مفعّل مع sqlite، ومعطّل مع mysql (فعّله في أول نشر ثم أوقفه).
  */
+@Global()
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
       useFactory: () => {
         const driver = (process.env.DB_DRIVER || 'sqlite').toLowerCase();
-        const common = { entities: ENTITIES, synchronize: false, logging: false };
+        const sync = (process.env.DB_SYNC ?? (driver === 'mysql' ? '0' : '1')) === '1';
+        const common = { entities: ENTITIES, synchronize: sync, logging: false };
 
         if (driver === 'mysql') {
           return {
             ...common,
-            type: 'mysql',
+            type: 'mysql' as const,
             host: process.env.MYSQL_HOST || '127.0.0.1',
             port: Number(process.env.MYSQL_PORT || 3306),
             database: process.env.MYSQL_DATABASE || '',
             username: process.env.MYSQL_USER || '',
             password: process.env.MYSQL_PASSWORD || '',
             charset: 'utf8mb4',
-            // Django يكتب datetime بتوقيت UTC دون منطقة (USE_TZ=True)؛ نطابقه تماماً.
-            timezone: 'Z',
+            timezone: 'Z', // نخزّن التواريخ والأوقات بتوقيت UTC
             extra: { connectionLimit: 10 },
           };
         }
 
         return {
           ...common,
-          type: 'better-sqlite3',
-          database: process.env.DB_SQLITE_PATH || '../db.sqlite3',
-          readonly: false,
-          fileMustExist: true,
+          type: 'better-sqlite3' as const,
+          database: process.env.DB_SQLITE_PATH || './data/dev.sqlite3',
         };
       },
     }),
+    TypeOrmModule.forFeature(ENTITIES),
   ],
+  providers: [BootstrapService],
+  exports: [TypeOrmModule],
 })
 export class DatabaseModule {}

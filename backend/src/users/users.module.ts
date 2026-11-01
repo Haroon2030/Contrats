@@ -1,166 +1,176 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Injectable, Module, NotFoundException, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
-import { DataSource } from 'typeorm';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Injectable,
+  Module,
+  NotFoundException,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { randomInt } from 'crypto';
+import { Repository } from 'typeorm';
 import { AuthUser } from '../auth/auth.service';
+import { AuditService } from '../audit/audit.service';
 import { CurrentUser } from '../common/auth.guard';
+import { isoDateTime } from '../common/dates';
 import { makeDjangoPassword } from '../common/django-password';
-import { ROLE_LABELS, ROLES, Role, roleFlags } from '../common/domain';
-import { DepartmentEntity, ENTITIES, UserEntity, UserProfileEntity } from '../database/entities';
+import { ROLES, ROLE_LABELS, Role, normalizeRole } from '../common/domain';
+import { DepartmentEntity, UserEntity } from '../database/entities';
 
-class UserDto {
-  @IsString() @MinLength(3) @MaxLength(150) username: string;
-  @IsString() @MaxLength(150) firstName: string;
-  @IsOptional() @IsString() @MaxLength(150) lastName?: string;
-  /** عند الإنشاء إلزامية؛ عند التعديل تُترك فارغة للإبقاء على الحالية. */
-  @IsOptional() @IsString() @MinLength(6) @MaxLength(128) password?: string;
-  @IsIn(ROLES) role: string;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) departmentId?: number;
-  @IsOptional() @IsString() @MaxLength(120) jobTitle?: string;
-  @IsOptional() @IsString() @MaxLength(20) phone?: string;
-  @IsOptional() @IsBoolean() isActive?: boolean;
+const DEPT_ROLES: string[] = [Role.DEPARTMENT_MANAGER, Role.DEPARTMENT_OFFICIAL];
+
+/** كلمة مرور مؤقتة مقروءة: حروف وأرقام بلا أحرف ملتبسة. */
+export function temporaryPassword(): string {
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const all = letters + digits;
+  const chars = [letters[randomInt(letters.length)], digits[randomInt(digits.length)]];
+  while (chars.length < 10) chars.push(all[randomInt(all.length)]);
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
 }
 
 @Injectable()
 export class UsersService {
   constructor(
-    private readonly ds: DataSource,
+    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
+    @InjectRepository(DepartmentEntity) private readonly departments: Repository<DepartmentEntity>,
+    private readonly audit: AuditService,
   ) {}
 
   async list(q?: string, role?: string) {
-    const qb = this.ds
-      .getRepository(UserEntity)
-      .createQueryBuilder('u')
-      .leftJoinAndSelect('u.profile', 'p')
-      .leftJoinAndSelect('p.department', 'd')
-      .orderBy('u.username', 'ASC');
-    if (q?.trim()) qb.andWhere('(u.username LIKE :q OR u.firstName LIKE :q OR u.lastName LIKE :q)', { q: `%${q.trim()}%` });
-    if (role) qb.andWhere('p.role = :role', { role });
-    const users = await qb.getMany();
-    return users.map((u) => this.toRow(u));
+    const qb = this.users.createQueryBuilder('u').orderBy('u.username', 'ASC');
+    if (q?.trim()) qb.andWhere('(u.username LIKE :q OR u.fullName LIKE :q OR u.email LIKE :q)', { q: `%${q.trim()}%` });
+    if (role) qb.andWhere('u.role = :role', { role });
+    const rows = await qb.getMany();
+    const depts = new Map((await this.departments.find()).map((d) => [d.id, d.name]));
+    return rows.map((u) => this.row(u, depts));
   }
 
-  async create(dto: UserDto, actor: AuthUser) {
-    this.requireAdmin(actor);
-    if (!dto.password) throw new BadRequestException('كلمة المرور مطلوبة.');
-    if (dto.role === Role.PURCHASING_HEAD && !dto.departmentId) throw new BadRequestException('مسؤول الإدارة يجب ربطه بقسم.');
-    const username = dto.username.trim();
-    const repo = this.ds.getRepository(UserEntity);
-    if (await repo.createQueryBuilder('u').where('LOWER(u.username) = LOWER(:u)', { u: username }).getExists()) {
-      throw new BadRequestException('اسم المستخدم مستخدم مسبقاً.');
-    }
-
-    return this.ds.transaction(async (m) => {
-      const isAdmin = dto.role === Role.ADMIN;
-      const user = await m.save(
-        m.create(UserEntity, {
-          username,
-          password: makeDjangoPassword(dto.password!),
-          firstName: dto.firstName ?? '',
-          lastName: dto.lastName ?? '',
-          email: '',
-          isActive: dto.isActive ?? true,
-          isStaff: isAdmin,
-          isSuperuser: isAdmin,
-          dateJoined: new Date(),
-          lastLogin: null,
-        }),
-      );
-      await m.save(
-        m.create(UserProfileEntity, {
-          userId: user.id,
-          role: dto.role,
-          departmentId: dto.departmentId ?? null,
-          jobTitle: dto.jobTitle ?? '',
-          phone: dto.phone ?? '',
-        }),
-      );
-      return this.getOne(user.id);
-    });
+  async create(actor: AuthUser, body: Record<string, unknown>) {
+    const data = await this.validate(body, null);
+    const password = temporaryPassword();
+    const user = await this.users.save(
+      this.users.create({
+        ...data,
+        passwordHash: makeDjangoPassword(password),
+        isActive: body.isActive === false ? false : true,
+        mustChangePassword: true,
+        failedAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: null,
+        createdAt: new Date(),
+      }),
+    );
+    await this.audit.log({ user: actor, action: 'إنشاء مستخدم', entity: 'user', after: this.safe(user) });
+    return { user: await this.one(user.id), temporaryPassword: password };
   }
 
-  async update(id: number, dto: UserDto, actor: AuthUser) {
-    this.requireAdmin(actor);
-    const target = await this.ds.getRepository(UserEntity).findOne({ where: { id }, relations: { profile: true } });
+  async update(actor: AuthUser, id: number, body: Record<string, unknown>) {
+    const target = await this.users.findOne({ where: { id } });
     if (!target) throw new NotFoundException('المستخدم غير موجود.');
-    if (dto.role === Role.PURCHASING_HEAD && !dto.departmentId) throw new BadRequestException('مسؤول الإدارة يجب ربطه بقسم.');
-    if (actor.id === id && dto.isActive === false) throw new BadRequestException('لا يمكنك تعطيل حسابك أثناء الجلسة.');
+    const before = this.safe(target);
+    const data = await this.validate({ ...body, role: body.role ?? target.role }, target);
+    const active = body.isActive === undefined ? target.isActive : Boolean(body.isActive);
 
-    const wasAdmin = target.profile?.role === Role.ADMIN;
-    const remainsAdmin = dto.role === Role.ADMIN && (dto.isActive ?? true);
-    if (wasAdmin && !remainsAdmin) {
-      const otherAdmins = await this.ds
-        .getRepository(UserEntity)
+    if (actor.id === id && !active) throw this.err('isActive', 'لا يمكنك تعطيل حسابك.');
+    const wasAdmin = normalizeRole(target.role) === Role.SYSTEM_ADMIN && target.isActive;
+    const staysAdmin = data.role === Role.SYSTEM_ADMIN && active;
+    if (wasAdmin && !staysAdmin) {
+      const others = await this.users
         .createQueryBuilder('u')
-        .innerJoin('u.profile', 'p')
-        .where('u.isActive = :a AND p.role = :r AND u.id <> :id', { a: true, r: Role.ADMIN, id })
+        .where('u.role = :r AND u.isActive = :a AND u.id <> :id', { r: Role.SYSTEM_ADMIN, a: true, id })
         .getCount();
-      if (!otherAdmins) throw new BadRequestException('لا يمكن تعطيل أو تنزيل آخر مدير نظام نشط.');
+      if (!others) throw this.err('role', 'لا يمكن تعطيل أو تنزيل آخر مسؤول نظام نشط.');
     }
 
-    const username = dto.username.trim();
-    const clash = await this.ds
-      .getRepository(UserEntity)
-      .createQueryBuilder('u')
-      .where('LOWER(u.username) = LOWER(:u) AND u.id <> :id', { u: username, id })
-      .getExists();
-    if (clash) throw new BadRequestException('اسم المستخدم مستخدم مسبقاً.');
-
-    await this.ds.transaction(async (m) => {
-      const isAdmin = dto.role === Role.ADMIN;
-      Object.assign(target, {
-        username,
-        firstName: dto.firstName ?? '',
-        lastName: dto.lastName ?? '',
-        isActive: dto.isActive ?? true,
-        isStaff: isAdmin,
-        isSuperuser: isAdmin,
-      });
-      if (dto.password) target.password = makeDjangoPassword(dto.password);
-      await m.save(target);
-
-      const profile = (await m.findOne(UserProfileEntity, { where: { userId: id } })) ?? m.create(UserProfileEntity, { userId: id });
-      Object.assign(profile, {
-        role: dto.role,
-        departmentId: dto.departmentId ?? null,
-        jobTitle: dto.jobTitle ?? '',
-        phone: dto.phone ?? '',
-      });
-      await m.save(profile);
-    });
-    return this.getOne(id);
+    Object.assign(target, data, { isActive: active });
+    await this.users.save(target);
+    await this.audit.log({ user: actor, action: 'تعديل مستخدم', entity: 'user', before, after: this.safe(target) });
+    return this.one(id);
   }
 
-  async departmentsOptions() {
-    return this.ds.getRepository(DepartmentEntity).find({ where: { isActive: true }, order: { name: 'ASC' } });
+  async resetPassword(actor: AuthUser, id: number) {
+    const target = await this.users.findOne({ where: { id } });
+    if (!target) throw new NotFoundException('المستخدم غير موجود.');
+    const password = temporaryPassword();
+    target.passwordHash = makeDjangoPassword(password);
+    target.mustChangePassword = true;
+    target.failedAttempts = 0;
+    target.lockedUntil = null;
+    await this.users.save(target);
+    await this.audit.log({ user: actor, action: 'إعادة تعيين كلمة المرور', entity: 'user', note: target.username });
+    return { temporaryPassword: password };
   }
 
-  private requireAdmin(actor: AuthUser) {
-    if (!roleFlags(actor.role).canManageUsers) throw new ForbiddenException('إدارة المستخدمين مقصورة على مدير النظام.');
+  private async validate(body: Record<string, unknown>, existing: UserEntity | null) {
+    const errors: Record<string, string> = {};
+    const username = String(body.username ?? existing?.username ?? '').trim();
+    const fullName = String(body.fullName ?? '').trim();
+    const emailRaw = String(body.email ?? '').trim();
+    const role = normalizeRole(String(body.role ?? ''));
+    const departmentId = body.departmentId ? Number(body.departmentId) : null;
+
+    if (username.length < 3) errors.username = 'اسم المستخدم 3 أحرف على الأقل.';
+    if (!fullName) errors.fullName = 'الاسم الكامل مطلوب.';
+    if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) errors.email = 'البريد الإلكتروني غير صالح.';
+    if (!ROLES.includes(role)) errors.role = 'اختر دوراً صحيحاً.';
+    if (DEPT_ROLES.includes(role) && !departmentId) errors.departmentId = 'القسم إلزامي لمدير ومسؤول القسم.';
+    if (departmentId) {
+      const dept = await this.departments.findOne({ where: { id: departmentId } });
+      if (!dept) errors.departmentId = 'القسم غير موجود.';
+    }
+    if (!errors.username) {
+      const clash = await this.users
+        .createQueryBuilder('u')
+        .where('LOWER(u.username) = LOWER(:u)', { u: username })
+        .andWhere(existing ? 'u.id <> :id' : '1=1', { id: existing?.id })
+        .getExists();
+      if (clash) errors.username = 'اسم المستخدم مستخدم مسبقاً.';
+    }
+    if (Object.keys(errors).length) throw new BadRequestException({ message: 'تحقق من الحقول المعلّمة.', errors });
+    return { username, fullName, email: emailRaw || null, role, departmentId: DEPT_ROLES.includes(role) ? departmentId : null };
   }
 
-  private async getOne(id: number) {
-    const u = await this.ds.getRepository(UserEntity).findOne({ where: { id }, relations: { profile: { department: true } } });
-    return this.toRow(u!);
+  private err(field: string, message: string) {
+    return new BadRequestException({ message, errors: { [field]: message } });
   }
 
-  private toRow(u: UserEntity) {
-    const role = u.profile?.role ?? '';
+  private async one(id: number) {
+    const u = await this.users.findOne({ where: { id } });
+    const depts = new Map((await this.departments.find()).map((d) => [d.id, d.name]));
+    return this.row(u!, depts);
+  }
+
+  private safe(u: UserEntity) {
+    return { username: u.username, fullName: u.fullName, email: u.email, role: u.role, departmentId: u.departmentId, isActive: u.isActive };
+  }
+
+  private row(u: UserEntity, depts: Map<number, string>) {
+    const role = normalizeRole(u.role);
     return {
       id: u.id,
       username: u.username,
-      firstName: u.firstName,
-      lastName: u.lastName,
-      fullName: `${u.firstName} ${u.lastName}`.trim() || u.username,
+      fullName: u.fullName,
+      email: u.email,
       role,
       roleLabel: ROLE_LABELS[role] ?? role,
-      departmentId: u.profile?.departmentId ?? null,
-      departmentName: u.profile?.department?.name ?? null,
-      jobTitle: u.profile?.jobTitle ?? '',
-      phone: u.profile?.phone ?? '',
+      departmentId: u.departmentId,
+      departmentName: u.departmentId ? depts.get(u.departmentId) ?? null : null,
       isActive: u.isActive,
-      lastLogin: u.lastLogin,
+      mustChangePassword: u.mustChangePassword,
+      lockedUntil: isoDateTime(u.lockedUntil),
+      lastLoginAt: isoDateTime(u.lastLoginAt),
     };
   }
 }
@@ -169,30 +179,36 @@ export class UsersService {
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
+  private admin(user: AuthUser) {
+    if (!user.caps.canManageUsers) throw new ForbiddenException('إدارة المستخدمين مقصورة على مسؤول النظام.');
+  }
+
   @Get()
   list(@CurrentUser() user: AuthUser, @Query('q') q?: string, @Query('role') role?: string) {
-    if (!user.canManageUsers) throw new ForbiddenException('إدارة المستخدمين مقصورة على مدير النظام.');
+    this.admin(user);
     return this.users.list(q, role);
   }
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() dto: UserDto) {
-    return this.users.create(dto, user);
+  create(@CurrentUser() user: AuthUser, @Body() body: Record<string, unknown>) {
+    this.admin(user);
+    return this.users.create(user, body);
   }
 
   @Patch(':id')
-  update(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() dto: UserDto) {
-    return this.users.update(id, dto, user);
+  update(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() body: Record<string, unknown>) {
+    this.admin(user);
+    return this.users.update(user, id, body);
   }
 
-  @Get('departments')
-  departments() {
-    return this.users.departmentsOptions();
+  @Post(':id/reset-password')
+  reset(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    this.admin(user);
+    return this.users.resetPassword(user, id);
   }
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature(ENTITIES)],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService],

@@ -1,69 +1,68 @@
 'use client';
 
 import Link from 'next/link';
-import { useAudit } from '@/controllers/useAdmin';
+import { useMemo, useState } from 'react';
+import { useApi } from '@/controllers/useApi';
 import { Empty, ErrorBox, Loading, PageHead, Panel, fmtDateTime } from '../ui';
 
-/** سجل التدقيق: للقراءة فقط، مع فلاتر بالعقد والتاريخ. */
+interface Entry {
+  id: number;
+  contractId: number | null;
+  contractNumber: string | null;
+  userName: string;
+  userRole: string;
+  action: string;
+  entity: string;
+  before: unknown;
+  after: unknown;
+  note: string;
+  createdAt: string;
+}
+
+const short = (v: unknown) => (v == null ? '' : JSON.stringify(v));
+
+/** سجل التدقيق (إضافة فقط): من فعل ماذا ومتى، مع القيمة القديمة والجديدة. */
 export function AuditView() {
-  const { rows, loading, error, filters, setFilters } = useAudit();
+  const [f, setF] = useState({ userName: '', action: '', from: '', to: '', contractId: '' });
+  const qs = useMemo(() => {
+    const p = new URLSearchParams();
+    Object.entries(f).forEach(([k, v]) => v && p.set(k, v));
+    return p.toString();
+  }, [f]);
+  const { data, loading, error } = useApi<Entry[]>(`/audit${qs ? `?${qs}` : ''}`);
+  const set = (k: keyof typeof f, v: string) => setF((s) => ({ ...s, [k]: v }));
 
   return (
     <>
-      <PageHead title="سجل التدقيق" subtitle="كل إجراء مسجّل بالمستخدم والدور والتغيير والملاحظة" />
-
+      <PageHead title="سجل التدقيق" subtitle="لا يُعدَّل ولا يُحذف" />
       <Panel>
-        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-          <input
-            className="input ltr"
-            placeholder="رقم العقد (المعرّف)"
-            value={filters.contractId}
-            onChange={(e) => setFilters({ ...filters, contractId: e.target.value.replace(/\D/g, '') })}
-            aria-label="معرّف العقد"
-          />
-          <input className="input" type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} aria-label="من تاريخ" />
-          <input className="input" type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} aria-label="إلى تاريخ" />
+        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))' }}>
+          <input className="input" placeholder="المستخدم" value={f.userName} onChange={(e) => set('userName', e.target.value)} />
+          <input className="input" placeholder="الإجراء" value={f.action} onChange={(e) => set('action', e.target.value)} />
+          <input className="input ltr" type="date" value={f.from} onChange={(e) => set('from', e.target.value)} aria-label="من" />
+          <input className="input ltr" type="date" value={f.to} onChange={(e) => set('to', e.target.value)} aria-label="إلى" />
+          <input className="input ltr" placeholder="معرّف العقد" value={f.contractId} onChange={(e) => set('contractId', e.target.value)} />
         </div>
       </Panel>
-
       {error && <ErrorBox>{error}</ErrorBox>}
-      {loading ? (
-        <Loading />
-      ) : rows.length === 0 ? (
-        <Empty>لا توجد سجلات تطابق الفلاتر.</Empty>
-      ) : (
+      {loading && !data && <Loading />}
+      {data && data.length === 0 && <Empty>لا سجلات.</Empty>}
+      {data && data.length > 0 && (
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr>
-                <th>الوقت</th>
-                <th>العقد</th>
-                <th>المستخدم</th>
-                <th>الإجراء</th>
-                <th>التغيير</th>
-                <th>التفاصيل</th>
-              </tr>
+              <tr><th>الوقت</th><th>المستخدم</th><th>الإجراء</th><th>العقد</th><th>قبل</th><th>بعد</th><th>ملاحظة</th></tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>{fmtDateTime(r.createdAt)}</td>
-                  <td>
-                    {r.contractId ? (
-                      <Link href={`/contracts/${r.contractId}`}>
-                        <span className="ltr">{r.contractNumber}</span>
-                      </Link>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    {r.actor ?? '—'}
-                    <div className="muted" style={{ fontSize: 12 }}>{r.actorRole ?? ''}</div>
-                  </td>
-                  <td>{r.action}</td>
-                  <td>{r.fromStatusLabel || r.toStatusLabel ? `${r.fromStatusLabel || '—'} ← ${r.toStatusLabel || '—'}` : '—'}</td>
-                  <td className="muted">{Object.entries(r.details).map(([k, v]) => `${k}: ${String(v)}`).join(' · ') || '—'}</td>
+              {data.map((a) => (
+                <tr key={a.id}>
+                  <td>{fmtDateTime(a.createdAt)}</td>
+                  <td>{a.userName}</td>
+                  <td>{a.action}</td>
+                  <td>{a.contractId ? <Link className="ltr" href={`/contracts/${a.contractId}`}>{a.contractNumber}</Link> : '—'}</td>
+                  <td className="ltr" style={{ maxWidth: 220, overflowWrap: 'anywhere', fontSize: 12 }}>{short(a.before)}</td>
+                  <td className="ltr" style={{ maxWidth: 220, overflowWrap: 'anywhere', fontSize: 12 }}>{short(a.after)}</td>
+                  <td>{a.note}</td>
                 </tr>
               ))}
             </tbody>

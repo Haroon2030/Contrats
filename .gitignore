@@ -11,3 +11,8 @@ staticfiles/
 _prior_extract/
 _extract_prior.py
 *.log
+
+backend/data/
+backend/dist/
+node_modules/
+.next/

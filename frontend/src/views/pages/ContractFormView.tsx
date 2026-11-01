@@ -1,293 +1,360 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { useContractDetail } from '@/controllers/useContractDetail';
-import { useContractForm } from '@/controllers/useContractForm';
+import { useEffect, useState } from 'react';
+import { useSession } from '@/controllers/session';
 import { useToast } from '@/controllers/toast';
-import { CONTRACT_TYPES, SUPPLY_SUBTYPES } from '@/models/labels';
-import type { ContractDetail, ContractFormValues } from '@/models/types';
+import { errorText, useApi } from '@/controllers/useApi';
+import { api, ApiError } from '@/models/api';
+import { ACCOUNT_DOCS, TYPE_OPTIONS } from '@/models/labels';
+import type { ContractType, Json, Options } from '@/models/types';
 import { Button, ErrorBox, Field, Loading, PageHead, Panel } from '../ui';
 
-/**
- * إنشاء عقد جديد، أو تعديل مسودة موجودة (contractId).
- * الحفظ كمسودة أو إرسال مباشر للمسار. الأخطاء تظهر بجانب الحقول.
- */
-export function ContractFormView({ contractId }: { contractId?: number }) {
-  const router = useRouter();
-  if (!contractId) return <Form onDone={(id) => router.push(`/contracts/${id}`)} />;
-  return <EditFormView contractId={contractId} />;
-}
+const blankForm = (): Json => ({
+  vendorId: '',
+  departmentId: '',
+  entryPath: 'new',
+  types: [] as ContractType[],
+  repName: '',
+  repTitle: '',
+  repMobile: '',
+  startDate: '',
+  endDate: '',
+  specialTerms: '',
+  supply: { paymentDays: '', settlementDiscountPct: '', fixedDiscountPct: '', goalLines: [] },
+  rentLines: [],
+  marketingLines: [],
+  addItem: { price: '' },
+  openAccount: { creditLimit: '' },
+});
 
-function EditFormView({ contractId }: { contractId: number }) {
-  const router = useRouter();
-  const existing = useContractDetail(contractId);
-  if (existing.loading) return <Loading />;
-  if (existing.error || !existing.contract) return <ErrorBox>{existing.error ?? 'تعذّر تحميل المسودة.'}</ErrorBox>;
-  if (existing.contract.status !== 'draft') return <ErrorBox>لا يمكن تعديل عقد خرج من حالة المسودة.</ErrorBox>;
-  return <Form contractId={contractId} initial={fromDetail(existing.contract)} onDone={(id) => router.push(`/contracts/${id}`)} />;
-}
+/** يحوّل null إلى '' كي تبقى حقول الإدخال متحكَّماً بها. */
+const normalize = (f: Json): Json => {
+  const base = blankForm();
+  return {
+    ...base,
+    ...f,
+    vendorId: f.vendorId ?? '',
+    departmentId: f.departmentId ?? '',
+    endDate: f.endDate ?? '',
+    startDate: f.startDate ?? '',
+    supply: { ...base.supply, ...(f.supply ?? {}) },
+    addItem: { ...base.addItem, ...(f.addItem ?? {}) },
+    openAccount: { ...base.openAccount, ...(f.openAccount ?? {}) },
+  };
+};
 
-function Form({
-  contractId,
-  initial,
-  onDone,
-}: {
-  contractId?: number;
-  initial?: Partial<ContractFormValues>;
-  onDone: (id: number) => void;
-}) {
+/** نموذج العقد: أنواع متعددة بحقول مشتركة وأقسام لكل نوع. يحفظ كمسودة أو يرسل مباشرة. */
+export function ContractFormView({ contractId, pending }: { contractId?: number; pending?: boolean }) {
+  const router = useRouter();
   const toast = useToast();
-  const { form, options, preview, fieldErrors, formError, saving, save } = useContractForm(initial);
-  const v = form.values;
-  const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const { user } = useSession();
+  const opts = useApi<Options>('/reference/options').data;
+  const existing = useApi<Json>(contractId ? `/contracts/${contractId}/form` : null);
+  const detail = useApi<Json>(contractId ? `/contracts/${contractId}` : null);
 
-  const submit = async (mode: 'draft' | 'submit') => {
-    const res = await save(mode, contractId);
-    if (res) {
-      toast.success(mode === 'submit' ? 'أُرسل العقد إلى مسار الاعتماد.' : 'حُفظت المسودة.');
-      onDone(res.id);
-    } else {
-      toast.error('راجع الحقول المعلّمة قبل الحفظ.');
+  const [f, setF] = useState<Json>(blankForm);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<Record<string, File | null>>({});
+  const [loaded, setLoaded] = useState(!contractId);
+
+  useEffect(() => {
+    if (existing.data && !loaded) {
+      setF(normalize(existing.data));
+      setLoaded(true);
+    }
+  }, [existing.data, loaded]);
+
+  useEffect(() => {
+    if (!contractId && user && !user.caps.createAnyDepartment && user.departmentId) {
+      setF((s: Json) => ({ ...s, departmentId: user.departmentId }));
+    }
+  }, [contractId, user]);
+
+  const set = (patch: Json) => setF((s: Json) => ({ ...s, ...patch }));
+  const setIn = (key: string, patch: Json) => setF((s: Json) => ({ ...s, [key]: { ...s[key], ...patch } }));
+  const err = (k: string) => errors[k];
+  const has = (t: ContractType) => f.types.includes(t);
+  const openAccount = has('open_account');
+  const rentOnly = f.types.length > 0 && f.types.every((t: string) => t === 'rent');
+  const servicesOnly = f.types.length > 0 && f.types.every((t: string) => t === 'add_item' || t === 'open_account');
+
+  const toggleType = (t: ContractType) => {
+    setF((s: Json) => {
+      let types: ContractType[] = s.types.includes(t) ? s.types.filter((x: string) => x !== t) : [...s.types, t];
+      if (t === 'open_account' && !s.types.includes(t)) types = ['open_account'];
+      else if (t !== 'open_account') types = types.filter((x) => x !== 'open_account');
+      return { ...s, types };
+    });
+  };
+
+  const onVendor = async (id: string) => {
+    set({ vendorId: id });
+    if (!id || f.repName) return;
+    try {
+      const rep = await api.get<{ repName?: string; repTitle?: string; repMobile?: string } | null>(`/contracts/vendor/${id}/last-rep`);
+      if (rep?.repName) set({ repName: rep.repName, repTitle: rep.repTitle ?? '', repMobile: rep.repMobile ?? '' });
+    } catch {
+      /* لا ممثل سابق */
     }
   };
 
-  const isSupply = v.contractType === 'supply';
-  const isShelf = v.contractType === 'shelf_rent';
-  const isServices = v.contractType === 'services';
+  const payload = () => ({
+    ...f,
+    vendorId: Number(f.vendorId) || null,
+    departmentId: Number(f.departmentId) || null,
+    endDate: f.endDate || null,
+    startDate: f.startDate || null,
+  });
+
+  const save = async (andSend: boolean) => {
+    setBusy(true);
+    setErrors({});
+    setMessage(null);
+    let id = contractId;
+    try {
+      const saved = contractId ? await api.put<Json>(pending ? `/contracts/${contractId}/actions/edit-pending` : `/contracts/${contractId}`, payload()) : await api.post<Json>('/contracts', payload());
+      id = saved.id;
+      for (const [kind, file] of Object.entries(files)) {
+        if (!file) continue;
+        const form = new FormData();
+        form.append('kind', kind);
+        form.append('file', file);
+        await api.upload(`/contracts/${id}/attachments`, form);
+      }
+      if (andSend && !pending) {
+        await api.post(`/contracts/${id}/actions/send`);
+        toast.success('أُرسل العقد للمراجعة وخُصص رقمه.');
+      } else {
+        toast.success(pending ? 'حُفظ التعديل.' : 'حُفظت المسودة.');
+      }
+      router.push(`/contracts/${id}`);
+    } catch (e) {
+      if (e instanceof ApiError) {
+        setErrors(e.fields);
+        setMessage(e.message);
+      } else setMessage(errorText(e));
+      // المسودة حُفظت قبل فشل الإرسال: ننتقل إلى وضع التعديل كي لا تتكرر.
+      if (!contractId && id) router.replace(`/contracts/${id}/edit`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!opts || !loaded) return <Loading />;
+  if (existing.error) return <ErrorBox>{existing.error}</ErrorBox>;
+
+  const uploaded = (kind: string) => (detail.data?.attachments ?? []).some((a: Json) => a.kind === kind);
+  const fileField = (kind: string, label: string, required = false) => (
+    <Field label={`${label}${required ? ' *' : ''}`} error={err('files') && !uploaded(kind) && !files[kind] ? 'مطلوب' : undefined}>
+      <div className="file-row">
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFiles((s) => ({ ...s, [kind]: e.target.files?.[0] ?? null }))} />
+        {uploaded(kind) && !files[kind] && <span className="badge ok">مرفوع</span>}
+      </div>
+    </Field>
+  );
+
+  const goalLines: Json[] = f.supply.goalLines;
+  const setGoal = (i: number, patch: Json) => setIn('supply', { goalLines: goalLines.map((g, j) => (j === i ? { ...g, ...patch } : g)) });
+  const setList = (key: 'rentLines' | 'marketingLines', i: number, patch: Json) => set({ [key]: f[key].map((l: Json, j: number) => (j === i ? { ...l, ...patch } : l)) });
+  const drop = (key: string, i: number) => set({ [key]: f[key].filter((_: Json, j: number) => j !== i) });
 
   return (
     <>
-      <nav className="muted" style={{ fontSize: 13 }}>
-        <Link href="/contracts">سجل العقود</Link> / {contractId ? 'تعديل المسودة' : 'عقد جديد'}
-      </nav>
-      <PageHead
-        title={contractId ? 'تعديل المسودة' : 'إنشاء عقد'}
-        subtitle="يُخصَّص رقم العقد عند الحفظ — بصيغة رقم المورد-تسلسل."
-      />
+      <PageHead title={pending ? 'تعديل عقد بانتظار التوقيع' : contractId ? 'تعديل المسودة' : 'إنشاء عقد'} subtitle="الأقسام تظهر حسب أنواع العقد المختارة" />
+      {message && <ErrorBox>{message}</ErrorBox>}
 
-      {formError && <ErrorBox>{formError}</ErrorBox>}
+      <Panel title="مسار الإدخال">
+        <div className="chips">
+          {[['new', 'عقد جديد (يُولَّد من النظام)'], ['ready', 'عقد جاهز (ملف موقّع)']].map(([v, l]) => (
+            <label key={v} className={`chip ${f.entryPath === v ? 'on' : ''}`}>
+              <input type="radio" name="path" checked={f.entryPath === v} onChange={() => set({ entryPath: v })} />
+              {l}
+            </label>
+          ))}
+        </div>
+      </Panel>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 20, alignItems: 'start' }} className="form-layout">
-        <div className="stack">
-          <Panel title="بيانات العقد">
-            <div className="form-grid">
-              <Field label="نوع العقد" error={fieldErrors.contractType}>
-                <select className="select" value={v.contractType} onChange={(e) => form.set('contractType', e.target.value as ContractFormValues['contractType'])}>
-                  {CONTRACT_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              {isSupply && (
-                <Field label="النوع الفرعي" error={fieldErrors.subtype}>
-                  <select className="select" value={v.subtype} onChange={(e) => form.set('subtype', e.target.value)}>
-                    {SUPPLY_SUBTYPES.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-
-              {isServices && (
-                <Field label="النوع الفرعي" hint="«فتح حساب» عقد مستقل ويتطلب 5 مستندات.">
-                  <select className="select" value={v.subtype} onChange={(e) => form.set('subtype', e.target.value)}>
-                    <option value="">خدمة عامة</option>
-                    <option value="account_opening">فتح حساب</option>
-                  </select>
-                </Field>
-              )}
-
-              <Field label="المورد" error={fieldErrors.vendorId}>
-                <select className="select" value={v.vendorId} onChange={(e) => form.set('vendorId', e.target.value ? Number(e.target.value) : '')}>
-                  <option value="">اختر المورد</option>
-                  {options?.vendors.map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.vendorNumber} — {x.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="القسم المسؤول" error={fieldErrors.departmentId}>
-                <select className="select" value={v.departmentId} onChange={(e) => form.set('departmentId', e.target.value ? Number(e.target.value) : '')}>
-                  <option value="">اختر القسم</option>
-                  {options?.departments.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="تاريخ البدء" error={fieldErrors.startDate}>
-                <input className="input" type="date" value={v.startDate} onChange={(e) => form.set('startDate', e.target.value)} />
-              </Field>
-
-              <Field label="تاريخ الانتهاء" error={fieldErrors.endDate} hint="أقصى مدة سنة واحدة، ولا تجديد تلقائي.">
-                <input className="input" type="date" value={v.endDate} onChange={(e) => form.set('endDate', e.target.value)} />
-              </Field>
-
-              <Field label="القيمة الفعلية (ر.س)" error={fieldErrors.actualValue} hint="أكثر من 15,000 ر.س يُحال لإدارة العقود.">
-                <input className="input" type="number" min="0" step="0.01" value={v.actualValue} onChange={(e) => form.set('actualValue', e.target.value)} />
-              </Field>
-
-              <Field label="التصنيف الداخلي">
-                <input className="input" value={v.internalClassification} onChange={(e) => form.set('internalClassification', e.target.value)} />
-              </Field>
-
-              <Field label="مدير المشتريات المسؤول">
-                <select className="select" value={v.purchasingManagerId} onChange={(e) => form.set('purchasingManagerId', e.target.value ? Number(e.target.value) : '')}>
-                  <option value="">—</option>
-                  {options?.users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} — {u.roleLabel}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="شروط غير معيارية" hint="تُرفع تنبيهاً وتمر على مدير إدارة العقود بعد مدير القسم.">
-                <label className="row" style={{ minHeight: 44 }}>
-                  <input type="checkbox" checked={v.hasNonStandardTerms} onChange={(e) => form.set('hasNonStandardTerms', e.target.checked)} />
-                  <span>يوجد شروط خارج النموذج المعياري</span>
-                </label>
-              </Field>
-
-              <Field label="ملاحظات" span2>
-                <textarea className="textarea" value={v.notes} onChange={(e) => form.set('notes', e.target.value)} />
-              </Field>
-            </div>
-          </Panel>
-
-          {isShelf && (
-            <Panel title="إيجار الأرفف">
-              <div className="form-grid">
-                <Field label="نوع الرف المعياري" error={fieldErrors.shelfRateId}>
-                  <select className="select" value={v.shelfRateId} onChange={(e) => form.set('shelfRateId', e.target.value ? Number(e.target.value) : '')}>
-                    <option value="">اختر النوع</option>
-                    {options?.shelfRates.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} — {s.standardPrice} / {s.unit}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="السعر الفعلي المتفق عليه" hint="إن اختلف عن المعياري يُرفع تنبيه انحراف السعر.">
-                  <input className="input" type="number" min="0" step="0.01" value={v.shelfActualPrice} onChange={(e) => form.set('shelfActualPrice', e.target.value)} />
-                </Field>
-              </div>
-            </Panel>
-          )}
-
-          <Panel
-            title="شرائح الأهداف والخصم"
-            actions={<Button small onClick={form.addTarget}>«أضف شريحة»</Button>}
-          >
-            {v.targets.length === 0 && <div className="muted">لا توجد شرائح. أضف شريحة إن كان للعقد خصم مرتبط بالمشتريات.</div>}
-            <div className="stack" style={{ gap: 12 }}>
-              {v.targets.map((t, i) => (
-                <div key={i} className="form-grid" style={{ gridTemplateColumns: 'minmax(0,2fr) 1fr 1fr auto', alignItems: 'end' }}>
-                  <Field label={`وصف الشريحة ${i + 1}`}>
-                    <input className="input" value={t.title} onChange={(e) => form.setTarget(i, 'title', e.target.value)} />
-                  </Field>
-                  <Field label="قيمة الهدف (ر.س)">
-                    <input className="input" type="number" min="0" value={t.targetValue} onChange={(e) => form.setTarget(i, 'targetValue', e.target.value)} />
-                  </Field>
-                  <Field label="نسبة الخصم %">
-                    <input className="input" type="number" min="0" max="100" step="0.01" value={t.discountPercent} onChange={(e) => form.setTarget(i, 'discountPercent', e.target.value)} />
-                  </Field>
-                  <Button small onClick={() => form.removeTarget(i)} aria-label="احذف الشريحة">
-                    «احذف»
-                  </Button>
-                </div>
+      <Panel title="البيانات الأساسية">
+        <div className="form-grid">
+          <Field label="المورد *" error={err('vendorId')}>
+            <select className="select" value={f.vendorId} onChange={(e) => onVendor(e.target.value)}>
+              <option value="">اختر المورد</option>
+              {opts.vendors.map((v) => (
+                <option key={v.id} value={v.id}>{v.vendorNumber} — {v.name}</option>
               ))}
-            </div>
-          </Panel>
-
-          <div className="notice">
-            أسطر الإيجار الشهرية والفعاليات التسويقية وخطوط الفروع تحتاج جداول إضافية في قاعدة البيانات، وستُضاف مع مرحلة التشغيل.
-          </div>
+            </select>
+          </Field>
+          <Field label="القسم *" error={err('departmentId')}>
+            <select className="select" value={f.departmentId} disabled={!user?.caps.createAnyDepartment} onChange={(e) => set({ departmentId: e.target.value })}>
+              <option value="">اختر القسم</option>
+              {opts.departments.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="اسم الممثل *" error={err('repName')}>
+            <input className="input" value={f.repName} onChange={(e) => set({ repName: e.target.value })} />
+          </Field>
+          <Field label="صفة الممثل *" error={err('repTitle')}>
+            <input className="input" value={f.repTitle} onChange={(e) => set({ repTitle: e.target.value })} />
+          </Field>
+          <Field label="جوال الممثل *" error={err('repMobile')} hint="10 أرقام تبدأ بـ 05">
+            <input className="input ltr" inputMode="numeric" value={f.repMobile} onChange={(e) => set({ repMobile: e.target.value })} />
+          </Field>
+          <Field label="تاريخ البداية *" error={err('startDate')}>
+            <input className="input ltr" type="date" value={f.startDate} onChange={(e) => set({ startDate: e.target.value })} />
+          </Field>
+          {!servicesOnly && !rentOnly && (
+            <Field label="تاريخ النهاية *" error={err('endDate')} hint="أقصى مدة للعقد سنة واحدة">
+              <input className="input ltr" type="date" value={f.endDate} onChange={(e) => set({ endDate: e.target.value })} />
+            </Field>
+          )}
+          {rentOnly && <Field label="تاريخ النهاية" hint="يُحسب من آخر فترة إيجار"><input className="input ltr" disabled value="تلقائي" readOnly /></Field>}
         </div>
-
-        <aside className="stack">
-          <Panel title="ملخص">
-            <dl className="info">
-              <div className="info-row">
-                <dt className="muted">المعتمد المتوقع</dt>
-                <dd>{preview.approver}</dd>
-              </div>
-              <div className="info-row">
-                <dt className="muted">السبب</dt>
-                <dd>{preview.reason}</dd>
-              </div>
-            </dl>
-            <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-              المعاينة تقريبية. المعتمد الرسمي يُحسب في الخادم عند الإرسال.
-            </p>
-          </Panel>
-
-          <Panel title="الإجراء">
-            <div className="stack">
-              <Button disabled={saving} onClick={() => submit('draft')}>
-                «احفظ مسودة»
-              </Button>
-              <Button variant="primary" disabled={saving} onClick={() => setConfirmSubmit(true)}>
-                «أرسل للاعتماد»
-              </Button>
-            </div>
-          </Panel>
-        </aside>
-      </div>
-
-      {confirmSubmit && (
-        <div className="modal-backdrop" onClick={() => setConfirmSubmit(false)} role="dialog" aria-modal="true" aria-label="تأكيد الإرسال">
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>إرسال العقد للاعتماد؟</h2>
-            <p className="muted" style={{ margin: 0 }}>
-              بعد الإرسال تُقفل المسودة، ولا يُرسل العقد دون النسخة الأصلية المرفوعة.
-            </p>
-            <div className="row" style={{ justifyContent: 'flex-end' }}>
-              <Button onClick={() => setConfirmSubmit(false)}>«تراجع»</Button>
-              <Button
-                variant="primary"
-                disabled={saving}
-                onClick={async () => {
-                  setConfirmSubmit(false);
-                  await submit('submit');
-                }}
-              >
-                «أرسل للاعتماد»
-              </Button>
-            </div>
-          </div>
+        {err('types') && <div className="field-error">{err('types')}</div>}
+        <h3 className="section-title" style={{ marginTop: 16 }}>أنواع العقد *</h3>
+        <div className="chips">
+          {TYPE_OPTIONS.map((t) => {
+            const blocked = (t.value === 'open_account' && f.types.length > 0 && !openAccount) || (openAccount && t.value !== 'open_account');
+            return (
+              <label key={t.value} className={`chip ${has(t.value) ? 'on' : ''} ${blocked ? 'off' : ''}`} title={t.hint}>
+                <input type="checkbox" checked={has(t.value)} disabled={blocked} onChange={() => toggleType(t.value)} />
+                {t.label}
+              </label>
+            );
+          })}
         </div>
+      </Panel>
+
+      {has('supply') && (
+        <Panel title="التوريد">
+          <div className="form-grid">
+            <Field label="أيام السداد *" error={err('supply.paymentDays')}>
+              <input className="input ltr" type="number" min={0} value={f.supply.paymentDays} onChange={(e) => setIn('supply', { paymentDays: e.target.value })} />
+            </Field>
+            <Field label="خصم التسوية %" error={err('supply.settlementDiscountPct')}>
+              <input className="input ltr" type="number" min={0} max={100} step="0.01" value={f.supply.settlementDiscountPct ?? ''} onChange={(e) => setIn('supply', { settlementDiscountPct: e.target.value })} />
+            </Field>
+            <Field label="الخصم الثابت %" error={err('supply.fixedDiscountPct')}>
+              <input className="input ltr" type="number" min={0} max={100} step="0.01" value={f.supply.fixedDiscountPct ?? ''} onChange={(e) => setIn('supply', { fixedDiscountPct: e.target.value })} />
+            </Field>
+          </div>
+          <h3 className="section-title" style={{ marginTop: 16 }}>أهداف المشتريات (شرائح الخصم)</h3>
+          {goalLines.map((g, i) => (
+            <div className="line-card" key={i}>
+              <Field label="من" error={err(`supply.goalLines.${i}.fromDate`)}><input className="input ltr" type="date" value={g.fromDate ?? ''} onChange={(e) => setGoal(i, { fromDate: e.target.value })} /></Field>
+              <Field label="إلى" error={err(`supply.goalLines.${i}.toDate`)}><input className="input ltr" type="date" value={g.toDate ?? ''} onChange={(e) => setGoal(i, { toDate: e.target.value })} /></Field>
+              <Field label="الهدف (ر.س)" error={err(`supply.goalLines.${i}.target`)}><input className="input ltr" type="number" min={0} value={g.target ?? ''} onChange={(e) => setGoal(i, { target: e.target.value })} /></Field>
+              <Field label="الخصم %" error={err(`supply.goalLines.${i}.discountPct`)}><input className="input ltr" type="number" min={0} max={100} step="0.01" value={g.discountPct ?? ''} onChange={(e) => setGoal(i, { discountPct: e.target.value })} /></Field>
+              <Button small variant="danger" onClick={() => setIn('supply', { goalLines: goalLines.filter((_, j) => j !== i) })}>«احذف»</Button>
+            </div>
+          ))}
+          <Button small onClick={() => setIn('supply', { goalLines: [...goalLines, { fromDate: f.startDate, toDate: f.endDate, target: '', discountPct: '' }] })}>«أضف هدفاً»</Button>
+        </Panel>
       )}
+
+      {has('rent') && (
+        <Panel title="إيجار الأرفف">
+          <p className="muted">الفترة شهرية أو أسبوعية كاملة فقط؛ من 15/01 تنتهي 14/02 لشهر واحد.</p>
+          {f.rentLines.map((l: Json, i: number) => (
+            <div className="line-card" key={i}>
+              <Field label="الفرع" error={err(`rentLines.${i}.branchId`)}>
+                <select className="select" value={l.branchId ?? ''} onChange={(e) => setList('rentLines', i, { branchId: Number(e.target.value) || '' })}>
+                  <option value="">—</option>
+                  {opts.branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </Field>
+              <Field label="نوع الرف" error={err(`rentLines.${i}.shelfTypeId`)}>
+                <select className="select" value={l.shelfTypeId ?? ''} onChange={(e) => setList('rentLines', i, { shelfTypeId: Number(e.target.value) || '' })}>
+                  <option value="">—</option>
+                  {opts.shelfTypes.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </Field>
+              <Field label="العدد" error={err(`rentLines.${i}.qty`)}><input className="input ltr" type="number" min={1} value={l.qty ?? ''} onChange={(e) => setList('rentLines', i, { qty: e.target.value })} /></Field>
+              <Field label="السعر للفترة" error={err(`rentLines.${i}.price`)}><input className="input ltr" type="number" min={0} value={l.price ?? ''} onChange={(e) => setList('rentLines', i, { price: e.target.value })} /></Field>
+              <Field label="الوحدة">
+                <select className="select" value={l.unit ?? 'month'} onChange={(e) => setList('rentLines', i, { unit: e.target.value })}>
+                  <option value="month">شهر</option>
+                  <option value="week">أسبوع</option>
+                </select>
+              </Field>
+              <Field label="من" error={err(`rentLines.${i}.startDate`)}><input className="input ltr" type="date" value={l.startDate ?? ''} onChange={(e) => setList('rentLines', i, { startDate: e.target.value })} /></Field>
+              <Field label="إلى" error={err(`rentLines.${i}.endDate`)}><input className="input ltr" type="date" value={l.endDate ?? ''} onChange={(e) => setList('rentLines', i, { endDate: e.target.value })} /></Field>
+              <Button small variant="danger" onClick={() => drop('rentLines', i)}>«احذف»</Button>
+            </div>
+          ))}
+          <Button small onClick={() => set({ rentLines: [...f.rentLines, { unit: 'month', qty: 1, startDate: f.startDate }] })}>«أضف سطر إيجار»</Button>
+        </Panel>
+      )}
+
+      {has('marketing') && (
+        <Panel title="التسويق">
+          {f.marketingLines.map((l: Json, i: number) => (
+            <div className="line-card" key={i}>
+              <Field label="الفعالية" error={err(`marketingLines.${i}.eventId`)}>
+                <select className="select" value={l.eventId ?? ''} onChange={(e) => setList('marketingLines', i, { eventId: Number(e.target.value) || '' })}>
+                  <option value="">—</option>
+                  {opts.events.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </Field>
+              <Field label="السعر" error={err(`marketingLines.${i}.price`)}><input className="input ltr" type="number" min={0} value={l.price ?? ''} onChange={(e) => setList('marketingLines', i, { price: e.target.value })} /></Field>
+              <Field label={Number(l.price) === 0 && l.price !== '' ? 'ملاحظة (إلزامية مع السعر 0)' : 'ملاحظة'} error={err(`marketingLines.${i}.note`)}>
+                <input className="input" value={l.note ?? ''} onChange={(e) => setList('marketingLines', i, { note: e.target.value })} />
+              </Field>
+              <Button small variant="danger" onClick={() => drop('marketingLines', i)}>«احذف»</Button>
+            </div>
+          ))}
+          <Button small onClick={() => set({ marketingLines: [...f.marketingLines, { price: '', note: '' }] })}>«أضف فعالية»</Button>
+        </Panel>
+      )}
+
+      {has('add_item') && (
+        <Panel title="خدمات — إضافة صنف جديد">
+          <div className="form-grid">
+            <Field label="سعر الصنف الواحد *" error={err('addItem.price')}>
+              <input className="input ltr" type="number" min={0} value={f.addItem.price ?? ''} onChange={(e) => setIn('addItem', { price: e.target.value })} />
+            </Field>
+          </div>
+        </Panel>
+      )}
+
+      {openAccount && (
+        <Panel title="خدمات — فتح حساب (سري)">
+          <div className="form-grid">
+            <Field label="الحد الائتماني *" error={err('openAccount.creditLimit')}>
+              <input className="input ltr" type="number" min={0} value={f.openAccount.creditLimit ?? ''} onChange={(e) => setIn('openAccount', { creditLimit: e.target.value })} />
+            </Field>
+          </div>
+          <h3 className="section-title" style={{ marginTop: 12 }}>المستندات الخمسة (PDF أو صورة، حتى 10MB)</h3>
+          <div className="form-grid">{ACCOUNT_DOCS.map((d) => <div key={d.kind}>{fileField(d.kind, d.label, true)}</div>)}</div>
+        </Panel>
+      )}
+
+      {f.entryPath === 'ready' && (
+        <Panel title="العقد الجاهز">{fileField('ready_signed', 'ملف العقد الموقّع', true)}</Panel>
+      )}
+
+      {!openAccount && (
+        <Panel title="الشروط الخاصة">
+          <p className="muted">أي نص هنا يرفع تنبيهاً آلياً لمدير قسم العقود عند الإرسال في مسار العقد الجديد.</p>
+          <textarea className="textarea" rows={4} value={f.specialTerms} onChange={(e) => set({ specialTerms: e.target.value })} />
+        </Panel>
+      )}
+
+      <div className="row" style={{ marginBottom: 40 }}>
+        {pending ? (
+          <Button variant="primary" onClick={() => save(false)} disabled={busy}>«احفظ التعديل»</Button>
+        ) : (
+          <>
+            <Button variant="primary" onClick={() => save(true)} disabled={busy}>«أرسل للمراجعة»</Button>
+            <Button onClick={() => save(false)} disabled={busy}>«احفظ كمسودة»</Button>
+          </>
+        )}
+        <Button variant="ghost" onClick={() => router.back()}>«تراجع»</Button>
+      </div>
     </>
   );
-}
-
-function fromDetail(c: ContractDetail): Partial<ContractFormValues> {
-  return {
-    contractType: c.contractType,
-    subtype: c.subtype,
-    internalClassification: c.internalClassification,
-    vendorId: c.vendorId,
-    departmentId: c.departmentId,
-    startDate: c.startDate,
-    endDate: c.endDate,
-    actualValue: String(c.actualValue),
-    hasNonStandardTerms: c.hasNonStandardTerms,
-    shelfRateId: c.shelfRate?.id ?? '',
-    shelfActualPrice: c.shelfActualPrice == null ? '' : String(c.shelfActualPrice),
-    purchasingManagerId: c.purchasingManagerId ?? '',
-    notes: c.notes,
-    targets: c.targets.map((t) => ({ title: t.title, targetValue: String(t.targetValue), discountPercent: String(t.discountPercent) })),
-  };
 }

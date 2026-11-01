@@ -5,10 +5,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSession } from '@/controllers/session';
 import { useToast } from '@/controllers/toast';
-import { useDashboard } from '@/controllers/useDashboard';
-import { ALERT_LABELS } from '@/models/labels';
+import { api } from '@/models/api';
+import type { Notification } from '@/models/types';
 import type { SessionUser } from '@/models/types';
-import { Button } from '../ui';
+import { Button, fmtDateTime } from '../ui';
 
 type IconName = 'dashboard' | 'contracts' | 'new' | 'goals' | 'operations' | 'templates' | 'audit' | 'users' | 'reference';
 
@@ -21,14 +21,14 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: '/dashboard', label: 'لوحة التحكم', icon: 'dashboard', visible: () => true },
-  { href: '/contracts', label: 'سجل العقود', icon: 'contracts', visible: () => true },
-  { href: '/contracts/new', label: 'إنشاء عقد', icon: 'new', visible: (u) => u.isContractsStaff },
-  { href: '/goals', label: 'الأهداف والخصومات', icon: 'goals', visible: () => true },
-  { href: '/operations', label: 'التشغيل', icon: 'operations', visible: () => true },
-  { href: '/templates', label: 'القوالب والشروط', icon: 'templates', visible: (u) => u.canManageUsers || u.role === 'contracts_manager' },
-  { href: '/audit', label: 'سجل التدقيق', icon: 'audit', visible: (u) => u.canManageUsers || u.role === 'contracts_manager' },
-  { href: '/users', label: 'المستخدمون', icon: 'users', visible: (u) => u.canManageUsers },
-  { href: '/reference', label: 'القوائم المرجعية', icon: 'reference', visible: (u) => u.canManageUsers },
+  { href: '/contracts', label: 'سجل العقود', icon: 'contracts', visible: (u) => !u.caps.operationsOnly },
+  { href: '/contracts/new', label: 'إنشاء عقد', icon: 'new', visible: (u) => u.caps.canCreate },
+  { href: '/goals', label: 'الأهداف والخصومات', icon: 'goals', visible: (u) => u.caps.canSeeGoals },
+  { href: '/operations', label: 'التشغيل', icon: 'operations', visible: (u) => u.caps.operationsOnly || u.caps.canViewAllDepartments },
+  { href: '/templates', label: 'القوالب والشروط', icon: 'templates', visible: (u) => u.caps.canManageTemplates },
+  { href: '/audit', label: 'سجل التدقيق', icon: 'audit', visible: (u) => u.caps.canViewAudit },
+  { href: '/users', label: 'المستخدمون', icon: 'users', visible: (u) => u.caps.canManageUsers },
+  { href: '/reference', label: 'القوائم والإعدادات', icon: 'reference', visible: (u) => u.caps.canManageRefs },
 ];
 
 /** أيقونات خطية بسيطة (24×24)، تأخذ لون النص من القائمة. */
@@ -105,9 +105,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    else if (user?.mustChangePassword) router.replace('/change-password');
   }, [loading, user, router, pathname]);
 
-  if (loading || !user) {
+  if (loading || !user || user.mustChangePassword) {
     return <div className="empty" style={{ margin: 40 }}>جارٍ التحقق من الجلسة…</div>;
   }
 
@@ -195,11 +196,27 @@ function Search() {
   );
 }
 
-/** الجرس: عدد التنبيهات المفتوحة، والقائمة تعرضها مع رابط للعقد. */
+/** الجرس: إشعارات داخل النظام مع «علّم الكل كمقروء». */
 function Notifications() {
-  const { alerts, criticalCount } = useDashboard();
+  const [state, setState] = useState<{ unread: number; items: Notification[] }>({ unread: 0, items: [] });
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api
+        .get<{ unread: number; items: Notification[] }>('/notifications')
+        .then((r) => alive && setState(r))
+        .catch(() => undefined);
+    load();
+    const t = setInterval(load, 60000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -210,28 +227,40 @@ function Notifications() {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
+  const readAll = async () => setState(await api.post('/notifications/read-all'));
+  const openItem = (n: Notification) => {
+    setOpen(false);
+    if (!n.read) api.post<typeof state>(`/notifications/${n.id}/read`).then(setState).catch(() => undefined);
+    if (n.contractId) router.push(`/contracts/${n.contractId}`);
+  };
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="bell" aria-label={`الإشعارات: ${alerts.length}`} onClick={() => setOpen((o) => !o)}>
+      <button className="bell" aria-label={`الإشعارات: ${state.unread}`} onClick={() => setOpen((o) => !o)}>
         🔔
-        {alerts.length > 0 && <span className="count">{alerts.length}</span>}
+        {state.unread > 0 && <span className="count">{state.unread}</span>}
       </button>
       {open && (
         <div className="dropdown" role="menu">
-          {alerts.length === 0 && <div className="notice" style={{ border: 0 }}>لا توجد تنبيهات مفتوحة.</div>}
-          {alerts.map((a) => (
-            <Link key={a.id} href={`/contracts/${a.contractId}`} onClick={() => setOpen(false)}>
-              <div className="row" style={{ justifyContent: 'space-between' }}>
-                <strong className="ltr">{a.contractNumber}</strong>
-                <span className={`badge ${a.severity === 'critical' ? 'danger' : a.severity === 'warning' ? 'accent' : 'neutral'}`}>
-                  {a.severity === 'critical' ? 'حرج' : a.severity === 'warning' ? 'تحذير' : 'معلومة'}
-                </span>
+          <div className="row" style={{ padding: '8px 14px' }}>
+            <strong>الإشعارات</strong>
+            <span className="spacer" />
+            {state.unread > 0 && (
+              <button className="btn ghost small" onClick={readAll}>
+                علّم الكل كمقروء
+              </button>
+            )}
+          </div>
+          {state.items.length === 0 && <div className="notice" style={{ border: 0 }}>لا توجد إشعارات.</div>}
+          {state.items.map((n) => (
+            <button key={n.id} className="item" style={{ width: '100%', textAlign: 'start', background: 'none', border: 0, cursor: 'pointer' }} onClick={() => openItem(n)}>
+              <div style={{ fontSize: 13.5, fontWeight: n.read ? 400 : 700 }}>
+                {!n.read && <span className="unread-dot" />}
+                {n.text}
               </div>
-              <div style={{ fontSize: 13 }}>{a.message}</div>
-              <div className="muted" style={{ fontSize: 12 }}>{ALERT_LABELS[a.alertType] ?? a.alertType}</div>
-            </Link>
+              <div className="muted" style={{ fontSize: 12 }}>{fmtDateTime(n.createdAt)}</div>
+            </button>
           ))}
-          {criticalCount > 0 && <div className="notice" style={{ border: 0, color: 'var(--danger)', fontWeight: 700 }}>{criticalCount} تنبيه حرج</div>}
         </div>
       )}
     </div>

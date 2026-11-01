@@ -1,60 +1,73 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { useUsers } from '@/controllers/useAdmin';
+import { useState } from 'react';
 import { useToast } from '@/controllers/toast';
-import { ROLE_OPTIONS } from '@/models/labels';
-import type { Department, UserRow } from '@/models/types';
-import { useEffect } from 'react';
-import { api } from '@/models/api';
-import { Button, Empty, ErrorBox, Field, Loading, PageHead, Panel, fmtDateTime } from '../ui';
+import { errorText, useApi } from '@/controllers/useApi';
+import { api, ApiError } from '@/models/api';
+import type { Json, Options } from '@/models/types';
+import { Button, ErrorBox, Field, Loading, PageHead, Panel, fmtDateTime, useModalKeys } from '../ui';
 
-/** إدارة المستخدمين (مدير النظام): إنشاء وتعديل وتعطيل، وكلمة مرور مؤقتة عند الإنشاء. */
+const ROLES: [string, string][] = [
+  ['system_admin', 'مسؤول النظام'],
+  ['contracts_manager', 'مدير قسم العقود'],
+  ['contracts_officer', 'موظف عقود'],
+  ['purchasing_manager', 'مدير المشتريات'],
+  ['department_manager', 'مدير قسم'],
+  ['department_official', 'مسؤول قسم'],
+  ['operations', 'قسم التشغيل'],
+];
+const DEPT_ROLES = ['department_manager', 'department_official'];
+
+/** المستخدمون: إنشاء بكلمة مرور مؤقتة، تعديل، إيقاف، وإعادة تعيين. لا حذف. */
 export function UsersView() {
-  const { users, loading, error, save } = useUsers();
   const toast = useToast();
-  const [editing, setEditing] = useState<UserRow | 'new' | null>(null);
+  const { data, loading, error, reload } = useApi<Json[]>('/users');
+  const opts = useApi<Options>('/reference/options').data;
+  const [edit, setEdit] = useState<Json | 'new' | null>(null);
+  const [secret, setSecret] = useState<{ username: string; password: string } | null>(null);
+
+  const reset = async (u: Json) => {
+    if (!confirm(`إعادة تعيين كلمة مرور ${u.fullName}؟`)) return;
+    try {
+      const r = await api.post<{ temporaryPassword: string }>(`/users/${u.id}/reset-password`);
+      setSecret({ username: u.username, password: r.temporaryPassword });
+      reload();
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  };
 
   return (
     <>
-      <PageHead
-        title="المستخدمون"
-        subtitle="لا يوجد تسجيل ذاتي. الحسابات تُنشأ وتُعدّل من هنا."
-        actions={<Button variant="primary" onClick={() => setEditing('new')}>«أنشئ حساباً»</Button>}
-      />
-
+      <PageHead title="المستخدمون" subtitle="إنشاء الحسابات وإيقافها وإعادة تعيين كلمات المرور" actions={<Button variant="primary" onClick={() => setEdit('new')}>«أضف مستخدماً»</Button>} />
       {error && <ErrorBox>{error}</ErrorBox>}
-      {loading ? (
-        <Loading />
-      ) : users.length === 0 ? (
-        <Empty>لا يوجد مستخدمون.</Empty>
-      ) : (
+      {loading && !data && <Loading />}
+      {secret && (
+        <div className="notice">
+          كلمة المرور المؤقتة للمستخدم <strong className="ltr">{secret.username}</strong>: <strong className="ltr" style={{ userSelect: 'all' }}>{secret.password}</strong> — تظهر مرة واحدة، وسيُطلب منه تغييرها عند أول دخول.
+          <Button small onClick={() => setSecret(null)}>«أخفِها»</Button>
+        </div>
+      )}
+      {data && (
         <div className="table-wrap">
           <table className="table">
-            <thead>
-              <tr>
-                <th>الاسم</th>
-                <th>اسم الدخول</th>
-                <th>الدور</th>
-                <th>القسم</th>
-                <th>آخر دخول</th>
-                <th>الحالة</th>
-                <th></th>
-              </tr>
-            </thead>
+            <thead><tr><th>المستخدم</th><th>الاسم</th><th>الدور</th><th>القسم</th><th>الحالة</th><th>آخر دخول</th><th /></tr></thead>
             <tbody>
-              {users.map((u) => (
+              {data.map((u) => (
                 <tr key={u.id}>
-                  <td>{u.fullName}</td>
                   <td className="ltr">{u.username}</td>
+                  <td>{u.fullName}</td>
                   <td>{u.roleLabel}</td>
                   <td>{u.departmentName ?? '—'}</td>
-                  <td>{fmtDateTime(u.lastLogin)}</td>
                   <td>
-                    <span className={`badge ${u.isActive ? 'neutral' : 'danger'}`}>{u.isActive ? 'نشط' : 'معطّل'}</span>
+                    <span className={`badge ${u.isActive ? 'ok' : 'muted'}`}>{u.isActive ? 'نشط' : 'موقوف'}</span>
+                    {u.lockedUntil && new Date(u.lockedUntil) > new Date() && <span className="badge danger" style={{ marginInlineStart: 6 }}>مقفل</span>}
+                    {u.mustChangePassword && <span className="badge accent" style={{ marginInlineStart: 6 }}>مؤقتة</span>}
                   </td>
-                  <td>
-                    <Button small onClick={() => setEditing(u)}>«عدّل»</Button>
+                  <td>{u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : '—'}</td>
+                  <td className="row">
+                    <Button small onClick={() => setEdit(u)}>«عدّل»</Button>
+                    <Button small onClick={() => reset(u)}>«أعد التعيين»</Button>
                   </td>
                 </tr>
               ))}
@@ -62,18 +75,15 @@ export function UsersView() {
           </table>
         </div>
       )}
-
-      {editing && (
+      {edit && opts && (
         <UserModal
-          user={editing === 'new' ? null : editing}
-          onClose={() => setEditing(null)}
-          onSave={async (body) => {
-            const res = await save(editing === 'new' ? null : editing.id, body);
-            if (res.ok) {
-              toast.success(editing === 'new' ? 'أُنشئ الحساب.' : 'حُفظت بيانات المستخدم.');
-              setEditing(null);
-            }
-            return res;
+          user={edit === 'new' ? null : edit}
+          departments={opts.departments}
+          onClose={() => setEdit(null)}
+          onSaved={(pw, username) => {
+            setEdit(null);
+            if (pw) setSecret({ username, password: pw });
+            reload();
           }}
         />
       )}
@@ -81,113 +91,74 @@ export function UsersView() {
   );
 }
 
-type SaveResult = { ok: true } | { ok: false; message: string; fields?: Record<string, string> };
-
-function UserModal({
-  user,
-  onClose,
-  onSave,
-}: {
-  user: UserRow | null;
-  onClose: () => void;
-  onSave: (body: Record<string, unknown>) => Promise<SaveResult>;
-}) {
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [form, setForm] = useState({
+function UserModal({ user, departments, onClose, onSaved }: { user: Json | null; departments: Options['departments']; onClose: () => void; onSaved: (pw: string | null, username: string) => void }) {
+  const [f, setF] = useState({
     username: user?.username ?? '',
-    firstName: user?.firstName ?? '',
-    lastName: user?.lastName ?? '',
-    password: '',
-    role: user?.role ?? 'contracts_officer',
-    departmentId: user?.departmentId ? String(user.departmentId) : '',
-    jobTitle: user?.jobTitle ?? '',
-    phone: user?.phone ?? '',
+    fullName: user?.fullName ?? '',
+    email: user?.email ?? '',
+    role: user?.role ?? 'department_official',
+    departmentId: user?.departmentId ?? '',
     isActive: user?.isActive ?? true,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useModalKeys(onClose);
 
-  useEffect(() => {
-    api.get<Department[]>('/users/departments').then(setDepartments).catch(() => setDepartments([]));
-  }, []);
-
-  const set = (key: keyof typeof form, value: string | boolean) => setForm((f) => ({ ...f, [key]: value }));
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const submit = async () => {
     setBusy(true);
     setErrors({});
-    setMessage(null);
-    const res = await onSave({
-      ...form,
-      departmentId: form.departmentId ? Number(form.departmentId) : undefined,
-      password: form.password || undefined,
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setMessage(res.message);
-      setErrors(res.fields ?? {});
+    setMsg(null);
+    const body = { ...f, departmentId: DEPT_ROLES.includes(f.role) ? Number(f.departmentId) || null : null };
+    try {
+      if (user) {
+        await api.patch(`/users/${user.id}`, body);
+        onSaved(null, f.username);
+      } else {
+        const r = await api.post<{ temporaryPassword: string }>('/users', body);
+        onSaved(r.temporaryPassword, f.username);
+      }
+    } catch (e) {
+      if (e instanceof ApiError) {
+        setErrors(e.fields);
+        setMsg(e.message);
+      } else setMsg(errorText(e));
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label={user ? 'تعديل مستخدم' : 'حساب جديد'}>
-      <form className="modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()} onSubmit={submit} noValidate>
-        <h2>{user ? 'تعديل مستخدم' : 'حساب جديد'}</h2>
-        {message && <ErrorBox>{message}</ErrorBox>}
-        <div className="form-grid">
-          <Field label="اسم الدخول" error={errors.username}>
-            <input className="input ltr" value={form.username} onChange={(e) => set('username', e.target.value)} />
-          </Field>
-          <Field label="الاسم الأول" error={errors.firstName}>
-            <input className="input" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
-          </Field>
-          <Field label="اسم العائلة">
-            <input className="input" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
-          </Field>
-          <Field label={user ? 'كلمة مرور جديدة (اختياري)' : 'كلمة مرور مؤقتة'} error={errors.password} hint="6 أحرف على الأقل.">
-            <input className="input ltr" type="password" autoComplete="new-password" value={form.password} onChange={(e) => set('password', e.target.value)} />
-          </Field>
-          <Field label="الدور" error={errors.role}>
-            <select className="select" value={form.role} onChange={(e) => set('role', e.target.value)}>
-              {ROLE_OPTIONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{user ? 'تعديل مستخدم' : 'مستخدم جديد'}</h2>
+        {msg && <ErrorBox>{msg}</ErrorBox>}
+        <Field label="اسم المستخدم" error={errors.username}><input className="input ltr" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} /></Field>
+        <Field label="الاسم الكامل" error={errors.fullName}><input className="input" value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></Field>
+        <Field label="البريد الإلكتروني (للإشعارات)" error={errors.email}><input className="input ltr" value={f.email ?? ''} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+        <Field label="الدور" error={errors.role}>
+          <select className="select" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
+            {ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </Field>
+        {DEPT_ROLES.includes(f.role) && (
+          <Field label="القسم *" error={errors.departmentId}>
+            <select className="select" value={f.departmentId ?? ''} onChange={(e) => setF({ ...f, departmentId: e.target.value })}>
+              <option value="">اختر القسم</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </Field>
-          <Field label="القسم" error={errors.departmentId} hint={form.role === 'purchasing_head' ? 'مسؤول الإدارة يجب ربطه بقسم.' : undefined}>
-            <select className="select" value={form.departmentId} onChange={(e) => set('departmentId', e.target.value)}>
-              <option value="">—</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="المسمى الوظيفي">
-            <input className="input" value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} />
-          </Field>
-          <Field label="الجوال">
-            <input className="input ltr" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
-          </Field>
-          <Field label="الحالة">
-            <label className="row" style={{ minHeight: 44 }}>
-              <input type="checkbox" checked={form.isActive} onChange={(e) => set('isActive', e.target.checked)} />
-              <span>حساب نشط</span>
-            </label>
-          </Field>
-        </div>
+        )}
+        {user && (
+          <label className="chip" style={{ marginBottom: 12 }}>
+            <input type="checkbox" checked={f.isActive} onChange={(e) => setF({ ...f, isActive: e.target.checked })} /> الحساب نشط
+          </label>
+        )}
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <Button onClick={onClose}>«تراجع»</Button>
-          <Button variant="primary" type="submit" disabled={busy}>
-            {busy ? '…' : user ? '«احفظ التعديلات»' : '«أنشئ الحساب»'}
-          </Button>
+          <Button variant="primary" disabled={busy} onClick={submit}>«احفظ»</Button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

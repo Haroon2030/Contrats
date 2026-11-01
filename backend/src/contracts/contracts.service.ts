@@ -5,872 +5,738 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { DataSource, EntityManager, In } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../auth/auth.service';
+import { daysBetween, daysSince, isoDateTime, todayIso } from '../common/dates';
 import {
-  ALLOWED_TRANSITIONS,
-  ApprovalDecision,
-  ApproverRole,
+  ACCOUNT_DOC_KINDS,
+  ATTACHMENT_LABELS,
   AttachmentKind,
-  AlertSeverity,
-  AlertType,
-  ContractStatus,
-  ContractSubtype,
   ContractType,
-  MAX_CONTRACT_DAYS,
+  PARTY_LABELS,
+  Party,
+  RefList,
+  Role,
   STATUS_LABELS,
-  SUBTYPE_LABELS,
+  Status,
   TYPE_LABELS,
-  requiredApproverRole,
+  isServicesOnly,
+  normalizeRole,
 } from '../common/domain';
-import { addDays, daysBetween, daysSince, isoDateTime, todayIso } from '../common/dates';
 import {
-  ApprovalStepEntity,
+  AddendumEntity,
+  AttachmentEntity,
   AuditLogEntity,
-  ContractAlertEntity,
-  ContractAttachmentEntity,
   ContractEntity,
-  ContractTargetEntity,
+  ContractStayEntity,
   DepartmentEntity,
-  ShelfRateEntity,
+  GoalLineEntity,
+  MarketingLineEntity,
+  RefValueEntity,
+  RentLineEntity,
   UserEntity,
   VendorEntity,
 } from '../database/entities';
-import { AttachmentDto, ContractDto, ContractQueryDto, DecisionDto, TargetDto } from './dto';
-import { AlertsService } from '../alerts/alerts.service';
+import { GoalsService } from '../goals/goals.service';
+import { SettingsService } from '../reference/reference.module';
+import { PrintService, PrintData } from '../templates/print.service';
+import { TemplatesService } from '../templates/templates.module';
 import { AttachmentStorage } from './attachment.storage';
-
-const APPROVER_LABELS: Record<string, string> = {
-  department_head: 'رئيس القسم',
-  contracts_manager: 'إدارة العقود',
-  legal: 'الشؤون القانونية',
-};
-
-const num = (v: string | number | null | undefined) => (v == null ? null : Number(v));
+import { CleanContract, RefCtx, validateContract } from './validation';
 
 export interface ContractAction {
   key: string;
   label: string;
-  primary: boolean;
+  primary?: boolean;
+  danger?: boolean;
+  /** يحتاج سبباً/ملاحظة إلزامية من المستخدم. */
+  reason?: 'required' | 'optional';
 }
 
-/** أخطاء الإجراءات تُعاد برسائل عربية واضحة (تُعرض بجانب الحقل أو في الشريط). */
 export class WorkflowError extends UnprocessableEntityException {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, errors?: Record<string, string>) {
+    super({ message, errors });
   }
 }
+
+const dec = (v: number | null | undefined) => (v == null ? null : v.toFixed(2));
+const num = (v: string | number | null | undefined) => (v == null ? null : Number(v));
 
 @Injectable()
 export class ContractsService {
   constructor(
-    private readonly ds: DataSource,
-    private readonly alerts: AlertsService,
-    private readonly storage: AttachmentStorage,
+    @InjectRepository(ContractEntity) readonly contracts: Repository<ContractEntity>,
+    @InjectRepository(VendorEntity) readonly vendors: Repository<VendorEntity>,
+    @InjectRepository(DepartmentEntity) readonly departments: Repository<DepartmentEntity>,
+    @InjectRepository(UserEntity) readonly users: Repository<UserEntity>,
+    @InjectRepository(RefValueEntity) readonly refs: Repository<RefValueEntity>,
+    @InjectRepository(GoalLineEntity) readonly goalLines: Repository<GoalLineEntity>,
+    @InjectRepository(RentLineEntity) readonly rentLines: Repository<RentLineEntity>,
+    @InjectRepository(MarketingLineEntity) readonly marketingLines: Repository<MarketingLineEntity>,
+    @InjectRepository(AttachmentEntity) readonly attachments: Repository<AttachmentEntity>,
+    @InjectRepository(AddendumEntity) readonly addenda: Repository<AddendumEntity>,
+    @InjectRepository(ContractStayEntity) readonly stays: Repository<ContractStayEntity>,
+    @InjectRepository(AuditLogEntity) readonly auditLogs: Repository<AuditLogEntity>,
+    readonly audit: AuditService,
+    readonly goals: GoalsService,
+    readonly settings: SettingsService,
+    readonly templates: TemplatesService,
+    readonly print: PrintService,
+    readonly storage: AttachmentStorage,
   ) {}
 
-  // ───────────────────────── صلاحيات ─────────────────────────
+  // ───────────────────────── الصلاحيات والرؤية ─────────────────────────
 
-  private requireContractsStaff(user: AuthUser, message = 'هذا الإجراء مقصور على قسم العقود.') {
-    if (!user.isContractsStaff) throw new ForbiddenException(message);
+  /** هل يرى المستخدم هذا العقد؟ (3.2: مسؤول القسم قسمه فقط، التشغيل عبر صفحته). */
+  canSee(user: AuthUser, c: ContractEntity): boolean {
+    if (user.caps.operationsOnly) return false;
+    if (user.role === Role.DEPARTMENT_OFFICIAL) return c.departmentId === user.departmentId;
+    return true;
   }
 
-  private isClosed(c: ContractEntity) {
-    return c.status === ContractStatus.CANCELLED || c.status === ContractStatus.EXPIRED;
+  isOwnDepartment(user: AuthUser, c: ContractEntity) {
+    return !!user.departmentId && user.departmentId === c.departmentId;
   }
 
-  // ───────────────────────── قراءة ─────────────────────────
-
-  async list(user: AuthUser, query: ContractQueryDto) {
-    const qb = this.ds
-      .getRepository(ContractEntity)
-      .createQueryBuilder('c')
-      .leftJoinAndSelect('c.vendor', 'v')
-      .leftJoinAndSelect('c.department', 'd')
-      .leftJoinAndSelect('c.approvalSteps', 's', "s.decision = 'pending'")
-      .orderBy('c.id', 'DESC');
-
-    if (query.status) qb.andWhere('c.status = :status', { status: query.status });
-    if (query.contractType) qb.andWhere('c.contractType = :type', { type: query.contractType });
-    if (query.departmentId) qb.andWhere('c.departmentId = :dep', { dep: query.departmentId });
-    if (query.q?.trim()) {
-      qb.andWhere('(c.contractNumber LIKE :q OR v.legalName LIKE :q OR v.vendorNumber LIKE :q)', {
-        q: `%${query.q.trim()}%`,
-      });
-    }
-    if (query.expiringWithin) {
-      const today = todayIso();
-      const limit = addDaysIso(today, Number(query.expiringWithin));
-      qb.andWhere('c.endDate BETWEEN :today AND :limit', { today, limit })
-        .andWhere('c.status NOT IN (:...closed)', { closed: [ContractStatus.CANCELLED, ContractStatus.EXPIRED] });
-    }
-
-    const contracts = await qb.getMany();
-    const lastActivity = await this.lastActivityMap(contracts.map((c) => c.id));
-    const kinds = await this.attachmentKindMap(contracts.map((c) => c.id));
-
-    let rows = contracts.map((c) => this.toRow(c, user, kinds.get(c.id) ?? new Set(), lastActivity.get(c.id)));
-    if (query.view === 'awaiting') rows = rows.filter((r) => r.awaitingUser);
-    if (query.view === 'mine') rows = rows.filter((r) => r.createdById === user.id || r.commercialOwnerId === user.id);
-    return rows;
+  isDeptManagerOf(user: AuthUser, c: ContractEntity) {
+    return user.role === Role.DEPARTMENT_MANAGER && this.isOwnDepartment(user, c);
   }
 
-  async detail(id: number, user: AuthUser) {
-    const c = await this.findFull(id);
-    const kinds = new Set(c.attachments.map((a) => a.kind));
-    const pending = this.pendingStep(c);
-    const lastActivity = await this.lastActivityMap([c.id]);
-    const row = this.toRow(c, user, kinds, lastActivity.get(c.id));
+  canSeeAccountData(user: AuthUser, c: ContractEntity): boolean {
+    if (!c.types.includes(ContractType.OPEN_ACCOUNT)) return true;
+    if (!user.caps.seesAccountDocs) return false;
+    if (user.role === Role.DEPARTMENT_MANAGER || user.role === Role.DEPARTMENT_OFFICIAL) return this.isOwnDepartment(user, c);
+    return true;
+  }
 
+  async mustGet(id: number, user?: AuthUser): Promise<ContractEntity> {
+    const c = await this.contracts.findOne({ where: { id } });
+    if (!c) throw new NotFoundException('العقد غير موجود.');
+    if (user && !this.canSee(user, c)) throw new ForbiddenException('لا تملك صلاحية رؤية هذا العقد.');
+    return c;
+  }
+
+  // ───────────────────────── القوائم المرجعية للتحقق ─────────────────────────
+
+  async refCtx(): Promise<RefCtx> {
+    const [vendors, departments, refs] = await Promise.all([
+      this.vendors.find({ where: { isActive: true } }),
+      this.departments.find({ where: { isActive: true } }),
+      this.refs.find({ where: { isActive: true } }),
+    ]);
+    const ids = (list: string) => new Set(refs.filter((r) => r.list === list).map((r) => r.id));
     return {
-      ...row,
-      internalClassification: c.internalClassification,
-      notes: c.notes,
-      cancellationReason: c.cancellationReason,
-      commercialOwner: c.commercialOwner ? this.userName(c.commercialOwner) : null,
-      createdBy: c.createdBy ? this.userName(c.createdBy) : null,
-      purchasingManagerId: c.purchasingManagerId,
-      shelfRate: c.shelfRate ? { id: c.shelfRate.id, name: c.shelfRate.name, standardPrice: num(c.shelfRate.standardPrice) } : null,
-      shelfActualPrice: num(c.shelfActualPrice),
-      shelfDeviationPercent: this.shelfDeviation(c),
-      hasShelfPriceDeviation: this.hasShelfDeviation(c),
-      isHighValue: num(c.actualValue) > 15000,
-      lastNoticeDate: c.autoRenewal && c.endDate ? addDaysIso(c.endDate, -(c.noticePeriodDays || 0)) : null,
-      autoRenewal: c.autoRenewal,
-      noticePeriodDays: c.noticePeriodDays,
-      bothPartiesSigned: c.bothPartiesSigned,
-      signedAt: isoDateTime(c.signedAt),
-      activatedAt: isoDateTime(c.activatedAt),
-      cancelledAt: isoDateTime(c.cancelledAt),
-      targets: [...c.targets]
-        .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
-        .map((t) => ({
-          id: t.id,
-          title: t.title,
-          targetValue: num(t.targetValue),
-          discountPercent: num(t.discountPercent),
-          estimatedDiscount: (num(t.targetValue) ?? 0) * ((num(t.discountPercent) ?? 0) / 100),
-        })),
-      attachments: [...c.attachments]
-        .sort((a, b) => b.id - a.id)
-        .map((a) => ({
-          id: a.id,
-          kind: a.kind,
-          kindLabel: ATTACHMENT_LABELS[a.kind] ?? a.kind,
-          originalName: a.originalName,
-          uploadedAt: isoDateTime(a.uploadedAt),
-          uploadedBy: a.uploadedBy ? this.userName(a.uploadedBy) : null,
-        })),
-      approvalSteps: [...c.approvalSteps]
-        .sort((a, b) => a.sequence - b.sequence || a.id - b.id)
-        .map((s) => ({
-          id: s.id,
-          role: s.role,
-          roleLabel: APPROVER_LABELS[s.role] ?? s.role,
-          sequence: s.sequence,
-          decision: s.decision,
-          decidedAt: isoDateTime(s.decidedAt),
-          decidedBy: s.decidedBy ? this.userName(s.decidedBy) : null,
-          comment: s.comment,
-        })),
-      pendingApprover: pending ? APPROVER_LABELS[pending.role] ?? pending.role : null,
-      auditLogs: [...c.auditLogs]
-        .sort((a, b) => b.id - a.id)
-        .slice(0, 200)
-        .map((l) => this.toAuditRow(l)),
-      alerts: c.alerts
-        .filter((a) => a.isOpen)
-        .map((a) => ({ id: a.id, alertType: a.alertType, severity: a.severity, message: a.message, createdAt: isoDateTime(a.createdAt) })),
-      actions: this.actionsFor(c, user, kinds),
+      vendorIds: new Set(vendors.map((v) => v.id)),
+      departmentIds: new Set(departments.map((d) => d.id)),
+      branchIds: ids(RefList.BRANCH),
+      shelfIds: ids(RefList.SHELF_TYPE),
+      eventIds: ids(RefList.EVENT),
     };
   }
 
-  async auditLogs(filters: { contractId?: number; actorId?: number; from?: string; to?: string; limit?: number }) {
-    const qb = this.ds
-      .getRepository(AuditLogEntity)
-      .createQueryBuilder('l')
-      .leftJoinAndSelect('l.actor', 'a')
-      .leftJoinAndSelect('a.profile', 'ap')
-      .leftJoinAndSelect('l.contract', 'c')
-      .orderBy('l.id', 'DESC')
-      .take(Math.min(filters.limit ?? 300, 1000));
-    if (filters.contractId) qb.andWhere('l.contractId = :cid', { cid: filters.contractId });
-    if (filters.actorId) qb.andWhere('l.actorId = :aid', { aid: filters.actorId });
-    if (filters.from) qb.andWhere('l.createdAt >= :from', { from: `${filters.from} 00:00:00` });
-    if (filters.to) qb.andWhere('l.createdAt <= :to', { to: `${filters.to} 23:59:59` });
-    const rows = await qb.getMany();
-    return rows.map((l) => ({
-      ...this.toAuditRow(l),
-      contractId: l.contractId,
-      contractNumber: l.contract?.contractNumber ?? null,
-      actor: l.actor ? this.userName(l.actor) : null,
-    }));
+  /** ممثل المورد في آخر عقد له (لتعبئة النموذج تلقائياً). */
+  async lastRepresentative(vendorId: number) {
+    const c = await this.contracts.findOne({ where: { vendorId }, order: { id: 'DESC' } });
+    return c ? { repName: c.repName, repTitle: c.repTitle, repMobile: c.repMobile } : null;
   }
 
-  async attachmentFor(contractId: number, attachmentId: number) {
-    const att = await this.ds.getRepository(ContractAttachmentEntity).findOne({ where: { id: attachmentId, contractId } });
-    if (!att) throw new NotFoundException('المرفق غير موجود.');
-    return { path: this.storage.absolutePath(att.file), name: att.originalName || att.file };
+  // ───────────────────────── المسودات ─────────────────────────
+
+  private resolveDepartment(user: AuthUser, requested: number | null): number {
+    if (user.role === Role.DEPARTMENT_MANAGER || user.role === Role.DEPARTMENT_OFFICIAL) {
+      if (!user.departmentId) throw new ForbiddenException('حسابك غير مرتبط بقسم.');
+      return user.departmentId;
+    }
+    if (user.caps.createAnyDepartment) {
+      if (!requested) throw new BadRequestException({ message: 'اختر القسم.', errors: { departmentId: 'اختر القسم.' } });
+      return requested;
+    }
+    throw new ForbiddenException('إنشاء العقود لمسؤول القسم ومدير القسم ومسؤول النظام فقط.');
   }
 
-  // ───────────────────────── إنشاء وتعديل المسودة ─────────────────────────
+  private checkErrors(errors: Record<string, string>) {
+    if (Object.keys(errors).length) throw new BadRequestException({ message: 'تحقق من الحقول المعلّمة.', errors });
+  }
 
-  async create(dto: ContractDto, user: AuthUser) {
-    this.requireContractsStaff(user, 'إنشاء العقود مقصور على قسم العقود.');
-    const { vendor, department, shelfRate } = await this.validateDraft(dto);
+  async createDraft(user: AuthUser, body: Record<string, any>) {
+    if (!user.caps.canCreate) throw new ForbiddenException('إنشاء العقود لمسؤول القسم ومدير القسم ومسؤول النظام فقط.');
+    const departmentId = this.resolveDepartment(user, Number(body.departmentId) || null);
+    const { errors, clean } = validateContract({ ...body, departmentId }, 'draft', await this.refCtx());
+    this.checkErrors(errors);
 
-    const id = await this.ds.transaction(async (m) => {
+    const thresholds = await this.settings.get(); // Threshold السارية وقت الإنشاء
+    const id = await this.contracts.manager.transaction(async (m) => {
       const now = new Date();
-      const contract = m.create(ContractEntity, {
-        ...this.draftFields(dto, shelfRate),
-        contractNumber: await this.nextContractNumber(m, vendor),
-        vendorId: vendor.id,
-        departmentId: department.id,
-        status: ContractStatus.DRAFT,
-        bothPartiesSigned: false,
-        cancellationReason: '',
-        manuallyEscalated: false,
-        createdById: user.id,
-        commercialOwnerId: user.id,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await m.save(contract);
-
-      await this.replaceTargets(m, contract.id, dto.targets);
-      await this.audit(m, contract.id, user, 'إنشاء مسودة', '', ContractStatus.DRAFT, { contract_number: contract.contractNumber });
-      return contract.id;
-    });
-
-    if (dto.submit) await this.submit(id, user);
-    return this.detail(id, user);
-  }
-
-  async update(id: number, dto: ContractDto, user: AuthUser) {
-    this.requireContractsStaff(user);
-    const c = await this.findFull(id);
-    if (c.status !== ContractStatus.DRAFT) throw new WorkflowError('لا يمكن تعديل العقد إلا وهو مسودة.');
-    const { vendor, department, shelfRate } = await this.validateDraft(dto);
-
-    await this.ds.transaction(async (m) => {
-      // رقم العقد يُولد عند الإنشاء فقط (كما في Django) ولا يتغير مع التعديل.
-      await m.update(ContractEntity, id, {
-        ...this.draftFields(dto, shelfRate),
-        vendorId: vendor.id,
-        departmentId: department.id,
-        updatedAt: new Date(),
-      });
-      await m.delete(ContractTargetEntity, { contractId: id });
-      await this.replaceTargets(m, id, dto.targets);
-      await this.audit(m, id, user, 'تعديل المسودة', ContractStatus.DRAFT, ContractStatus.DRAFT);
+      const c = await m.save(
+        m.create(ContractEntity, {
+          ...this.columns(clean),
+          departmentId,
+          createdById: user.id,
+          number: null,
+          status: Status.DRAFT,
+          party: Party.CREATOR,
+          stateEnteredAt: now,
+          hasAlert: false,
+          alertKind: null,
+          alertReason: '',
+          rejectReason: '',
+          closeReason: '',
+          cancelReason: '',
+          termVersions: null,
+          remindersSent: null,
+          lastEscalatedAt: null,
+          escalationDays: thresholds.escalationDays,
+          reminderDays: thresholds.reminderDays,
+          addendumCount: 0,
+          sentAt: null,
+          activatedAt: null,
+          endedAt: null,
+          cancelledAt: null,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      await this.writeLines(m, c.id, clean);
+      await this.openStay(m, c.id, Status.DRAFT, Party.CREATOR);
+      await this.audit.log({ user, action: 'إنشاء مسودة عقد', entity: 'contract', contractId: c.id, after: { types: clean.types, vendorId: clean.vendorId } }, m);
+      return c.id;
     });
     return this.detail(id, user);
   }
 
-  /** حذف المسودة نهائياً (لا يُسمح به لغير المسودات — الإلغاء يحفظ السجل). */
-  async deleteDraft(id: number, user: AuthUser) {
-    this.requireContractsStaff(user, 'حذف المسودات مقصور على قسم العقود.');
-    const c = await this.findFull(id);
-    if (c.status !== ContractStatus.DRAFT) throw new WorkflowError('لا يُحذف إلا المسودة. استخدم الإلغاء لبقية الحالات.');
-    await this.ds.transaction(async (m) => {
-      await m.delete(ContractTargetEntity, { contractId: id });
-      await m.delete(ApprovalStepEntity, { contractId: id });
-      await m.delete(ContractAlertEntity, { contractId: id });
-      await m.delete(AuditLogEntity, { contractId: id });
-      await m.delete(ContractAttachmentEntity, { contractId: id });
+  async updateDraft(user: AuthUser, id: number, body: Record<string, any>) {
+    const c = await this.mustGet(id, user);
+    if (c.status !== Status.DRAFT) throw new WorkflowError('لا يمكن تعديل العقد إلا وهو مسودة.');
+    if (c.createdById !== user.id && !user.caps.createAnyDepartment) throw new ForbiddenException('تعديل المسودة لمنشئها فقط.');
+    const { errors, clean } = validateContract({ ...body, departmentId: c.departmentId }, 'draft', await this.refCtx());
+    this.checkErrors(errors);
+    const before = this.snapshot(c);
+    await this.contracts.manager.transaction(async (m) => {
+      await m.update(ContractEntity, id, { ...this.columns(clean), updatedAt: new Date() });
+      await this.writeLines(m, id, clean);
+      await this.audit.log({ user, action: 'تعديل المسودة', entity: 'contract', contractId: id, before, after: { types: clean.types, startDate: clean.startDate, endDate: clean.endDate } }, m);
+    });
+    return this.detail(id, user);
+  }
+
+  /** حذف المسودة قبل أول إرسال فقط وبواسطة منشئها. بعد الإرسال لا يُحذف العقد. */
+  async deleteDraft(user: AuthUser, id: number) {
+    const c = await this.mustGet(id, user);
+    if (c.status !== Status.DRAFT || c.number || c.sentAt) throw new WorkflowError('بعد الإرسال لا يُحذف العقد.');
+    if (c.createdById !== user.id && !user.caps.createAnyDepartment) throw new ForbiddenException('حذف المسودة لمنشئها فقط.');
+    await this.contracts.manager.transaction(async (m) => {
+      const atts = await m.find(AttachmentEntity, { where: { contractId: id } });
+      atts.forEach((a) => this.storage.remove(a.path));
+      await m.delete(AttachmentEntity, { contractId: id });
+      await m.delete(GoalLineEntity, { contractId: id });
+      await m.delete(RentLineEntity, { contractId: id });
+      await m.delete(MarketingLineEntity, { contractId: id });
+      await m.delete(ContractStayEntity, { contractId: id });
       await m.delete(ContractEntity, { id });
+      await this.audit.log({ user, action: 'حذف مسودة (قبل أول إرسال)', entity: 'contract', contractId: null, before: this.snapshot(c) }, m);
     });
     return { deleted: true };
   }
 
-  // ───────────────────────── مسار العمل ─────────────────────────
-
-  /** إرسال المسودة: مراجعة قانونية إن وُجدت شروط غير معيارية، وإلا إلى الاعتماد. */
-  async submit(id: number, user: AuthUser) {
-    this.requireContractsStaff(user, 'إرسال العقود مقصور على قسم العقود.');
-    return this.ds.transaction(async (m) => {
-      const c = await this.findFull(id, m);
-      if (c.status !== ContractStatus.DRAFT) throw new WorkflowError('لا يمكن إرسال العقد إلا من حالة المسودة.');
-      if (!c.attachments.some((a) => a.kind === AttachmentKind.ORIGINAL)) {
-        throw new WorkflowError('ارفق النسخة الأصلية أولاً ثم أرسل العقد في مسار العمل.');
-      }
-      if (this.hasShelfDeviation(c)) {
-        c.hasNonStandardTerms = true;
-        c.updatedAt = new Date();
-        await this.persist(m, c);
-        await this.alerts.upsert(m, id, AlertType.SHELF_PRICE_DEVIATION, AlertSeverity.WARNING, 'السعر الفعلي لإيجار الأرفف يختلف عن السعر المعياري المعتمد.');
-      }
-      if (c.hasNonStandardTerms) {
-        await this.transition(m, c, ContractStatus.UNDER_REVIEW, user, 'إرسال للمراجعة القانونية');
-      } else {
-        await this.createApprovalSteps(m, c);
-        await this.transition(m, c, ContractStatus.PENDING_APPROVAL, user, 'إرسال للاعتماد');
-      }
-      return { id, status: c.status };
-    }).then(() => this.detail(id, user));
+  /** ترتيب الأعمدة المخزّنة من القيم المنظَّفة. */
+  columns(clean: CleanContract) {
+    return {
+      vendorId: clean.vendorId,
+      entryPath: clean.entryPath,
+      types: clean.types,
+      primaryType: clean.primaryType,
+      repName: clean.repName,
+      repTitle: clean.repTitle,
+      repMobile: clean.repMobile,
+      startDate: clean.startDate,
+      endDate: clean.endDate,
+      specialTerms: clean.specialTerms,
+      paymentDays: clean.paymentDays,
+      settlementDiscountPct: dec(clean.settlementDiscountPct),
+      fixedDiscountPct: dec(clean.fixedDiscountPct),
+      newItemPrice: dec(clean.newItemPrice),
+      creditLimit: dec(clean.creditLimit),
+    };
   }
 
-  async legalReview(id: number, user: AuthUser, dto: DecisionDto) {
-    if (!user.canLegalReview) throw new ForbiddenException('المراجعة القانونية مقصورة على الشؤون القانونية.');
-    await this.ds.transaction(async (m) => {
-      const c = await this.findFull(id, m);
-      if (c.status !== ContractStatus.UNDER_REVIEW) throw new WorkflowError('العقد ليس في قائمة المراجعة القانونية.');
-      if (dto.approved && !c.attachments.some((a) => a.kind === AttachmentKind.LEGAL_REVIEW)) {
-        throw new WorkflowError('راجع النسخة الأصلية ثم أرفق نسخة المراجعة القانونية قبل الاعتماد.');
-      }
-      await this.audit(m, id, user, dto.approved ? 'مراجعة قانونية — اعتماد' : 'مراجعة قانونية — إعادة للمسودة', c.status, '', { comment: dto.comment ?? '' });
-      if (!dto.approved) {
-        await this.transition(m, c, ContractStatus.DRAFT, user, 'إعادة للمسودة بعد المراجعة القانونية', { comment: dto.comment ?? '' });
-        return;
-      }
-      await this.createApprovalSteps(m, c);
-      await this.transition(m, c, ContractStatus.PENDING_APPROVAL, user, 'اعتماد قانوني ثم إحالة للموافقة');
-    });
-    return this.detail(id, user);
+  async writeLines(m: EntityManager, contractId: number, clean: CleanContract) {
+    await m.delete(GoalLineEntity, { contractId, version: 0 });
+    await m.delete(RentLineEntity, { contractId });
+    await m.delete(MarketingLineEntity, { contractId });
+    if (clean.goalLines.length) {
+      await m.save(
+        clean.goalLines.map((g, i) =>
+          m.create(GoalLineEntity, {
+            contractId,
+            fromDate: g.fromDate,
+            toDate: g.toDate,
+            target: g.target.toFixed(2),
+            discountPct: g.discountPct.toFixed(2),
+            version: 0,
+            activeFrom: null,
+            activeTo: null,
+            sort: i,
+            fixedStatus: null,
+            fixedNet: null,
+            fixedDiscount: null,
+          }),
+        ),
+      );
+    }
+    if (clean.rentLines.length) {
+      await m.save(
+        clean.rentLines.map((r) =>
+          m.create(RentLineEntity, { contractId, branchId: r.branchId, shelfTypeId: r.shelfTypeId, qty: r.qty, price: r.price.toFixed(2), unit: r.unit, startDate: r.startDate, endDate: r.endDate, periods: r.periods, total: r.total.toFixed(2) }),
+        ),
+      );
+    }
+    if (clean.marketingLines.length) {
+      await m.save(clean.marketingLines.map((r) => m.create(MarketingLineEntity, { contractId, eventId: r.eventId, price: r.price.toFixed(2), note: r.note })));
+    }
   }
 
-  async decide(id: number, user: AuthUser, dto: DecisionDto) {
-    await this.ds.transaction(async (m) => {
-      const c = await this.findFull(id, m);
-      if (c.status !== ContractStatus.PENDING_APPROVAL) throw new WorkflowError('العقد ليس بانتظار الموافقة.');
-      const step = this.pendingStep(c);
-      if (!step) throw new WorkflowError('لا توجد خطوة موافقة معلّقة.');
-      if (step.role === ApproverRole.DEPARTMENT_HEAD && !user.canApproveAsHead) throw new ForbiddenException('هذه الخطوة تتطلب اعتماد رئيس القسم.');
-      if (step.role === ApproverRole.CONTRACTS_MANAGER && !user.canApproveAsContractsManager) {
-        throw new ForbiddenException('هذه الخطوة تتطلب اعتماد إدارة العقود.');
-      }
+  // ───────────────────────── الحالات والإقامة ─────────────────────────
 
-      step.decision = dto.approved ? ApprovalDecision.APPROVED : ApprovalDecision.REJECTED;
-      step.decidedById = user.id;
-      step.decidedAt = new Date();
-      step.comment = dto.comment ?? '';
-      await m.save(step);
-      await this.audit(m, id, user, dto.approved ? 'اعتماد العقد' : 'رفض العقد', c.status, '', { role: step.role, comment: step.comment });
-
-      if (!dto.approved) {
-        await this.transition(m, c, ContractStatus.DRAFT, user, 'رفض وإعادة للمسودة', { comment: step.comment });
-        return;
-      }
-      const remaining = c.approvalSteps.some((s) => s.id !== step.id && s.decision === ApprovalDecision.PENDING);
-      if (!remaining) await this.transition(m, c, ContractStatus.PENDING_SIGNATURE, user, 'اكتمال الاعتماد — بانتظار التوقيع');
-    });
-    return this.detail(id, user);
+  async openStay(m: EntityManager, contractId: number, state: string, party: string | null) {
+    await m.save(m.create(ContractStayEntity, { contractId, state, party, enteredAt: new Date(), leftAt: null }));
   }
 
-  /** تصعيد يدوي لإدارة العقود (تسلسل 99). */
-  async escalate(id: number, user: AuthUser, reason: string) {
-    if (!(user.isContractsStaff || user.isPurchasingStaff)) throw new ForbiddenException('التصعيد مقصور على العقود أو المشتريات.');
-    await this.ds.transaction(async (m) => {
-      const c = await this.findFull(id, m);
-      if (c.status !== ContractStatus.DRAFT && c.status !== ContractStatus.PENDING_APPROVAL) {
-        throw new WorkflowError('لا يمكن التصعيد في الحالة الحالية.');
-      }
-      c.manuallyEscalated = true;
-      c.updatedAt = new Date();
-      await this.persist(m, c);
-      if (c.status === ContractStatus.PENDING_APPROVAL) {
-        await m.delete(ApprovalStepEntity, { contractId: id, decision: ApprovalDecision.PENDING });
-        const exists = await m.findOne(ApprovalStepEntity, { where: { contractId: id, role: ApproverRole.CONTRACTS_MANAGER, sequence: 99 } });
-        if (!exists) {
-          await m.save(m.create(ApprovalStepEntity, { contractId: id, role: ApproverRole.CONTRACTS_MANAGER, sequence: 99, decision: ApprovalDecision.PENDING, comment: '' }));
-        }
-      }
-      await this.audit(m, id, user, 'تصعيد يدوي لإدارة العقود', c.status, '', { reason });
-    });
-    return this.detail(id, user);
+  /** ينقل العقد إلى حالة وجهة جديدتين ويسجّل زمن الدخول (لحساب مدة البقاء والتصعيد). */
+  async moveTo(m: EntityManager, c: ContractEntity, state: string, party: string | null, extra: Partial<ContractEntity> = {}) {
+    const now = new Date();
+    await m
+      .createQueryBuilder()
+      .update(ContractStayEntity)
+      .set({ leftAt: now })
+      .where('contractId = :id AND leftAt IS NULL', { id: c.id })
+      .execute();
+    await this.openStay(m, c.id, state, party);
+    Object.assign(c, extra, { status: state, party, stateEnteredAt: now, updatedAt: now });
+    await m.update(ContractEntity, c.id, { ...extra, status: state, party, stateEnteredAt: now, updatedAt: now });
   }
 
-  async markSigned(id: number, user: AuthUser) {
-    this.requireContractsStaff(user, 'تثبيت التوقيع مقصور على قسم العقود.');
-    await this.ds.transaction(async (m) => {
-      const c = await this.findFull(id, m);
-      if (c.status !== ContractStatus.PENDING_SIGNATURE) throw new WorkflowError('لا يمكن تثبيت التوقيع إلا في حالة بانتظار التوقيع.');
-      if (!c.attachments.some((a) => a.kind === AttachmentKind.SIGNED)) {
-        throw new WorkflowError('يجب رفع النسخة الموقعة قبل تحديث حالة التوقيع.');
-      }
-      c.bothPartiesSigned = true;
-      c.signedAt = new Date();
-      c.updatedAt = new Date();
-      await this.persist(m, c);
-      await this.audit(m, id, user, 'اكتمال توقيع الطرفين', c.status);
-      await this.refreshActivation(m, id, user);
-    });
-    return this.detail(id, user);
+  /** رقم العقد: رقم المورد-NN، يُخصَّص عند أول إرسال فقط. */
+  async assignNumber(m: EntityManager, c: ContractEntity): Promise<string> {
+    if (c.number) return c.number;
+    const vendor = await m.findOne(VendorEntity, { where: { id: c.vendorId } });
+    const prefix = `${vendor!.vendorNumber}-`;
+    const existing = await m.find(ContractEntity, { where: { vendorId: c.vendorId }, select: ['number'] });
+    const max = existing.reduce((acc, x) => {
+      const nn = x.number?.startsWith(prefix) ? Number(x.number.slice(prefix.length)) : NaN;
+      return Number.isFinite(nn) ? Math.max(acc, nn) : acc;
+    }, 0);
+    const number = `${prefix}${String(max + 1).padStart(2, '0')}`;
+    await m.update(ContractEntity, c.id, { number });
+    c.number = number;
+    return number;
   }
 
-  async cancel(id: number, user: AuthUser, reason: string) {
-    this.requireContractsStaff(user, 'إلغاء العقود مقصور على قسم العقود.');
-    await this.ds.transaction(async (m) => {
-      const c = await this.findFull(id, m);
-      if (c.status === ContractStatus.CANCELLED) throw new WorkflowError('العقد ملغى مسبقاً.');
-      if (c.status === ContractStatus.EXPIRED) throw new WorkflowError('لا يمكن إلغاء عقد منتهٍ.');
-      c.cancelledAt = new Date();
-      c.cancellationReason = reason;
-      c.updatedAt = new Date();
-      await this.persist(m, c);
-      await this.transition(m, c, ContractStatus.CANCELLED, user, 'إلغاء العقد', { reason });
-    });
-    return this.detail(id, user);
-  }
-
-  async note(id: number, user: AuthUser, text: string) {
-    await this.ds.transaction(async (m) => {
-      const c = await this.findFull(id, m);
-      await this.audit(m, id, user, 'ملاحظة', c.status, c.status, { text });
-    });
-    return this.detail(id, user);
+  snapshot(c: ContractEntity) {
+    return {
+      number: c.number,
+      status: c.status,
+      types: c.types,
+      startDate: c.startDate,
+      endDate: c.endDate,
+      repName: c.repName,
+      repTitle: c.repTitle,
+      repMobile: c.repMobile,
+      paymentDays: c.paymentDays,
+      settlementDiscountPct: c.settlementDiscountPct,
+      fixedDiscountPct: c.fixedDiscountPct,
+      newItemPrice: c.newItemPrice,
+      specialTerms: c.specialTerms,
+    };
   }
 
   // ───────────────────────── المرفقات ─────────────────────────
 
-  async addAttachment(id: number, user: AuthUser, dto: AttachmentDto, file: Express.Multer.File) {
+  async addDraftAttachment(user: AuthUser, id: number, kind: string, file: Express.Multer.File) {
     if (!file) throw new BadRequestException('اختر ملفاً للرفع.');
-    const legalKind = dto.kind === AttachmentKind.LEGAL_REVIEW;
-    if (legalKind ? !user.canLegalReview : !user.isContractsStaff) {
-      throw new ForbiddenException(legalKind ? 'نسخة المراجعة القانونية تُرفع من الشؤون القانونية.' : 'رفع المرفقات مقصور على قسم العقود.');
-    }
+    const c = await this.mustGet(id, user);
+    if (c.status !== Status.DRAFT) throw new WorkflowError('تُرفق الملفات والعقد مسودة.');
+    if (c.createdById !== user.id && !user.caps.createAnyDepartment) throw new ForbiddenException('رفع الملفات لمنشئ المسودة فقط.');
+    const allowed: string[] = [AttachmentKind.OTHER];
+    if (c.entryPath === 'ready') allowed.push(AttachmentKind.READY_SIGNED);
+    if (c.types.includes(ContractType.OPEN_ACCOUNT)) allowed.push(...ACCOUNT_DOC_KINDS);
+    if (!allowed.includes(kind)) throw new BadRequestException({ message: 'نوع المرفق غير مناسب لهذا العقد.', errors: { kind: 'نوع المرفق غير مناسب لهذا العقد.' } });
+
     const stored = await this.storage.save(file);
     try {
-      await this.ds.transaction(async (m) => {
-        const c = await this.findFull(id, m);
-        if (this.isClosed(c)) throw new WorkflowError('لا يمكن رفع مرفقات لعقد ملغى أو منتهٍ.');
-        await m.save(
-          m.create(ContractAttachmentEntity, {
-            contractId: id,
-            kind: dto.kind,
-            file: stored.relativePath,
-            originalName: stored.originalName,
-            uploadedById: user.id,
-            uploadedAt: new Date(),
-          }),
-        );
-        await this.audit(m, id, user, 'رفع مرفق', c.status, '', { kind: dto.kind, name: stored.originalName });
+      await this.contracts.manager.transaction(async (m) => {
+        if (kind !== AttachmentKind.OTHER) {
+          const old = await m.find(AttachmentEntity, { where: { contractId: id, kind } });
+          old.forEach((o) => this.storage.remove(o.path));
+          await m.delete(AttachmentEntity, { contractId: id, kind });
+        }
+        await m.save(m.create(AttachmentEntity, { contractId: id, addendumId: null, kind, fileName: stored.originalName, path: stored.relativePath, size: stored.size, uploadedById: user.id, uploadedAt: new Date() }));
+        await this.audit.log({ user, action: 'رفع مرفق', entity: 'attachment', contractId: id, after: { kind, name: stored.originalName } }, m);
       });
-    } catch (err) {
+    } catch (e) {
       this.storage.remove(stored.relativePath);
-      throw err;
+      throw e;
     }
     return this.detail(id, user);
   }
 
-  /** حساب التنبيهات الآلية لكل العقود (مطابقة refresh_all_alerts في Django). */
-  async refreshAllAlerts() {
-    const m = this.ds.manager;
+  async attachmentFile(user: AuthUser, contractId: number, attachmentId: number) {
+    const c = await this.mustGet(contractId, user);
+    const att = await this.attachments.findOne({ where: { id: attachmentId, contractId } });
+    if (!att) throw new NotFoundException('المرفق غير موجود.');
+    if (ACCOUNT_DOC_KINDS.includes(att.kind)) {
+      if (!this.canSeeAccountData(user, c)) throw new ForbiddenException('مستندات فتح الحساب سرية.');
+      await this.audit.log({ user, action: 'اطلاع على مستند فتح حساب', entity: 'attachment', contractId, note: ATTACHMENT_LABELS[att.kind] });
+    }
+    return { path: this.storage.absolutePath(att.path), name: att.fileName };
+  }
+
+  // ───────────────────────── القائمة ─────────────────────────
+
+  /** هل ينتظر العقد إجراءً من هذا المستخدم الآن؟ */
+  awaitingUser(user: AuthUser, c: ContractEntity, pendingAddendum: Set<number>): boolean {
+    const role = user.role;
+    if (c.status === Status.DRAFT && c.sentAt && c.createdById === user.id) return true;
+    if (c.status === Status.UNDER_REVIEW) {
+      if (c.party === Party.DEPARTMENT_MANAGER) return this.isDeptManagerOf(user, c);
+      if (c.party === Party.CONTRACTS_MANAGER) return role === Role.CONTRACTS_MANAGER;
+    }
+    if (c.status === Status.AWAITING_SIGNATURE) return role === Role.PURCHASING_MANAGER;
+    if (c.status === Status.ACTIVE && pendingAddendum.has(c.id)) return this.isDeptManagerOf(user, c);
+    return false;
+  }
+
+  async list(user: AuthUser, q: Record<string, string | undefined>) {
+    if (user.caps.operationsOnly) throw new ForbiddenException('قسم التشغيل يطّلع على صفحة التشغيل فقط.');
+    const qb = this.contracts.createQueryBuilder('c').orderBy('c.id', 'DESC');
+    if (user.role === Role.DEPARTMENT_OFFICIAL) qb.andWhere('c.departmentId = :d', { d: user.departmentId });
+    if (q.status) qb.andWhere('c.status = :s', { s: q.status });
+    if (q.departmentId) qb.andWhere('c.departmentId = :dep', { dep: Number(q.departmentId) });
+    if (q.type) qb.andWhere('c.types LIKE :t', { t: `%${q.type}%` });
+    let rows = await qb.getMany();
+
+    const [vendors, depts, users] = await Promise.all([
+      this.vendors.find(),
+      this.departments.find(),
+      this.users.find(),
+    ]);
+    const vMap = new Map(vendors.map((v) => [v.id, v]));
+    const dMap = new Map(depts.map((d) => [d.id, d.name]));
+    const uMap = new Map(users.map((u) => [u.id, u.fullName]));
+
+    if (q.q?.trim()) {
+      const needle = q.q.trim().toLowerCase();
+      rows = rows.filter((c) => {
+        const v = vMap.get(c.vendorId);
+        return [c.number, v?.name, v?.vendorNumber].some((x) => x?.toLowerCase().includes(needle));
+      });
+    }
+    const goalCounts = await this.goalCounts(rows.map((c) => c.id));
+    if (q.discountType) {
+      rows = rows.filter((c) => this.discountKinds(c, goalCounts.get(c.id) ?? 0).includes(q.discountType!));
+    }
     const today = todayIso();
-    const keep = new Set<string>();
-    const mark = (id: number, type: string) => keep.add(`${id}:${type}`);
-    const contracts = await m.getRepository(ContractEntity).find({ relations: { vendor: true, shelfRate: true } });
-
-    for (const c of contracts) {
-      if (c.status === ContractStatus.CANCELLED) {
-        await m.getRepository(ContractAlertEntity).update({ contractId: c.id, isOpen: true }, { isOpen: false, resolvedAt: new Date() });
-        continue;
-      }
-
-      const days = daysBetween(today, c.endDate);
-      if (c.status === ContractStatus.ACTIVE || c.status === ContractStatus.PENDING_SIGNATURE) {
-        if (days >= 0 && days <= 30) {
-          await this.alerts.upsert(m, c.id, AlertType.EXPIRY_30, AlertSeverity.CRITICAL, `متبقٍ ${days} يوماً على انتهاء العقد.`);
-          mark(c.id, AlertType.EXPIRY_30);
-        } else if (days > 30 && days <= 60) {
-          await this.alerts.upsert(m, c.id, AlertType.EXPIRY_60, AlertSeverity.WARNING, `متبقٍ ${days} يوماً على انتهاء العقد.`);
-          mark(c.id, AlertType.EXPIRY_60);
-        } else if (days > 60 && days <= 90) {
-          await this.alerts.upsert(m, c.id, AlertType.EXPIRY_90, AlertSeverity.INFO, `متبقٍ ${days} يوماً على انتهاء العقد.`);
-          mark(c.id, AlertType.EXPIRY_90);
-        }
-      }
-
-      if (c.autoRenewal && c.status === ContractStatus.ACTIVE) {
-        const notice = addDays(c.endDate, -(c.noticePeriodDays || 0));
-        if ((today <= notice && notice <= addDays(today, 14)) || (notice <= today && today < c.endDate)) {
-          await this.alerts.upsert(m, c.id, AlertType.RENEWAL_NOTICE, AlertSeverity.WARNING, `آخر يوم للإشعار بعدم التجديد: ${notice}.`);
-          mark(c.id, AlertType.RENEWAL_NOTICE);
-        }
-      }
-
-      if (c.status === ContractStatus.PENDING_SIGNATURE && !c.bothPartiesSigned) {
-        await this.alerts.upsert(m, c.id, AlertType.UNSIGNED_APPROVED, AlertSeverity.WARNING, 'العقد معتمد ولم يكتمل توقيع الطرفين.');
-        mark(c.id, AlertType.UNSIGNED_APPROVED);
-      }
-
-      if (c.status === ContractStatus.ACTIVE && c.endDate < today) {
-        await this.alerts.upsert(m, c.id, AlertType.EXPIRED_STILL_ACTIVE, AlertSeverity.CRITICAL, 'خطأ إداري: العقد منتهٍ وحالته ما زالت نشطاً.');
-        mark(c.id, AlertType.EXPIRED_STILL_ACTIVE);
-      }
-
-      if (this.hasShelfDeviation(c)) {
-        await this.alerts.upsert(m, c.id, AlertType.SHELF_PRICE_DEVIATION, AlertSeverity.WARNING, 'فرق بين السعر الفعلي لإيجار الأرفف والسعر المعياري.');
-        mark(c.id, AlertType.SHELF_PRICE_DEVIATION);
-      }
-
-      await this.refreshActivation(m, c.id, null);
+    if (q.expiringWithin) {
+      const limit = Number(q.expiringWithin);
+      rows = rows.filter((c) => c.status === Status.ACTIVE && c.endDate && daysBetween(today, c.endDate) >= 0 && daysBetween(today, c.endDate) <= limit);
     }
+    if (q.alert === '1') rows = rows.filter((c) => c.hasAlert);
 
-    await this.alerts.closeStale(
-      m,
-      [
-        AlertType.EXPIRY_90,
-        AlertType.EXPIRY_60,
-        AlertType.EXPIRY_30,
-        AlertType.RENEWAL_NOTICE,
-        AlertType.UNSIGNED_APPROVED,
-        AlertType.EXPIRED_STILL_ACTIVE,
-      ],
-      keep,
-    );
+    const pending = await this.pendingAddendumSet();
+    let mapped = rows.map((c) => this.toRow(c, vMap, dMap, uMap, goalCounts, pending, user));
+    if (q.view === 'awaiting') mapped = mapped.filter((r) => r.awaitingUser);
+    if (q.view === 'mine') mapped = mapped.filter((r) => r.createdById === user.id);
+    return mapped;
   }
 
-  // ───────────────────────── داخلية ─────────────────────────
+  private async pendingAddendumSet() {
+    const rows = await this.addenda.find({ where: { status: 'pending' } });
+    return new Set(rows.map((r) => r.contractId));
+  }
 
-  /** تفعيل تلقائي بعد اكتمال التوقيع عند بلوغ تاريخ النفاذ (مطابقة refresh_activation). */
-  async refreshActivation(m: EntityManager, id: number, actor: AuthUser | null) {
-    const c = await this.findFull(id, m);
+  private async goalCounts(ids: number[]) {
+    const map = new Map<number, number>();
+    if (!ids.length) return map;
+    const rows = await this.goalLines.createQueryBuilder('g').select('g.contractId', 'cid').addSelect('COUNT(g.id)', 'cnt').where('g.contractId IN (:...ids)', { ids }).groupBy('g.contractId').getRawMany();
+    rows.forEach((r) => map.set(Number(r.cid), Number(r.cnt)));
+    return map;
+  }
+
+  discountKinds(c: ContractEntity, goalCount: number): string[] {
+    const kinds: string[] = [];
+    if (num(c.fixedDiscountPct)) kinds.push('fixed');
+    if (goalCount > 0) kinds.push('goals');
+    if (num(c.settlementDiscountPct)) kinds.push('settlement');
+    if (!kinds.length) kinds.push('none');
+    return kinds;
+  }
+
+  toRow(c: ContractEntity, vMap: Map<number, VendorEntity>, dMap: Map<number, string>, uMap: Map<number, string>, goalCounts: Map<number, number>, pending: Set<number>, user: AuthUser) {
+    const v = vMap.get(c.vendorId);
     const today = todayIso();
-    if (c.status === ContractStatus.PENDING_SIGNATURE && c.bothPartiesSigned && c.startDate <= today) {
-      c.activatedAt = new Date();
-      c.updatedAt = new Date();
-      await this.persist(m, c);
-      // بدون مستخدم فاعل (مهمة مجدولة) ننسب الإجراء لأول مدير نظام، كما يفعل Django.
-      const systemUser = actor ?? (await m.findOne(UserEntity, { where: { isSuperuser: true } }));
-      if (systemUser) {
-        await this.transition(
-          m,
-          c,
-          ContractStatus.ACTIVE,
-          { id: systemUser.id },
-          actor ? 'تفعيل العقد في تاريخ النفاذ' : 'تفعيل تلقائي في تاريخ النفاذ',
-        );
-      }
-    }
-    if (c.status === ContractStatus.ACTIVE && c.endDate < today) {
-      await this.alerts.upsert(m, id, AlertType.EXPIRED_STILL_ACTIVE, AlertSeverity.CRITICAL, 'العقد تجاوز تاريخ انتهائه وما زالت حالته نشطاً.');
-    }
-  }
-
-  /** الرقم التالي للمورد: أعلى تسلسل موجود + 1، فلا يتعارض مع أرقام سابقة غير متصلة. */
-  private async nextContractNumber(m: EntityManager, vendor: VendorEntity): Promise<string> {
-    const existing = await m.find(ContractEntity, { where: { vendorId: vendor.id }, select: ['contractNumber'] });
-    const prefix = `${vendor.vendorNumber}-`;
-    const max = existing.reduce((acc, c) => {
-      const n = c.contractNumber.startsWith(prefix) ? Number(c.contractNumber.slice(prefix.length)) : NaN;
-      return Number.isFinite(n) ? Math.max(acc, n) : acc;
-    }, 0);
-    return `${prefix}${String(max + 1).padStart(2, '0')}`;
-  }
-
-  /**
-   * حفظ أعمدة العقد فقط. لا نستخدم save() على كيان محمّل مع علاقات الأطفال (المرفقات والسجل...):
-   * TypeORM يُفرغ مفاتيح الأطفال الجديدة عند ذلك. لهذا الكتابة بـ UPDATE صريح.
-   */
-  private async persist(m: EntityManager, c: ContractEntity) {
-    c.updatedAt = new Date();
-    await m.update(ContractEntity, c.id, {
-      status: c.status,
-      hasNonStandardTerms: c.hasNonStandardTerms,
-      manuallyEscalated: c.manuallyEscalated,
-      bothPartiesSigned: c.bothPartiesSigned,
-      signedAt: c.signedAt,
-      activatedAt: c.activatedAt,
-      cancelledAt: c.cancelledAt,
-      cancellationReason: c.cancellationReason,
-      updatedAt: c.updatedAt,
-    });
-  }
-
-  private async transition(m: EntityManager, c: ContractEntity, to: string, actor: { id: number } | AuthUser, action: string, details: Record<string, unknown> = {}) {
-    const allowed = ALLOWED_TRANSITIONS[c.status] ?? [];
-    if (!allowed.includes(to)) {
-      throw new WorkflowError(`لا يمكن الانتقال من ${STATUS_LABELS[c.status] ?? c.status} إلى الحالة المطلوبة.`);
-    }
-    const from = c.status;
-    c.status = to;
-    c.updatedAt = new Date();
-    await this.persist(m, c);
-    await this.audit(m, c.id, actor, action, from, to, details);
-  }
-
-  private async audit(m: EntityManager, contractId: number, actor: { id: number }, action: string, from = '', to = '', details: Record<string, unknown> = {}) {
-    await m.save(
-      m.create(AuditLogEntity, {
-        contractId,
-        actorId: actor.id,
-        action,
-        fromStatus: from,
-        toStatus: to,
-        details: JSON.stringify(details),
-        createdAt: new Date(),
-      }),
-    );
-  }
-
-  private async createApprovalSteps(m: EntityManager, c: ContractEntity) {
-    await m.delete(ApprovalStepEntity, { contractId: c.id });
-    const role = requiredApproverRole({
-      hasNonStandardTerms: c.hasNonStandardTerms,
-      manuallyEscalated: c.manuallyEscalated,
-      contractType: c.contractType,
-      actualValue: Number(c.actualValue),
-      shelfRateStandardPrice: c.shelfRate ? Number(c.shelfRate.standardPrice) : null,
-      shelfActualPrice: c.shelfActualPrice == null ? null : Number(c.shelfActualPrice),
-    });
-    await m.save(m.create(ApprovalStepEntity, { contractId: c.id, role, sequence: 1, decision: ApprovalDecision.PENDING, comment: '' }));
-    c.approvalSteps = await m.find(ApprovalStepEntity, { where: { contractId: c.id } });
-  }
-
-  private async replaceTargets(m: EntityManager, contractId: number, targets: TargetDto[]) {
-    const rows = (targets ?? []).map((t, i) =>
-      m.create(ContractTargetEntity, {
-        contractId,
-        title: t.title,
-        targetValue: String(t.targetValue),
-        discountPercent: String(t.discountPercent),
-        sortOrder: i + 1,
-      }),
-    );
-    if (rows.length) await m.save(rows);
-  }
-
-  /** التحقق من قواعد المسودة (مطابقة Contract.clean + قواعد المواصفة). */
-  private async validateDraft(dto: ContractDto) {
-    const errors: Record<string, string> = {};
-    if (dto.endDate <= dto.startDate) errors.endDate = 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء.';
-    else if (daysBetween(dto.startDate, dto.endDate) > MAX_CONTRACT_DAYS) errors.endDate = 'أقصى مدة للعقد سنة واحدة.';
-
-    if (dto.contractType === ContractType.SUPPLY && ![ContractSubtype.FRESH, ContractSubtype.FOOD, ContractSubtype.NON_FOOD].includes(dto.subtype as never)) {
-      errors.subtype = 'عقود التوريد تتطلب نوعاً فرعياً: فريش / غذائي / لا غذائي.';
-    }
-    if (dto.contractType === ContractType.SERVICES && dto.subtype && dto.subtype !== ContractSubtype.ACCOUNT_OPENING) {
-      errors.subtype = 'لعقود الخدمات استخدم «فتح حساب» أو اترك النوع الفرعي فارغاً.';
-    }
-    if (dto.contractType === ContractType.SHELF_RENT && !dto.shelfRateId) {
-      errors.shelfRateId = 'عقود إيجار الأرفف تتطلب نوع الرف المعياري.';
-    }
-    dto.targets?.forEach((t, i) => {
-      if (t.discountPercent > 100) errors[`targets.${i}.discountPercent`] = 'نسبة الخصم لا تتجاوز 100%.';
-    });
-
-    const vendor = await this.ds.getRepository(VendorEntity).findOne({ where: { id: dto.vendorId } });
-    if (!vendor || !vendor.isActive) errors.vendorId = 'اختر موردًا نشطًا من البيانات الرئيسية.';
-    const department = await this.ds.getRepository(DepartmentEntity).findOne({ where: { id: dto.departmentId } });
-    if (!department || !department.isActive) errors.departmentId = 'اختر قسماً نشطاً.';
-    let shelfRate: ShelfRateEntity | null = null;
-    if (dto.shelfRateId) {
-      shelfRate = await this.ds.getRepository(ShelfRateEntity).findOne({ where: { id: dto.shelfRateId } });
-      if (!shelfRate) errors.shelfRateId = 'نوع الرف غير موجود.';
-    }
-
-    if (Object.keys(errors).length) throw new UnprocessableEntityException({ message: 'تحقق من الحقول المعلّمة.', errors });
-    return { vendor: vendor!, department: department!, shelfRate };
-  }
-
-  private draftFields(dto: ContractDto, shelfRate: ShelfRateEntity | null) {
-    const subtype = dto.contractType === ContractType.SHELF_RENT || dto.contractType === ContractType.MARKETING ? '' : dto.subtype ?? '';
     return {
-      contractType: dto.contractType,
-      subtype,
-      internalClassification: dto.internalClassification ?? '',
-      startDate: dto.startDate,
-      endDate: dto.endDate,
-      autoRenewal: false, // المواصفة: لا تجديد تلقائي
-      noticePeriodDays: 30,
-      actualValue: String(dto.actualValue),
-      hasNonStandardTerms: dto.hasNonStandardTerms,
-      notes: dto.notes ?? '',
-      shelfRateId: shelfRate?.id ?? null,
-      shelfActualPrice: dto.shelfActualPrice == null ? null : String(dto.shelfActualPrice),
-      purchasingManagerId: dto.purchasingManagerId ?? null,
+      id: c.id,
+      number: c.number,
+      vendorId: c.vendorId,
+      vendorName: v?.name ?? '',
+      vendorNumber: v?.vendorNumber ?? '',
+      types: c.types,
+      typeLabels: c.types.map((t) => TYPE_LABELS[t]),
+      primaryType: c.primaryType,
+      departmentId: c.departmentId,
+      departmentName: dMap.get(c.departmentId) ?? '',
+      status: c.status,
+      statusLabel: STATUS_LABELS[c.status] ?? c.status,
+      party: c.party,
+      partyLabel: c.party ? PARTY_LABELS[c.party] : null,
+      startDate: c.startDate,
+      endDate: c.endDate,
+      daysRemaining: c.endDate && [Status.ACTIVE, Status.AWAITING_SIGNATURE].includes(c.status as any) ? daysBetween(today, c.endDate) : null,
+      hasAlert: c.hasAlert,
+      waitingDays: daysSince(c.stateEnteredAt),
+      discountKinds: this.discountKinds(c, goalCounts.get(c.id) ?? 0),
+      createdById: c.createdById,
+      createdByName: uMap.get(c.createdById) ?? '',
+      entryPath: c.entryPath,
+      awaitingUser: this.awaitingUser(user, c, pending),
     };
   }
 
-  private async findFull(id: number, m?: EntityManager): Promise<ContractEntity> {
-    const repo = m ? m.getRepository(ContractEntity) : this.ds.getRepository(ContractEntity);
-    const c = await repo.findOne({
-      where: { id },
-      relations: {
-        vendor: true,
-        department: true,
-        shelfRate: true,
-        commercialOwner: true,
-        createdBy: true,
-        targets: true,
-        attachments: { uploadedBy: true },
-        approvalSteps: { decidedBy: true },
-        auditLogs: { actor: { profile: true } },
-        alerts: true,
+  // ───────────────────────── التفاصيل ─────────────────────────
+
+  async detail(id: number, user: AuthUser) {
+    const c = await this.mustGet(id, user);
+    const [vendor, dept, creator] = await Promise.all([
+      this.vendors.findOne({ where: { id: c.vendorId } }),
+      this.departments.findOne({ where: { id: c.departmentId } }),
+      this.users.findOne({ where: { id: c.createdById } }),
+    ]);
+    const [rent, marketing, atts, addenda, stays, refs] = await Promise.all([
+      this.rentLines.find({ where: { contractId: id }, order: { id: 'ASC' } }),
+      this.marketingLines.find({ where: { contractId: id }, order: { id: 'ASC' } }),
+      this.attachments.find({ where: { contractId: id }, order: { id: 'ASC' } }),
+      this.addenda.find({ where: { contractId: id }, order: { no: 'ASC' } }),
+      this.stays.find({ where: { contractId: id }, order: { id: 'ASC' } }),
+      this.refs.find(),
+    ]);
+    const refName = new Map(refs.map((r) => [r.id, r.name]));
+    const accountOk = this.canSeeAccountData(user, c);
+    const rentTotal = rent.reduce((s, l) => s + Number(l.total), 0);
+    const marketingTotal = marketing.reduce((s, l) => s + Number(l.price), 0);
+
+    const progress = c.types.includes(ContractType.SUPPLY) && user.caps.canSeeGoals ? await this.goals.progressFor(c, vendor?.vendorNumber ?? '') : null;
+    const termVersions = c.termVersions?.length
+      ? await this.templates.versionsByIds(c.termVersions)
+      : await this.templates.versionsByIds(await this.templates.activeVersionIdsFor(c.types));
+    const users = new Map((await this.users.find()).map((u) => [u.id, u.fullName]));
+    const pending = await this.pendingAddendumSet();
+
+    const goalLinesCurrent = await this.goalLines.find({ where: { contractId: id }, order: { version: 'ASC', sort: 'ASC', id: 'ASC' } });
+
+    return {
+      id: c.id,
+      number: c.number,
+      vendor: vendor ? { id: vendor.id, name: vendor.name, vendorNumber: vendor.vendorNumber } : null,
+      department: dept ? { id: dept.id, name: dept.name } : null,
+      createdBy: creator?.fullName ?? '',
+      createdById: c.createdById,
+      entryPath: c.entryPath,
+      types: c.types,
+      typeLabels: c.types.map((t) => TYPE_LABELS[t]),
+      primaryType: c.primaryType,
+      servicesOnly: isServicesOnly(c.types),
+      status: c.status,
+      statusLabel: STATUS_LABELS[c.status] ?? c.status,
+      party: c.party,
+      partyLabel: c.party ? PARTY_LABELS[c.party] : null,
+      waitingDays: daysSince(c.stateEnteredAt),
+      stateEnteredAt: isoDateTime(c.stateEnteredAt),
+      rep: { name: c.repName, title: c.repTitle, mobile: c.repMobile },
+      startDate: c.startDate,
+      endDate: c.endDate,
+      daysRemaining: c.endDate ? daysBetween(todayIso(), c.endDate) : null,
+      specialTerms: c.specialTerms,
+      hasAlert: c.hasAlert,
+      alertKind: c.alertKind,
+      alertReason: c.alertReason,
+      rejectReason: c.rejectReason,
+      closeReason: c.closeReason,
+      cancelReason: c.cancelReason,
+      addendumCount: c.addendumCount,
+      sentAt: isoDateTime(c.sentAt),
+      activatedAt: isoDateTime(c.activatedAt),
+      endedAt: isoDateTime(c.endedAt),
+      cancelledAt: isoDateTime(c.cancelledAt),
+      supply: c.types.includes(ContractType.SUPPLY)
+        ? {
+            paymentDays: c.paymentDays,
+            settlementDiscountPct: num(c.settlementDiscountPct),
+            fixedDiscountPct: num(c.fixedDiscountPct),
+            goalLines: goalLinesCurrent
+              .filter((g) => !g.activeTo)
+              .map((g) => ({ id: g.id, fromDate: g.fromDate, toDate: g.toDate, target: Number(g.target), discountPct: Number(g.discountPct), version: g.version })),
+          }
+        : null,
+      goals: progress,
+      rentLines: rent.map((l) => ({ id: l.id, branchId: l.branchId, branch: refName.get(l.branchId) ?? '', shelfTypeId: l.shelfTypeId, shelf: refName.get(l.shelfTypeId) ?? '', qty: l.qty, price: Number(l.price), unit: l.unit, startDate: l.startDate, endDate: l.endDate, periods: l.periods, total: Number(l.total) })),
+      rentTotal,
+      marketingLines: marketing.map((l) => ({ id: l.id, eventId: l.eventId, event: refName.get(l.eventId) ?? '', price: Number(l.price), note: l.note })),
+      marketingTotal,
+      addItem: c.types.includes(ContractType.ADD_ITEM) ? { price: num(c.newItemPrice) } : null,
+      openAccount: c.types.includes(ContractType.OPEN_ACCOUNT)
+        ? { creditLimit: accountOk ? num(c.creditLimit) : null, confidential: !accountOk, documents: ACCOUNT_DOC_KINDS.map((k) => ({ kind: k, label: ATTACHMENT_LABELS[k], uploaded: atts.some((a) => a.kind === k) })) }
+        : null,
+      terms: {
+        snapshot: !!c.termVersions?.length,
+        clauses: termVersions.map((v) => ({ id: v.id, title: v.title, body: v.body, version: v.version })),
       },
-    });
-    if (!c) throw new NotFoundException('العقد غير موجود.');
-    return c;
+      attachments: atts
+        .filter((a) => !ACCOUNT_DOC_KINDS.includes(a.kind) || accountOk)
+        .map((a) => ({ id: a.id, kind: a.kind, kindLabel: ATTACHMENT_LABELS[a.kind] ?? a.kind, fileName: a.fileName, size: a.size, uploadedBy: users.get(a.uploadedById) ?? '', uploadedAt: isoDateTime(a.uploadedAt), addendumId: a.addendumId })),
+      addenda: addenda.map((a) => ({ id: a.id, no: a.no, effectiveDate: a.effectiveDate, description: a.description, changes: a.changes, status: a.status, returnReason: a.returnReason, createdBy: users.get(a.createdById) ?? '', createdAt: isoDateTime(a.createdAt), decidedBy: a.decidedById ? users.get(a.decidedById) ?? '' : null, decidedAt: isoDateTime(a.decidedAt) })),
+      stays: stays.map((s) => ({ state: s.state, stateLabel: STATUS_LABELS[s.state], party: s.party, partyLabel: s.party ? PARTY_LABELS[s.party] : null, enteredAt: isoDateTime(s.enteredAt), leftAt: isoDateTime(s.leftAt) })),
+      audit: user.caps.canViewAudit ? await this.contractAudit(id) : [],
+      actions: this.actionsFor(user, c, atts, pending.has(c.id)),
+    };
   }
 
-  private pendingStep(c: ContractEntity): ApprovalStepEntity | null {
-    const steps = c.approvalSteps.filter((s) => s.decision === ApprovalDecision.PENDING).sort((a, b) => a.sequence - b.sequence);
-    return steps[0] ?? null;
+  private async contractAudit(id: number) {
+    const rows = await this.auditLogs.find({ where: { contractId: id }, order: { id: 'DESC' }, take: 300 });
+    return rows.map((r) => ({ id: r.id, action: r.action, userName: r.userName, userRole: r.userRole, entity: r.entity, before: r.before, after: r.after, note: r.note, createdAt: isoDateTime(r.createdAt) }));
   }
 
-  private hasShelfDeviation(c: ContractEntity): boolean {
-    if (c.contractType !== ContractType.SHELF_RENT || !c.shelfRate || c.shelfActualPrice == null) return false;
-    return Number(c.shelfActualPrice) !== Number(c.shelfRate.standardPrice);
-  }
+  // ───────────────────────── الإجراءات المتاحة ─────────────────────────
 
-  private shelfDeviation(c: ContractEntity): number {
-    if (!this.hasShelfDeviation(c) || !Number(c.shelfRate!.standardPrice)) return 0;
-    const base = Number(c.shelfRate!.standardPrice);
-    return ((Number(c.shelfActualPrice) - base) / base) * 100;
-  }
-
-  private actionsFor(c: ContractEntity, user: AuthUser, kinds: Set<string>): ContractAction[] {
+  actionsFor(user: AuthUser, c: ContractEntity, atts: AttachmentEntity[], hasPendingAddendum: boolean): ContractAction[] {
     const out: ContractAction[] = [];
-    const add = (key: string, label: string, primary = false) => out.push({ key, label, primary });
-    const pending = this.pendingStep(c);
-    const closed = this.isClosed(c);
+    const add = (a: ContractAction) => out.push(a);
+    const role = user.role;
+    const own = this.isOwnDepartment(user, c);
+    const creatorOrAdmin = c.createdById === user.id || user.caps.createAnyDepartment;
+    const deptMgr = this.isDeptManagerOf(user, c);
+    const closeStates = [Status.ACTIVE, Status.ENDED, Status.CANCELLED] as string[];
 
-    if (c.status === ContractStatus.DRAFT && user.isContractsStaff) {
-      add('edit', 'عدّل المسودة', true);
-      add('delete', 'احذف المسودة');
-      if (kinds.has(AttachmentKind.ORIGINAL)) add('submit', 'أرسل للاعتماد', true);
+    if (c.status === Status.DRAFT && creatorOrAdmin) {
+      add({ key: 'edit', label: 'عدّل المسودة' });
+      add({ key: 'send', label: 'أرسل للمراجعة', primary: true });
+      if (!c.number && !c.sentAt) add({ key: 'delete', label: 'احذف المسودة', danger: true });
     }
-    if (c.status === ContractStatus.UNDER_REVIEW && user.canLegalReview) {
-      add('legal_approve', 'اعتمد قانونياً', true);
-      add('legal_return', 'أعِد للمسودة');
+    if (c.status === Status.UNDER_REVIEW && c.party === Party.DEPARTMENT_MANAGER && deptMgr) {
+      add({ key: 'dept_approve', label: c.entryPath === 'ready' ? 'أكّد المطابقة' : 'اعتمد', primary: true, reason: 'optional' });
+      add({ key: 'dept_reject', label: c.entryPath === 'ready' ? 'غير مطابق — أعده للمسودة' : 'ارفض', danger: true, reason: 'required' });
     }
-    if (c.status === ContractStatus.PENDING_APPROVAL && pending) {
-      const canDecide =
-        (pending.role === ApproverRole.DEPARTMENT_HEAD && user.canApproveAsHead) ||
-        (pending.role === ApproverRole.CONTRACTS_MANAGER && user.canApproveAsContractsManager);
-      if (canDecide) {
-        add('approve', 'اعتمد', true);
-        add('reject', 'ارفض');
-      }
+    if (c.status === Status.UNDER_REVIEW && c.party === Party.CONTRACTS_MANAGER && role === Role.CONTRACTS_MANAGER) {
+      add({ key: 'cm_approve', label: 'اعتمد العقد', primary: true, reason: 'optional' });
+      add({ key: 'cm_return', label: 'أرجع العقد', danger: true, reason: 'required' });
     }
-    if ((c.status === ContractStatus.DRAFT || c.status === ContractStatus.PENDING_APPROVAL) && (user.isContractsStaff || user.isPurchasingStaff)) {
-      add('escalate', 'صعّد لإدارة العقود');
+    if (c.hasAlert && user.caps.canNoteOnAlert && ([Status.UNDER_REVIEW] as string[]).includes(c.status)) {
+      add({ key: 'add_note', label: 'أضف ملاحظة', reason: 'required' });
     }
-    if (c.status === ContractStatus.PENDING_SIGNATURE && user.isContractsStaff && !c.bothPartiesSigned) {
-      add('mark_signed', 'ثبّت التوقيع', true);
+    const canAlert = user.caps.canRaiseAlert && (role !== Role.DEPARTMENT_MANAGER || own);
+    if (canAlert && !c.hasAlert && ((c.status === Status.UNDER_REVIEW && c.party === Party.DEPARTMENT_MANAGER) || c.status === Status.AWAITING_SIGNATURE)) {
+      add({ key: 'raise_alert', label: 'ارفع تنبيهاً', reason: 'required' });
     }
-    if (!closed && user.isContractsStaff && c.status !== ContractStatus.DRAFT) add('cancel', 'ألغِ العقد');
-    if (!closed) add('upload', 'ارفع مرفقاً');
-    add('note', 'أضف ملاحظة');
+    if (c.status === Status.AWAITING_SIGNATURE && (role === Role.PURCHASING_MANAGER || deptMgr)) {
+      add({ key: 'edit_pending', label: 'عدّل قبل التوقيع' });
+    }
+    if (c.status === Status.AWAITING_SIGNATURE && (role === Role.PURCHASING_MANAGER || (own && (role === Role.DEPARTMENT_MANAGER || role === Role.DEPARTMENT_OFFICIAL)))) {
+      add({ key: 'upload_signed', label: 'ارفع النسخة الموقعة', primary: true });
+    }
+    if (c.status === Status.ACTIVE && (user.caps.createAnyDepartment || (own && (role === Role.DEPARTMENT_MANAGER || role === Role.DEPARTMENT_OFFICIAL)))) {
+      add({ key: 'add_addendum', label: 'أضف ملحقاً' });
+    }
+    if (c.status === Status.ACTIVE && hasPendingAddendum && deptMgr) {
+      add({ key: 'addendum_review', label: 'طابق الملحق', primary: true });
+    }
+    if (c.status === Status.ACTIVE && isServicesOnly(c.types) && (role === Role.CONTRACTS_MANAGER || deptMgr)) {
+      add({ key: 'close_services', label: 'أغلق عقد الخدمات', danger: true, reason: 'required' });
+    }
+    if (([Status.AWAITING_SIGNATURE, Status.ACTIVE] as string[]).includes(c.status) && (role === Role.CONTRACTS_MANAGER || user.caps.createAnyDepartment)) {
+      add({ key: 'cancel', label: 'ألغِ العقد', danger: true, reason: 'required' });
+    }
+    if (c.number || creatorOrAdmin) add({ key: 'print', label: 'اطبع العقد' });
+    void closeStates;
+    void atts;
     return out;
   }
 
-  private toRow(c: ContractEntity, user: AuthUser, kinds: Set<string>, lastActivity?: string) {
-    const pending = this.pendingStep(c);
-    const actions = this.actionsFor(c, user, kinds);
-    const awaitingUser = actions.some((a) => ['approve', 'legal_approve', 'mark_signed', 'submit'].includes(a.key));
-    const responsible =
-      c.status === ContractStatus.PENDING_APPROVAL && pending
-        ? APPROVER_LABELS[pending.role] ?? pending.role
-        : c.status === ContractStatus.UNDER_REVIEW
-          ? 'الشؤون القانونية'
-          : c.status === ContractStatus.PENDING_SIGNATURE
-            ? 'قسم العقود — التوقيع'
-            : c.status === ContractStatus.DRAFT
-              ? 'قسم العقود — المسودة'
-              : null;
+  // ───────────────────────── الطباعة ─────────────────────────
+
+  async printData(user: AuthUser, id: number): Promise<PrintData> {
+    const c = await this.mustGet(id, user);
+    if (c.entryPath === 'ready') throw new WorkflowError('العقد الجاهز لا يُولَّد؛ ملفه المرفوع هو العقد.');
+    const [vendor, dept, rent, marketing, refs, doc] = await Promise.all([
+      this.vendors.findOne({ where: { id: c.vendorId } }),
+      this.departments.findOne({ where: { id: c.departmentId } }),
+      this.rentLines.find({ where: { contractId: id } }),
+      this.marketingLines.find({ where: { contractId: id } }),
+      this.refs.find(),
+      this.templates.currentDoc(),
+    ]);
+    const name = new Map(refs.map((r) => [r.id, r.name]));
+    const goals = await this.goalLines.find({ where: { contractId: id, version: 0 }, order: { sort: 'ASC' } });
+    const clauseIds = c.termVersions?.length ? c.termVersions : await this.templates.activeVersionIdsFor(c.types);
+    const clauses = await this.templates.versionsByIds(clauseIds);
+    await this.audit.log({ user, action: 'طباعة العقد', entity: 'contract', contractId: id });
     return {
-      id: c.id,
-      contractNumber: c.contractNumber,
-      createdById: c.createdById,
-      commercialOwnerId: c.commercialOwnerId,
-      vendorId: c.vendorId,
-      vendorName: c.vendor?.tradeName || c.vendor?.legalName || '',
-      vendorNumber: c.vendor?.vendorNumber ?? '',
-      contractType: c.contractType,
-      contractTypeLabel: TYPE_LABELS[c.contractType] ?? c.contractType,
-      subtype: c.subtype,
-      subtypeLabel: SUBTYPE_LABELS[c.subtype] ?? '',
-      departmentId: c.departmentId,
-      departmentName: c.department?.name ?? '',
+      number: c.number,
+      draft: c.status === Status.DRAFT,
+      types: c.types,
+      vendorName: vendor?.name ?? '',
+      vendorNumber: vendor?.vendorNumber ?? '',
+      departmentName: dept?.name ?? '',
+      repName: c.repName,
+      repTitle: c.repTitle,
+      repMobile: c.repMobile,
       startDate: c.startDate,
       endDate: c.endDate,
-      daysRemaining: daysBetween(todayIso(), c.endDate),
-      status: c.status,
-      statusLabel: STATUS_LABELS[c.status] ?? c.status,
-      actualValue: num(c.actualValue),
-      hasNonStandardTerms: c.hasNonStandardTerms,
-      isHighValue: num(c.actualValue)! > 15000,
-      requiredApprover: APPROVER_LABELS[requiredApproverRole({
-        hasNonStandardTerms: c.hasNonStandardTerms,
-        manuallyEscalated: c.manuallyEscalated,
-        contractType: c.contractType,
-        actualValue: Number(c.actualValue),
-        shelfRateStandardPrice: c.shelfRate ? Number(c.shelfRate.standardPrice) : null,
-        shelfActualPrice: c.shelfActualPrice == null ? null : Number(c.shelfActualPrice),
-      })] ?? '',
-      responsible,
-      waitingDays: daysSince(lastActivity ?? c.updatedAt),
-      awaitingUser,
-      primaryAction: actions.find((a) => a.primary)?.label ?? null,
-      cancellationReason: c.cancellationReason,
+      paymentDays: c.paymentDays,
+      settlementDiscountPct: num(c.settlementDiscountPct),
+      fixedDiscountPct: num(c.fixedDiscountPct),
+      newItemPrice: num(c.newItemPrice),
+      creditLimit: this.canSeeAccountData(user, c) ? num(c.creditLimit) : null,
+      specialTerms: c.specialTerms,
+      goalLines: goals.map((g) => ({ fromDate: g.fromDate, toDate: g.toDate, target: Number(g.target), discountPct: Number(g.discountPct) })),
+      rentLines: rent.map((l) => ({ branch: name.get(l.branchId) ?? '', shelf: name.get(l.shelfTypeId) ?? '', qty: l.qty, price: Number(l.price), unit: l.unit, startDate: l.startDate, endDate: l.endDate, periods: l.periods, total: Number(l.total) })),
+      marketingLines: marketing.map((l) => ({ event: name.get(l.eventId) ?? '', price: Number(l.price), note: l.note })),
+      clauses: clauses.map((v) => ({ title: v.title, body: v.body })),
+      template: { headerText: doc.headerText, footerText: doc.footerText, signatureLayout: doc.signatureLayout, hasLogo: !!doc.logoPath, hasBackground: !!doc.backgroundPath },
     };
   }
 
-  private toAuditRow(l: AuditLogEntity) {
-    let details: Record<string, unknown> = {};
-    try {
-      details = l.details ? JSON.parse(l.details) : {};
-    } catch {
-      details = {};
-    }
+  /** نسخة قابلة للإدخال في النموذج (تحرير المسودة / تعديل بانتظار التوقيع). */
+  async formValues(user: AuthUser, id: number) {
+    const d = await this.detail(id, user);
     return {
-      id: l.id,
-      action: l.action,
-      fromStatus: l.fromStatus,
-      toStatus: l.toStatus,
-      fromStatusLabel: STATUS_LABELS[l.fromStatus] ?? '',
-      toStatusLabel: STATUS_LABELS[l.toStatus] ?? '',
-      details,
-      createdAt: isoDateTime(l.createdAt),
-      actorName: l.actor ? this.userName(l.actor) : null,
-      actorRole: l.actor?.profile?.role ?? null,
+      vendorId: d.vendor?.id,
+      departmentId: d.department?.id,
+      entryPath: d.entryPath,
+      types: d.types,
+      repName: d.rep.name,
+      repTitle: d.rep.title,
+      repMobile: d.rep.mobile,
+      startDate: d.startDate,
+      endDate: d.endDate,
+      specialTerms: d.specialTerms,
+      supply: d.supply ? { paymentDays: d.supply.paymentDays, settlementDiscountPct: d.supply.settlementDiscountPct, fixedDiscountPct: d.supply.fixedDiscountPct, goalLines: d.supply.goalLines } : undefined,
+      rentLines: d.rentLines,
+      marketingLines: d.marketingLines,
+      addItem: d.addItem ?? undefined,
+      openAccount: d.openAccount ? { creditLimit: d.openAccount.creditLimit } : undefined,
     };
   }
 
-  private userName(u: UserEntity) {
-    return `${u.firstName} ${u.lastName}`.trim() || u.username;
+  /** مساعد: إنشاء استثناء إجراء. */
+  fail(message: string, errors?: Record<string, string>): never {
+    throw new WorkflowError(message, errors);
   }
 
-  /** آخر نشاط (إجراء في السجل) لكل عقد — يُستخدم لحساب مدة الانتظار. */
-  private async lastActivityMap(ids: number[]): Promise<Map<number, string>> {
-    const map = new Map<number, string>();
-    if (!ids.length) return map;
-    const rows: { contractId: number; last: string }[] = await this.ds
-      .getRepository(AuditLogEntity)
-      .createQueryBuilder('l')
-      .select('l.contractId', 'contractId')
-      .addSelect('MAX(l.createdAt)', 'last')
-      .where({ contractId: In(ids) })
-      .groupBy('l.contractId')
-      .getRawMany();
-    rows.forEach((r) => map.set(Number(r.contractId), r.last));
-    return map;
+  ids<T extends { id: number }>(rows: T[]) {
+    return rows.map((r) => r.id);
   }
 
-  private async attachmentKindMap(ids: number[]): Promise<Map<number, Set<string>>> {
-    const map = new Map<number, Set<string>>();
-    if (!ids.length) return map;
-    const rows = await this.ds.getRepository(ContractAttachmentEntity).find({ where: { contractId: In(ids) }, select: ['contractId', 'kind'] });
-    rows.forEach((r) => {
-      if (!map.has(r.contractId)) map.set(r.contractId, new Set());
-      map.get(r.contractId)!.add(r.kind);
-    });
-    return map;
+  in<T>(ids: T[]) {
+    return In(ids as any);
   }
-}
-
-const ATTACHMENT_LABELS: Record<string, string> = {
-  original: 'النسخة الأصلية',
-  legal_review: 'نسخة المراجعة القانونية',
-  signed: 'النسخة الموقعة',
-  addendum: 'ملحق',
-  renewal_letter: 'خطاب تجديد',
-  termination_letter: 'خطاب إنهاء',
-  other: 'أخرى',
-};
-
-function addDaysIso(iso: string, days: number): string {
-  return addDays(iso, days);
 }

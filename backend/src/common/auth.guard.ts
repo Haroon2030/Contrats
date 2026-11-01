@@ -1,21 +1,24 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   SetMetadata,
   UnauthorizedException,
   createParamDecorator,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AuthService, AuthUser } from '../auth/auth.service';
+import { AuthService, AuthUser, SESSION_MINUTES } from '../auth/auth.service';
 
 export const COOKIE_NAME = 'contracts_token';
 const PUBLIC_KEY = 'isPublic';
+const ALLOW_PW_CHANGE_KEY = 'allowPasswordChange';
 
-/** يُعلّم endpoint كعام (بدون تسجيل دخول). */
+/** endpoint عام (بدون تسجيل دخول). */
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
+/** endpoint متاح حتى لو كانت كلمة المرور مؤقتة (تغيير كلمة المرور والخروج). */
+export const AllowPasswordChange = () => SetMetadata(ALLOW_PW_CHANGE_KEY, true);
 
-/** المستخدم الحالي كما حمّله الحارس. */
 export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext): AuthUser => {
   return ctx.switchToHttp().getRequest().user;
 });
@@ -28,7 +31,20 @@ export function readToken(req: { headers: Record<string, string | string[] | und
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-/** حارس عام: يتحقق من الرمز ويحمّل المستخدم بصلاحياته لكل الطلبات. */
+export function cookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.COOKIE_SECURE === '1',
+    maxAge: SESSION_MINUTES * 60 * 1000,
+    path: '/',
+  };
+}
+
+/**
+ * حارس عام: يتحقق من الرمز ويحمّل المستخدم وصلاحياته، ويجدّد الجلسة (30 دقيقة خمول)،
+ * ويمنع كل شيء عدا تغيير كلمة المرور حين تكون كلمة المرور مؤقتة.
+ */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
@@ -40,11 +56,23 @@ export class AuthGuard implements CanActivate {
     const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [ctx.getHandler(), ctx.getClass()]);
     if (isPublic) return true;
 
-    const req = ctx.switchToHttp().getRequest();
+    const http = ctx.switchToHttp();
+    const req = http.getRequest();
     const token = readToken(req);
-    const user = token ? await this.auth.verifyToken(token) : null;
-    if (!user) throw new UnauthorizedException('يجب تسجيل الدخول أولاً.');
-    req.user = user;
+    const verified = token ? await this.auth.verifyToken(token) : null;
+    if (!verified) throw new UnauthorizedException('انتهت الجلسة. سجّل الدخول من جديد.');
+
+    const allowPw = this.reflector.getAllAndOverride<boolean>(ALLOW_PW_CHANGE_KEY, [ctx.getHandler(), ctx.getClass()]);
+    if (verified.user.mustChangePassword && !allowPw) {
+      throw new ForbiddenException({ message: 'يجب تغيير كلمة المرور المؤقتة أولاً.', code: 'PASSWORD_CHANGE_REQUIRED' });
+    }
+
+    // جلسة منزلقة: تجديد الكوكي كلما مضى أكثر من نصف مدة الجلسة.
+    if (verified.remainingSeconds < (SESSION_MINUTES * 60) / 2) {
+      const fresh = await this.auth.sign(verified.user.id);
+      http.getResponse().cookie(COOKIE_NAME, fresh, cookieOptions());
+    }
+    req.user = verified.user;
     return true;
   }
 }

@@ -1,91 +1,120 @@
-import { HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ROLE_LABELS, roleFlags, RoleFlags } from '../common/domain';
-import { verifyDjangoPassword } from '../common/django-password';
-import { UserEntity } from '../database/entities';
+import { Caps, ROLE_LABELS, capsOf, normalizeRole } from '../common/domain';
+import { makeDjangoPassword, verifyDjangoPassword } from '../common/django-password';
+import { DepartmentEntity, UserEntity } from '../database/entities';
+import { AuditService } from '../audit/audit.service';
 
-export interface AuthUser extends RoleFlags {
+export interface AuthUser {
   id: number;
   username: string;
   fullName: string;
   role: string;
   roleLabel: string;
-  jobTitle: string;
   departmentId: number | null;
   departmentName: string | null;
-  mustChangePassword: false;
+  mustChangePassword: boolean;
+  caps: Caps;
 }
 
-const LOCK_LIMIT = 5; // المواصفة: قفل بعد 5 محاولات فاشلة
-const LOCK_MINUTES = 15;
+export const LOCK_AFTER_FAILURES = 5;
+export const LOCK_MINUTES = 15;
+export const SESSION_MINUTES = 30;
+
+/** كلمة المرور: 8 خانات على الأقل، تجمع حروفاً وأرقاماً. */
+export function passwordProblem(password: string): string | null {
+  if (password.length < 8) return 'كلمة المرور 8 خانات على الأقل.';
+  if (!/[A-Za-z؀-ۿ]/.test(password) || !/\d/.test(password)) return 'كلمة المرور يجب أن تجمع حروفاً وأرقاماً.';
+  return null;
+}
 
 @Injectable()
 export class AuthService {
-  /** عدّاد المحاولات الفاشلة لكل اسم مستخدم (في الذاكرة — يُفرَّغ عند إعادة التشغيل). */
-  private failures = new Map<string, { count: number; lockedUntil: number }>();
-
   constructor(
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
+    @InjectRepository(DepartmentEntity) private readonly departments: Repository<DepartmentEntity>,
     private readonly jwt: JwtService,
+    private readonly audit: AuditService,
   ) {}
 
   async login(username: string, password: string) {
-    const key = username.trim().toLowerCase();
-    const state = this.failures.get(key);
-    if (state && state.lockedUntil > Date.now()) {
-      throw new HttpException(
-        `تم قفل الدخول مؤقتاً بعد تجاوز عدد المحاولات. حاول بعد ${LOCK_MINUTES} دقيقة.`,
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+    const user = await this.users.findOne({ where: { username: username.trim() } });
+    const now = new Date();
+
+    if (user?.lockedUntil && user.lockedUntil.getTime() > now.getTime()) {
+      throw new HttpException(`تم إيقاف الدخول مؤقتاً. حاول بعد ${LOCK_MINUTES} دقيقة.`, HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    const user = await this.users.findOne({
-      where: { username: username.trim() },
-      relations: { profile: { department: true } },
-    });
-    const ok = !!user && user.isActive && !!user.profile && verifyDjangoPassword(password, user.password);
+    const ok = !!user && user.isActive && verifyDjangoPassword(password, user.passwordHash);
     if (!ok) {
-      const count = (state?.count ?? 0) + 1;
-      this.failures.set(key, {
-        count,
-        lockedUntil: count >= LOCK_LIMIT ? Date.now() + LOCK_MINUTES * 60_000 : 0,
-      });
+      if (user) {
+        user.failedAttempts += 1;
+        if (user.failedAttempts >= LOCK_AFTER_FAILURES) {
+          user.lockedUntil = new Date(now.getTime() + LOCK_MINUTES * 60_000);
+          user.failedAttempts = 0;
+        }
+        await this.users.save(user);
+        await this.audit.log({ user: null, action: 'محاولة دخول فاشلة', entity: 'user', note: user.username });
+        if (user.lockedUntil && user.lockedUntil.getTime() > now.getTime()) {
+          throw new HttpException(`تم إيقاف الدخول مؤقتاً بعد 5 محاولات خاطئة. حاول بعد ${LOCK_MINUTES} دقيقة.`, HttpStatus.TOO_MANY_REQUESTS);
+        }
+      }
       throw new UnauthorizedException('اسم المستخدم أو كلمة المرور غير صحيحة.');
     }
 
-    this.failures.delete(key);
-    await this.users.update(user.id, { lastLogin: new Date() });
-    const token = await this.jwt.signAsync({ sub: user.id });
-    return { token, user: this.toAuthUser(user) };
+    user.failedAttempts = 0;
+    user.lockedUntil = null;
+    user.lastLoginAt = now;
+    await this.users.save(user);
+    const authUser = await this.toAuthUser(user);
+    await this.audit.log({ user: authUser, action: 'تسجيل دخول', entity: 'user', note: '' });
+    return { token: await this.sign(user.id), user: authUser };
   }
 
-  async verifyToken(token: string): Promise<AuthUser | null> {
+  sign(userId: number) {
+    return this.jwt.signAsync({ sub: userId }, { expiresIn: SESSION_MINUTES * 60 });
+  }
+
+  async verifyToken(token: string): Promise<{ user: AuthUser; remainingSeconds: number } | null> {
     try {
-      const payload = await this.jwt.verifyAsync<{ sub: number }>(token);
-      const user = await this.users.findOne({ where: { id: payload.sub }, relations: { profile: { department: true } } });
-      if (!user || !user.isActive || !user.profile) return null;
-      return this.toAuthUser(user);
+      const payload = await this.jwt.verifyAsync<{ sub: number; exp: number }>(token);
+      const user = await this.users.findOne({ where: { id: payload.sub } });
+      if (!user || !user.isActive) return null;
+      return { user: await this.toAuthUser(user), remainingSeconds: payload.exp - Math.floor(Date.now() / 1000) };
     } catch {
       return null;
     }
   }
 
-  toAuthUser(user: UserEntity): AuthUser {
-    const profile = user.profile;
-    const role = profile?.role ?? '';
+  async changePassword(userId: number, current: string, next: string) {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user || !verifyDjangoPassword(current, user.passwordHash)) throw new BadRequestException({ message: 'كلمة المرور الحالية غير صحيحة.', errors: { current: 'كلمة المرور الحالية غير صحيحة.' } });
+    const problem = passwordProblem(next);
+    if (problem) throw new BadRequestException({ message: problem, errors: { next: problem } });
+    if (current === next) throw new BadRequestException({ message: 'اختر كلمة مرور مختلفة عن الحالية.', errors: { next: 'اختر كلمة مرور مختلفة عن الحالية.' } });
+    user.passwordHash = makeDjangoPassword(next);
+    user.mustChangePassword = false;
+    await this.users.save(user);
+    const authUser = await this.toAuthUser(user);
+    await this.audit.log({ user: authUser, action: 'تغيير كلمة المرور', entity: 'user', note: '' });
+    return authUser;
+  }
+
+  async toAuthUser(user: UserEntity): Promise<AuthUser> {
+    const role = normalizeRole(user.role);
+    const dept = user.departmentId ? await this.departments.findOne({ where: { id: user.departmentId } }) : null;
     return {
       id: user.id,
       username: user.username,
-      fullName: `${user.firstName} ${user.lastName}`.trim() || user.username,
+      fullName: user.fullName || user.username,
       role,
       roleLabel: ROLE_LABELS[role] ?? role,
-      jobTitle: profile?.jobTitle ?? '',
-      departmentId: profile?.departmentId ?? null,
-      departmentName: profile?.department?.name ?? null,
-      mustChangePassword: false,
-      ...roleFlags(role),
+      departmentId: user.departmentId,
+      departmentName: dept?.name ?? null,
+      mustChangePassword: user.mustChangePassword,
+      caps: capsOf(role),
     };
   }
 }

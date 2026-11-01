@@ -1,208 +1,132 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { useReference } from '@/controllers/useAdmin';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/controllers/toast';
-import { Button, Empty, ErrorBox, Field, PageHead, Panel } from '../ui';
+import { errorText, useApi } from '@/controllers/useApi';
+import { api } from '@/models/api';
+import type { Json } from '@/models/types';
+import { Button, ErrorBox, Field, Loading, PageHead, Panel } from '../ui';
 
-type Tab = 'departments' | 'vendors' | 'shelf';
+interface Lists {
+  labels: Record<string, string>;
+  departments: { id: number; name: string; code: string; isActive: boolean }[];
+  values: { id: number; list: string; name: string; isActive: boolean }[];
+}
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'departments', label: 'الأقسام' },
-  { key: 'vendors', label: 'الموردون' },
-  { key: 'shelf', label: 'أنواع الأرفف' },
-];
-
-/** القوائم المرجعية: إضافة وتعطيل (لا حذف) — تبقى الأسماء القديمة في العقود المرتبطة. */
+/** القوائم المرجعية: إضافة/تعديل/إيقاف فقط (لا حذف)، والموردون، وThreshold التذكير والتصعيد. */
 export function ReferenceView() {
-  const { departments, vendors, shelfRates, error, write, toggle } = useReference();
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>('departments');
-  const [adding, setAdding] = useState(false);
+  const lists = useApi<Lists>('/reference/lists');
+  const vendors = useApi<Json[]>('/reference/vendors');
+  const settings = useApi<{ reminderDays: number[]; escalationDays: number }>('/reference/settings');
+  const [reminders, setReminders] = useState('');
+  const [escalation, setEscalation] = useState('');
+  const [vend, setVend] = useState({ vendorNumber: '', name: '' });
+  const [bulk, setBulk] = useState('');
 
-  const addLabel = { departments: 'أضف قسماً', vendors: 'أضف مورداً', shelf: 'أضف نوع رف' }[tab];
+  useEffect(() => {
+    if (settings.data) {
+      setReminders(settings.data.reminderDays.join(','));
+      setEscalation(String(settings.data.escalationDays));
+    }
+  }, [settings.data]);
+
+  const attempt = async (fn: () => Promise<unknown>, done: string, after: () => void) => {
+    try {
+      await fn();
+      toast.success(done);
+      after();
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  };
+
+  if (!lists.data) return lists.error ? <ErrorBox>{lists.error}</ErrorBox> : <Loading />;
+  const L = lists.data;
+
+  const importVendors = () => {
+    const rows = bulk
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => {
+        const [vendorNumber, ...rest] = l.split(/[,\t;]/);
+        return { vendorNumber: vendorNumber.trim(), name: rest.join(',').trim() };
+      });
+    attempt(() => api.post('/reference/vendors/import', { vendors: rows }), 'استُوردت الموردين.', () => { setBulk(''); vendors.reload(); });
+  };
 
   return (
     <>
-      <PageHead title="القوائم المرجعية" subtitle="تُستخدم في نماذج العقود. التعطيل بدل الحذف للحفاظ على السجلات." actions={<Button variant="primary" onClick={() => setAdding(true)}>«{addLabel}»</Button>} />
+      <PageHead title="القوائم والإعدادات" subtitle="الإيقاف بدل الحذف، والتغييرات في التدقيق" />
 
-      <div className="tabs" role="tablist">
-        {TABS.map((t) => (
-          <button key={t.key} role="tab" aria-selected={tab === t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {error && <ErrorBox>{error}</ErrorBox>}
-
-      <Panel>
-        {tab === 'departments' && (
-          <Rows
-            empty="لا توجد أقسام."
-            head={['الاسم', 'الرمز', 'الحالة', '']}
-            rows={departments.map((d) => ({
-              key: d.id,
-              cells: [d.name, <span key="c" className="ltr">{d.code}</span>, d.isActive ? 'نشط' : 'معطّل'],
-              active: d.isActive,
-              onToggle: () => toggle(`/reference/departments/${d.id}`, { name: d.name, code: d.code, isActive: !d.isActive }),
-            }))}
-          />
-        )}
-        {tab === 'vendors' && (
-          <Rows
-            empty="لا يوجد موردون."
-            head={['رقم المورد', 'الاسم القانوني', 'الاسم التجاري', 'الجوال', 'الحالة', '']}
-            rows={vendors.map((v) => ({
-              key: v.id,
-              cells: [
-                <span key="n" className="ltr">{v.vendorNumber}</span>,
-                v.legalName,
-                v.tradeName || '—',
-                <span key="p" className="ltr">{v.phone || '—'}</span>,
-                v.isActive ? 'نشط' : 'معطّل',
-              ],
-              active: v.isActive,
-              onToggle: () =>
-                toggle(`/reference/vendors/${v.id}`, {
-                  vendorNumber: v.vendorNumber,
-                  legalName: v.legalName,
-                  tradeName: v.tradeName,
-                  crNumber: v.crNumber,
-                  contactName: v.contactName,
-                  phone: v.phone,
-                  email: v.email,
-                  isActive: !v.isActive,
-                }),
-            }))}
-          />
-        )}
-        {tab === 'shelf' && (
-          <Rows
-            empty="لا توجد أنواع أرفف."
-            head={['النوع', 'الرمز', 'السعر المعياري', 'الوحدة', 'الحالة', '']}
-            rows={shelfRates.map((s) => ({
-              key: s.id,
-              cells: [s.name, <span key="c" className="ltr">{s.code}</span>, s.standardPrice, s.unit, s.isActive ? 'نشط' : 'معطّل'],
-              active: s.isActive,
-              onToggle: () =>
-                toggle(`/reference/shelf-rates/${s.id}`, { code: s.code, name: s.name, unit: s.unit, standardPrice: Number(s.standardPrice), isActive: !s.isActive }),
-            }))}
-          />
-        )}
+      <Panel title="مدد التذكير والتصعيد (Threshold)">
+        <p className="muted">تسري على العقود الجديدة فقط؛ كل عقد يحتفظ بقيمه وقت إنشائه.</p>
+        <div className="form-grid">
+          <Field label="أيام التذكير قبل الانتهاء (مفصولة بفواصل)"><input className="input ltr" value={reminders} onChange={(e) => setReminders(e.target.value)} /></Field>
+          <Field label="أيام التصعيد (البقاء في مرحلة واحدة)"><input className="input ltr" type="number" min={1} value={escalation} onChange={(e) => setEscalation(e.target.value)} /></Field>
+        </div>
+        <Button variant="primary" onClick={() => attempt(() => api.put('/reference/settings', { reminderDays: reminders.split(',').map((s) => Number(s.trim())).filter((n) => n > 0), escalationDays: Number(escalation) }), 'حُفظت الإعدادات.', settings.reload)}>«احفظ»</Button>
       </Panel>
 
-      {adding && <AddModal tab={tab} onClose={() => setAdding(false)} onSave={async (path, body) => {
-        const res = await write(path, body);
-        if (res.ok) {
-          toast.success('أُضيف السجل.');
-          setAdding(false);
-        }
-        return res;
-      }} />}
+      <Panel title="الأقسام">
+        {L.departments.map((d) => (
+          <div className="row" key={d.id} style={{ marginBottom: 6 }}>
+            <strong>{d.name}</strong> <span className="muted ltr">{d.code}</span>
+            <span className={`badge ${d.isActive ? 'ok' : 'muted'}`}>{d.isActive ? 'نشط' : 'موقوف'}</span>
+            <Button small onClick={() => attempt(() => api.patch(`/reference/departments/${d.id}`, { isActive: !d.isActive }), 'تم.', lists.reload)}>{d.isActive ? '«أوقف»' : '«فعّل»'}</Button>
+          </div>
+        ))}
+      </Panel>
+
+      {Object.entries(L.labels).map(([key, title]) => (
+        <ListEditor key={key} title={title} items={L.values.filter((v) => v.list === key)} onAdd={(name) => attempt(() => api.post(`/reference/lists/${key}`, { name }), 'أُضيفت.', lists.reload)} onPatch={(id, body) => attempt(() => api.patch(`/reference/lists/${key}/${id}`, body), 'تم.', lists.reload)} />
+      ))}
+
+      <Panel title="الموردون">
+        <div className="form-grid">
+          <Field label="رقم المورد"><input className="input ltr" value={vend.vendorNumber} onChange={(e) => setVend({ ...vend, vendorNumber: e.target.value })} /></Field>
+          <Field label="الاسم"><input className="input" value={vend.name} onChange={(e) => setVend({ ...vend, name: e.target.value })} /></Field>
+        </div>
+        <Button variant="primary" disabled={!vend.vendorNumber || !vend.name} onClick={() => attempt(() => api.post('/reference/vendors', vend), 'أُضيف المورد.', () => { setVend({ vendorNumber: '', name: '' }); vendors.reload(); })}>«أضف مورداً»</Button>
+        <Field label="استيراد جماعي (سطر لكل مورد: الرقم, الاسم)">
+          <textarea className="textarea ltr" rows={3} value={bulk} onChange={(e) => setBulk(e.target.value)} />
+        </Field>
+        <Button disabled={!bulk.trim()} onClick={importVendors}>«استورد»</Button>
+        <div className="table-wrap" style={{ marginTop: 12 }}>
+          <table className="table">
+            <thead><tr><th>الرقم</th><th>الاسم</th><th>الحالة</th><th /></tr></thead>
+            <tbody>
+              {(vendors.data ?? []).map((v) => (
+                <tr key={v.id}>
+                  <td className="ltr">{v.vendorNumber}</td><td>{v.name}</td>
+                  <td><span className={`badge ${v.isActive ? 'ok' : 'muted'}`}>{v.isActive ? 'نشط' : 'موقوف'}</span></td>
+                  <td><Button small onClick={() => attempt(() => api.patch(`/reference/vendors/${v.id}`, { isActive: !v.isActive }), 'تم.', vendors.reload)}>{v.isActive ? '«أوقف»' : '«فعّل»'}</Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
     </>
   );
 }
 
-function Rows({
-  head,
-  rows,
-  empty,
-}: {
-  head: string[];
-  rows: { key: number; cells: React.ReactNode[]; active: boolean; onToggle: () => void }[];
-  empty: string;
-}) {
-  if (!rows.length) return <Empty>{empty}</Empty>;
+function ListEditor({ title, items, onAdd, onPatch }: { title: string; items: Lists['values']; onAdd: (n: string) => void; onPatch: (id: number, b: Json) => void }) {
+  const [name, setName] = useState('');
   return (
-    <div className="table-wrap">
-      <table className="table">
-        <thead>
-          <tr>
-            {head.map((h, i) => (
-              <th key={i}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key}>
-              {r.cells.map((c, i) => (
-                <td key={i}>{c}</td>
-              ))}
-              <td>
-                <Button small onClick={r.onToggle}>{r.active ? '«عطّل»' : '«فعّل»'}</Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-type Result = { ok: true } | { ok: false; message: string; fields?: Record<string, string> };
-
-function AddModal({ tab, onClose, onSave }: { tab: Tab; onClose: () => void; onSave: (path: string, body: unknown) => Promise<Result> }) {
-  const [f, setF] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [fields, setFields] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const set = (k: string, v: string) => setF((s) => ({ ...s, [k]: v }));
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    setFields({});
-    const res =
-      tab === 'departments'
-        ? await onSave('/reference/departments', { name: f.name, code: f.code })
-        : tab === 'vendors'
-          ? await onSave('/reference/vendors', { vendorNumber: f.vendorNumber, legalName: f.legalName, tradeName: f.tradeName, phone: f.phone, email: f.email, crNumber: f.crNumber })
-          : await onSave('/reference/shelf-rates', { code: f.code, name: f.name, unit: f.unit || 'شهرياً', standardPrice: Number(f.standardPrice) });
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.message);
-      setFields(res.fields ?? {});
-    }
-  };
-
-  const title = { departments: 'قسم جديد', vendors: 'مورد جديد', shelf: 'نوع رف جديد' }[tab];
-  return (
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
-      <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit} noValidate>
-        <h2>{title}</h2>
-        {error && <ErrorBox>{error}</ErrorBox>}
-        {tab === 'departments' && (
-          <>
-            <Field label="الاسم" error={fields.name}><input className="input" value={f.name ?? ''} onChange={(e) => set('name', e.target.value)} /></Field>
-            <Field label="الرمز" error={fields.code}><input className="input ltr" value={f.code ?? ''} onChange={(e) => set('code', e.target.value)} /></Field>
-          </>
-        )}
-        {tab === 'vendors' && (
-          <>
-            <Field label="رقم المورد" error={fields.vendorNumber} hint="مثال: V-2201"><input className="input ltr" value={f.vendorNumber ?? ''} onChange={(e) => set('vendorNumber', e.target.value)} /></Field>
-            <Field label="الاسم القانوني" error={fields.legalName}><input className="input" value={f.legalName ?? ''} onChange={(e) => set('legalName', e.target.value)} /></Field>
-            <Field label="الاسم التجاري"><input className="input" value={f.tradeName ?? ''} onChange={(e) => set('tradeName', e.target.value)} /></Field>
-            <Field label="السجل التجاري"><input className="input ltr" value={f.crNumber ?? ''} onChange={(e) => set('crNumber', e.target.value)} /></Field>
-            <Field label="الهاتف"><input className="input ltr" value={f.phone ?? ''} onChange={(e) => set('phone', e.target.value)} /></Field>
-            <Field label="البريد"><input className="input ltr" value={f.email ?? ''} onChange={(e) => set('email', e.target.value)} /></Field>
-          </>
-        )}
-        {tab === 'shelf' && (
-          <>
-            <Field label="الرمز" error={fields.code}><input className="input ltr" value={f.code ?? ''} onChange={(e) => set('code', e.target.value)} /></Field>
-            <Field label="نوع الرف" error={fields.name}><input className="input" value={f.name ?? ''} onChange={(e) => set('name', e.target.value)} /></Field>
-            <Field label="السعر المعياري (ر.س)" error={fields.standardPrice}><input className="input" type="number" min="0" step="0.01" value={f.standardPrice ?? ''} onChange={(e) => set('standardPrice', e.target.value)} /></Field>
-            <Field label="الوحدة"><input className="input" value={f.unit ?? 'شهرياً'} onChange={(e) => set('unit', e.target.value)} /></Field>
-          </>
-        )}
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <Button onClick={onClose}>«تراجع»</Button>
-          <Button variant="primary" type="submit" disabled={busy}>{busy ? '…' : '«احفظ»'}</Button>
+    <Panel title={title}>
+      <div className="row" style={{ marginBottom: 10 }}>
+        <input className="input" style={{ maxWidth: 280 }} placeholder="اسم جديد" value={name} onChange={(e) => setName(e.target.value)} />
+        <Button small variant="primary" disabled={!name.trim()} onClick={() => { onAdd(name.trim()); setName(''); }}>«أضف»</Button>
+      </div>
+      {items.map((v) => (
+        <div className="row" key={v.id} style={{ marginBottom: 6 }}>
+          <input className="input" style={{ maxWidth: 280 }} defaultValue={v.name} onBlur={(e) => e.target.value.trim() && e.target.value !== v.name && onPatch(v.id, { name: e.target.value.trim() })} />
+          <span className={`badge ${v.isActive ? 'ok' : 'muted'}`}>{v.isActive ? 'نشط' : 'موقوف'}</span>
+          <Button small onClick={() => onPatch(v.id, { isActive: !v.isActive })}>{v.isActive ? '«أوقف»' : '«فعّل»'}</Button>
         </div>
-      </form>
-    </div>
+      ))}
+    </Panel>
   );
 }

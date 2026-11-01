@@ -1,12 +1,33 @@
-/** أنواع البيانات القادمة من الـ API (مطابقة لـ NestJS). */
+/** أشكال البيانات القادمة من الـ API (BRD v3.0). الحقول التفصيلية للعقد تبقى مرنة لأنها تتبع أنواع العقد. */
 
 export type Role =
-  | 'contracts_officer'
-  | 'purchasing_officer'
-  | 'purchasing_head'
+  | 'system_admin'
   | 'contracts_manager'
-  | 'legal'
-  | 'admin';
+  | 'contracts_officer'
+  | 'purchasing_manager'
+  | 'department_manager'
+  | 'department_official'
+  | 'operations';
+
+export type ContractStatus = 'draft' | 'under_review' | 'awaiting_signature' | 'active' | 'ended' | 'cancelled';
+export type ContractType = 'supply' | 'rent' | 'marketing' | 'add_item' | 'open_account';
+
+export interface Caps {
+  canViewAllDepartments: boolean;
+  operationsOnly: boolean;
+  createAnyDepartment: boolean;
+  canCreate: boolean;
+  canRaiseAlert: boolean;
+  canNoteOnAlert: boolean;
+  canViewAudit: boolean;
+  canManageUsers: boolean;
+  canManageRefs: boolean;
+  canManageTemplates: boolean;
+  isPurchasingManager: boolean;
+  isContractsManager: boolean;
+  seesAccountDocs: boolean;
+  canSeeGoals: boolean;
+}
 
 export interface SessionUser {
   id: number;
@@ -14,244 +35,93 @@ export interface SessionUser {
   fullName: string;
   role: Role;
   roleLabel: string;
-  jobTitle: string;
   departmentId: number | null;
   departmentName: string | null;
-  isContractsStaff: boolean;
-  isPurchasingStaff: boolean;
-  canApproveAsHead: boolean;
-  canApproveAsContractsManager: boolean;
-  canLegalReview: boolean;
-  canManageUsers: boolean;
+  mustChangePassword: boolean;
+  caps: Caps;
 }
 
-export type ContractStatus =
-  | 'draft'
-  | 'under_review'
-  | 'pending_approval'
-  | 'pending_signature'
-  | 'active'
-  | 'expired'
-  | 'cancelled';
+export interface ApiErrorBody {
+  message?: string | string[];
+  errors?: Record<string, string>;
+  code?: string;
+}
 
-export type ContractType = 'supply' | 'shelf_rent' | 'marketing' | 'services';
-export type ContractSubtype = 'fresh' | 'food' | 'non_food' | 'account_opening';
+export interface Named {
+  id: number;
+  name: string;
+}
+
+export interface Options {
+  departments: (Named & { code: string })[];
+  branches: Named[];
+  shelfTypes: Named[];
+  serviceTypes: Named[];
+  events: Named[];
+  vendors: { id: number; vendorNumber: string; name: string }[];
+  thresholds: { reminderDays: number[]; escalationDays: number };
+}
 
 export interface ContractRow {
   id: number;
-  contractNumber: string;
-  createdById: number;
-  commercialOwnerId: number;
+  number: string | null;
   vendorId: number;
   vendorName: string;
   vendorNumber: string;
-  contractType: ContractType;
-  contractTypeLabel: string;
-  subtype: string;
-  subtypeLabel: string;
+  types: ContractType[];
+  typeLabels: string[];
   departmentId: number;
   departmentName: string;
-  startDate: string;
-  endDate: string;
-  daysRemaining: number;
   status: ContractStatus;
   statusLabel: string;
-  actualValue: number;
-  hasNonStandardTerms: boolean;
-  isHighValue: boolean;
-  requiredApprover: string;
-  responsible: string | null;
+  party: string | null;
+  partyLabel: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  daysRemaining: number | null;
+  hasAlert: boolean;
   waitingDays: number;
+  discountKinds: string[];
+  createdByName: string;
+  entryPath: 'new' | 'ready';
   awaitingUser: boolean;
-  primaryAction: string | null;
-  cancellationReason: string;
 }
 
 export interface ContractAction {
   key: string;
   label: string;
-  primary: boolean;
+  primary?: boolean;
+  danger?: boolean;
+  reason?: 'required' | 'optional';
 }
 
-export interface TargetRow {
-  id: number;
-  title: string;
-  targetValue: number;
-  discountPercent: number;
-  estimatedDiscount: number;
-}
-
-export interface AttachmentRow {
+export interface Notification {
   id: number;
   kind: string;
-  kindLabel: string;
-  originalName: string;
-  uploadedAt: string | null;
-  uploadedBy: string | null;
-}
-
-export interface ApprovalStepRow {
-  id: number;
-  role: string;
-  roleLabel: string;
-  sequence: number;
-  decision: 'pending' | 'approved' | 'rejected';
-  decidedAt: string | null;
-  decidedBy: string | null;
-  comment: string;
-}
-
-export interface AuditRow {
-  id: number;
-  action: string;
-  fromStatus: string;
-  toStatus: string;
-  fromStatusLabel: string;
-  toStatusLabel: string;
-  details: Record<string, unknown>;
-  createdAt: string | null;
-  actorName: string | null;
-  actorRole: string | null;
-  contractId?: number;
+  text: string;
+  contractId: number | null;
   contractNumber?: string | null;
-  actor?: string | null;
-}
-
-export interface AlertRow {
-  id: number;
-  alertType: string;
-  severity: 'info' | 'warning' | 'critical';
-  message: string;
-  contractId: number;
-  contractNumber: string;
-  vendorName: string;
-  createdAt: string | null;
-}
-
-export interface ContractDetail extends ContractRow {
-  internalClassification: string;
-  notes: string;
-  commercialOwner: string | null;
-  createdBy: string | null;
-  purchasingManagerId: number | null;
-  shelfRate: { id: number; name: string; standardPrice: number } | null;
-  shelfActualPrice: number | null;
-  shelfDeviationPercent: number;
-  hasShelfPriceDeviation: boolean;
-  isHighValue: boolean;
-  lastNoticeDate: string | null;
-  autoRenewal: boolean;
-  bothPartiesSigned: boolean;
-  signedAt: string | null;
-  activatedAt: string | null;
-  cancelledAt: string | null;
-  targets: TargetRow[];
-  attachments: AttachmentRow[];
-  approvalSteps: ApprovalStepRow[];
-  pendingApprover: string | null;
-  auditLogs: AuditRow[];
-  alerts: { id: number; alertType: string; severity: string; message: string; createdAt: string | null }[];
-  actions: ContractAction[];
-}
-
-export interface ContractFormValues {
-  contractType: ContractType;
-  subtype: string;
-  internalClassification: string;
-  vendorId: number | '';
-  departmentId: number | '';
-  startDate: string;
-  endDate: string;
-  actualValue: string;
-  hasNonStandardTerms: boolean;
-  shelfRateId: number | '';
-  shelfActualPrice: string;
-  purchasingManagerId: number | '';
-  notes: string;
-  targets: { title: string; targetValue: string; discountPercent: string }[];
-}
-
-export interface Option {
-  id: number;
-  name: string;
-}
-
-export interface ReferenceOptions {
-  vendors: { id: number; vendorNumber: string; name: string }[];
-  departments: { id: number; name: string; code: string }[];
-  shelfRates: { id: number; name: string; unit: string; standardPrice: number }[];
-  users: { id: number; name: string; role: string; roleLabel: string }[];
-}
-
-export interface DashboardSummary {
-  total: number;
-  byStatus: { status: ContractStatus; label: string; count: number }[];
-  byType: { type: ContractType; label: string; count: number }[];
-  expiring: { days: number; count: number }[];
-  awaiting: ContractRow[];
-  nearest: { id: number; contractNumber: string; vendorName: string; endDate: string; daysRemaining: number; status: string }[];
-  departments: { department: string; estimatedDiscount: number; targets: number }[];
-  departmentsCount: number;
+  read: boolean;
+  createdAt: string;
 }
 
 export interface GoalRow {
   id: number;
-  contractNumber: string;
-  vendorName: string;
-  department: string;
-  title: string;
-  targetValue: number;
-  discountPercent: number;
+  fromDate: string;
+  toDate: string;
+  target: number;
+  discountPct: number;
+  net: number;
+  achievedPct: number;
+  status: string;
+  statusLabel: string;
+  applied: boolean;
   estimatedDiscount: number;
-  progressStatus: 'no_data' | 'achieved' | 'not_achieved' | 'in_progress';
+  contractId: number;
+  number: string;
+  vendorName: string;
+  departmentName: string;
 }
 
-export interface UserRow {
-  id: number;
-  username: string;
-  firstName: string;
-  lastName: string;
-  fullName: string;
-  role: Role;
-  roleLabel: string;
-  departmentId: number | null;
-  departmentName: string | null;
-  jobTitle: string;
-  phone: string;
-  isActive: boolean;
-  lastLogin: string | null;
-}
-
-export interface Department {
-  id: number;
-  name: string;
-  code: string;
-  isActive: boolean;
-}
-
-export interface VendorRecord {
-  id: number;
-  vendorNumber: string;
-  legalName: string;
-  tradeName: string;
-  crNumber: string;
-  contactName: string;
-  phone: string;
-  email: string;
-  isActive: boolean;
-}
-
-export interface ShelfRateRecord {
-  id: number;
-  code: string;
-  name: string;
-  unit: string;
-  standardPrice: string;
-  isActive: boolean;
-}
-
-/** شكل الأخطاء من الـ API: رسالة عامة + أخطاء الحقول إن وُجدت. */
-export interface ApiErrorBody {
-  message?: string | string[];
-  errors?: Record<string, string>;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Json = any;

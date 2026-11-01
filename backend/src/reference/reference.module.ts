@@ -1,179 +1,243 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Module, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Type } from 'class-transformer';
-import { IsBoolean, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, MinLength } from 'class-validator';
-import { DataSource } from 'typeorm';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Global,
+  Injectable,
+  Module,
+  NotFoundException,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../auth/auth.service';
 import { CurrentUser } from '../common/auth.guard';
-import { ROLE_LABELS, roleFlags } from '../common/domain';
-import { DepartmentEntity, ENTITIES, ShelfRateEntity, UserEntity, VendorEntity } from '../database/entities';
+import { REF_LIST_LABELS, RefList, SETTING_DEFAULTS } from '../common/domain';
+import { DepartmentEntity, RefValueEntity, SettingEntity, VendorEntity } from '../database/entities';
 
-class VendorDto {
-  @Matches(/^[\w-]{2,30}$/) vendorNumber: string;
-  @IsString() @MinLength(2) @MaxLength(200) legalName: string;
-  @IsOptional() @IsString() @MaxLength(200) tradeName?: string;
-  @IsOptional() @IsString() @MaxLength(40) crNumber?: string;
-  @IsOptional() @IsString() @MaxLength(120) contactName?: string;
-  @IsOptional() @IsString() @MaxLength(30) phone?: string;
-  @IsOptional() @IsString() @MaxLength(254) email?: string;
-  @IsOptional() @IsBoolean() isActive?: boolean;
+export interface Thresholds {
+  reminderDays: number[];
+  escalationDays: number;
 }
 
-class DepartmentDto {
-  @IsString() @MinLength(2) @MaxLength(120) name: string;
-  @IsString() @MinLength(1) @MaxLength(20) code: string;
-  @IsOptional() @IsBoolean() isActive?: boolean;
+/** Threshold: أيام التذكير ومدة التصعيد. يعدّلها مسؤول النظام وحده. */
+@Injectable()
+export class SettingsService {
+  constructor(@InjectRepository(SettingEntity) private readonly repo: Repository<SettingEntity>) {}
+
+  async get(): Promise<Thresholds> {
+    const rows = await this.repo.find();
+    const map = new Map(rows.map((r) => [r.key, r.value]));
+    const reminder = (map.get('reminder_days') ?? SETTING_DEFAULTS.reminder_days)
+      .split(',')
+      .map((x) => Number(x.trim()))
+      .filter((n) => Number.isInteger(n) && n > 0)
+      .sort((a, b) => b - a);
+    const escalation = Number(map.get('escalation_days') ?? SETTING_DEFAULTS.escalation_days);
+    return { reminderDays: reminder, escalationDays: Number.isInteger(escalation) && escalation > 0 ? escalation : 7 };
+  }
+
+  async set(t: Thresholds) {
+    await this.repo.save([
+      this.repo.create({ key: 'reminder_days', value: t.reminderDays.join(',') }),
+      this.repo.create({ key: 'escalation_days', value: String(t.escalationDays) }),
+    ]);
+  }
 }
 
-class ShelfRateDto {
-  @IsString() @MinLength(1) @MaxLength(40) code: string;
-  @IsString() @MinLength(2) @MaxLength(120) name: string;
-  @IsOptional() @IsString() @MaxLength(40) unit?: string;
-  @Type(() => Number) @IsNumber() @Min(0) standardPrice: number;
-  @IsOptional() @IsBoolean() isActive?: boolean;
-}
-
-/**
- * القوائم المرجعية: الإضافة والتعطيل فقط — لا حذف (كما في النظام القديم).
- * القراءة متاحة لكل مستخدم مسجّل، والكتابة لمدير النظام.
- */
 @Controller('reference')
 export class ReferenceController {
-  constructor(private readonly ds: DataSource) {}
+  constructor(
+    @InjectRepository(RefValueEntity) private readonly refs: Repository<RefValueEntity>,
+    @InjectRepository(DepartmentEntity) private readonly departments: Repository<DepartmentEntity>,
+    @InjectRepository(VendorEntity) private readonly vendors: Repository<VendorEntity>,
+    private readonly settings: SettingsService,
+    private readonly audit: AuditService,
+  ) {}
 
-  /** بيانات النماذج: الموردون والأقسام وأنواع الأرفف والمستخدمون النشطون. */
+  private admin(user: AuthUser) {
+    if (!user.caps.canManageRefs) throw new ForbiddenException('القوائم والإعدادات يديرها مسؤول النظام.');
+  }
+
+  /** بيانات النماذج: كل القيم النشطة فقط (الموقوفة تختفي من العقود الجديدة). */
   @Get('options')
   async options() {
-    const [vendors, departments, shelfRates, users] = await Promise.all([
-      this.ds.getRepository(VendorEntity).find({ where: { isActive: true }, order: { legalName: 'ASC' } }),
-      this.ds.getRepository(DepartmentEntity).find({ where: { isActive: true }, order: { name: 'ASC' } }),
-      this.ds.getRepository(ShelfRateEntity).find({ where: { isActive: true }, order: { name: 'ASC' } }),
-      this.ds.getRepository(UserEntity).find({ where: { isActive: true }, relations: { profile: true }, order: { username: 'ASC' } }),
+    const [departments, refs, vendors, thresholds] = await Promise.all([
+      this.departments.find({ where: { isActive: true }, order: { name: 'ASC' } }),
+      this.refs.find({ where: { isActive: true }, order: { name: 'ASC' } }),
+      this.vendors.find({ where: { isActive: true }, order: { name: 'ASC' } }),
+      this.settings.get(),
     ]);
+    const list = (name: string) => refs.filter((r) => r.list === name).map((r) => ({ id: r.id, name: r.name }));
     return {
-      vendors: vendors.map((v) => ({ id: v.id, vendorNumber: v.vendorNumber, name: v.tradeName || v.legalName })),
       departments: departments.map((d) => ({ id: d.id, name: d.name, code: d.code })),
-      shelfRates: shelfRates.map((s) => ({ id: s.id, name: s.name, unit: s.unit, standardPrice: Number(s.standardPrice) })),
-      users: users
-        .filter((u) => u.profile)
-        .map((u) => ({ id: u.id, name: `${u.firstName} ${u.lastName}`.trim() || u.username, role: u.profile.role, roleLabel: ROLE_LABELS[u.profile.role] ?? '' })),
+      branches: list(RefList.BRANCH),
+      shelfTypes: list(RefList.SHELF_TYPE),
+      serviceTypes: list(RefList.SERVICE_TYPE),
+      events: list(RefList.EVENT),
+      vendors: vendors.map((v) => ({ id: v.id, vendorNumber: v.vendorNumber, name: v.name })),
+      thresholds,
     };
   }
 
-  @Get('vendors')
-  vendors(@Query('includeInactive') includeInactive?: string) {
-    return this.ds.getRepository(VendorEntity).find({
-      where: includeInactive === '1' ? {} : { isActive: true },
-      order: { legalName: 'ASC' },
-    });
-  }
-
-  @Post('vendors')
-  async createVendor(@CurrentUser() user: AuthUser, @Body() dto: VendorDto) {
+  // ───── القوائم ─────
+  @Get('lists')
+  async lists(@CurrentUser() user: AuthUser) {
     this.admin(user);
-    await this.assertUnique(VendorEntity, 'vendorNumber', dto.vendorNumber, 'رقم المورد مستخدم مسبقاً.');
-    return this.ds.getRepository(VendorEntity).save(this.ds.getRepository(VendorEntity).create({ ...this.vendorFields(dto) }));
+    const [departments, refs] = await Promise.all([this.departments.find({ order: { name: 'ASC' } }), this.refs.find({ order: { name: 'ASC' } })]);
+    return {
+      labels: REF_LIST_LABELS,
+      departments,
+      values: refs,
+    };
   }
 
-  @Patch('vendors/:id')
-  async updateVendor(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() dto: VendorDto) {
+  @Post('lists/:list')
+  async addValue(@CurrentUser() user: AuthUser, @Param('list') list: string, @Body() body: { name?: string }) {
     this.admin(user);
-    const repo = this.ds.getRepository(VendorEntity);
-    const row = await repo.findOne({ where: { id } });
-    if (!row) throw new BadRequestException('المورد غير موجود.');
-    await this.assertUnique(VendorEntity, 'vendorNumber', dto.vendorNumber, 'رقم المورد مستخدم مسبقاً.', id);
-    return repo.save(Object.assign(row, this.vendorFields(dto)));
+    if (!Object.values(RefList).includes(list as never)) throw new NotFoundException('قائمة غير معروفة.');
+    const name = String(body.name ?? '').trim();
+    if (!name) throw this.err('name', 'القيمة مطلوبة.');
+    if (await this.refs.findOne({ where: { list, name } })) throw this.err('name', 'القيمة موجودة مسبقاً في القائمة.');
+    const saved = await this.refs.save(this.refs.create({ list, name, isActive: true }));
+    await this.audit.log({ user, action: 'إضافة قيمة قائمة', entity: 'ref_value', after: { list, name } });
+    return saved;
   }
 
-  @Get('departments')
-  departments(@Query('includeInactive') includeInactive?: string) {
-    return this.ds.getRepository(DepartmentEntity).find({
-      where: includeInactive === '1' ? {} : { isActive: true },
-      order: { name: 'ASC' },
-    });
-  }
-
-  @Post('departments')
-  async createDepartment(@CurrentUser() user: AuthUser, @Body() dto: DepartmentDto) {
+  @Patch('lists/:list/:id')
+  async updateValue(
+    @CurrentUser() user: AuthUser,
+    @Param('list') list: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { name?: string; isActive?: boolean },
+  ) {
     this.admin(user);
-    await this.assertUnique(DepartmentEntity, 'code', dto.code, 'رمز القسم مستخدم مسبقاً.');
-    const repo = this.ds.getRepository(DepartmentEntity);
-    return repo.save(repo.create({ name: dto.name, code: dto.code, isActive: dto.isActive ?? true }));
+    const row = await this.refs.findOne({ where: { id, list } });
+    if (!row) throw new NotFoundException('القيمة غير موجودة.');
+    const before = { name: row.name, isActive: row.isActive };
+    if (body.name !== undefined) {
+      const name = String(body.name).trim();
+      if (!name) throw this.err('name', 'القيمة مطلوبة.');
+      const clash = await this.refs.findOne({ where: { list, name } });
+      if (clash && clash.id !== id) throw this.err('name', 'القيمة موجودة مسبقاً في القائمة.');
+      row.name = name;
+    }
+    if (body.isActive !== undefined) row.isActive = Boolean(body.isActive); // الإيقاف بدل الحذف
+    await this.refs.save(row);
+    await this.audit.log({ user, action: row.isActive === before.isActive ? 'تعديل قيمة قائمة' : row.isActive ? 'تفعيل قيمة قائمة' : 'إيقاف قيمة قائمة', entity: 'ref_value', before, after: { name: row.name, isActive: row.isActive } });
+    return row;
   }
 
   @Patch('departments/:id')
-  async updateDepartment(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() dto: DepartmentDto) {
+  async updateDepartment(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; isActive?: boolean }) {
     this.admin(user);
-    const repo = this.ds.getRepository(DepartmentEntity);
-    const row = await repo.findOne({ where: { id } });
-    if (!row) throw new BadRequestException('القسم غير موجود.');
-    await this.assertUnique(DepartmentEntity, 'code', dto.code, 'رمز القسم مستخدم مسبقاً.', id);
-    return repo.save(Object.assign(row, { name: dto.name, code: dto.code, isActive: dto.isActive ?? row.isActive }));
+    const row = await this.departments.findOne({ where: { id } });
+    if (!row) throw new NotFoundException('القسم غير موجود.');
+    const before = { name: row.name, isActive: row.isActive };
+    if (body.name !== undefined && String(body.name).trim()) row.name = String(body.name).trim();
+    if (body.isActive !== undefined) row.isActive = Boolean(body.isActive);
+    await this.departments.save(row);
+    await this.audit.log({ user, action: 'تعديل قسم', entity: 'department', before, after: { name: row.name, isActive: row.isActive } });
+    return row;
   }
 
-  @Get('shelf-rates')
-  shelfRates(@Query('includeInactive') includeInactive?: string) {
-    return this.ds.getRepository(ShelfRateEntity).find({
-      where: includeInactive === '1' ? {} : { isActive: true },
-      order: { name: 'ASC' },
-    });
+  // ───── الموردون (قراءة من النظام الحالي؛ وللمسؤول إدخال/استيراد) ─────
+  @Get('vendors')
+  async vendorList(@Query('q') q?: string, @Query('includeInactive') includeInactive?: string) {
+    const qb = this.vendors.createQueryBuilder('v').orderBy('v.name', 'ASC').take(200);
+    if (includeInactive !== '1') qb.andWhere('v.isActive = :a', { a: true });
+    if (q?.trim()) qb.andWhere('(v.name LIKE :q OR v.vendorNumber LIKE :q)', { q: `%${q.trim()}%` });
+    return qb.getMany();
   }
 
-  @Post('shelf-rates')
-  async createShelfRate(@CurrentUser() user: AuthUser, @Body() dto: ShelfRateDto) {
+  @Post('vendors')
+  async addVendor(@CurrentUser() user: AuthUser, @Body() body: { vendorNumber?: string; name?: string }) {
     this.admin(user);
-    await this.assertUnique(ShelfRateEntity, 'code', dto.code, 'الرمز مستخدم مسبقاً.');
-    const repo = this.ds.getRepository(ShelfRateEntity);
-    return repo.save(repo.create(this.shelfFields(dto)));
+    return this.upsertVendor(user, String(body.vendorNumber ?? '').trim(), String(body.name ?? '').trim());
   }
 
-  @Patch('shelf-rates/:id')
-  async updateShelfRate(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() dto: ShelfRateDto) {
+  /** استيراد جماعي: [{vendorNumber, name}] — يُستخدم لمزامنة الموردين من النظام الحالي. */
+  @Post('vendors/import')
+  async importVendors(@CurrentUser() user: AuthUser, @Body() body: { vendors?: { vendorNumber: string; name: string }[] }) {
     this.admin(user);
-    const repo = this.ds.getRepository(ShelfRateEntity);
-    const row = await repo.findOne({ where: { id } });
-    if (!row) throw new BadRequestException('نوع الرف غير موجود.');
-    await this.assertUnique(ShelfRateEntity, 'code', dto.code, 'الرمز مستخدم مسبقاً.', id);
-    return repo.save(Object.assign(row, this.shelfFields(dto)));
+    const rows = Array.isArray(body.vendors) ? body.vendors : [];
+    let created = 0;
+    let updated = 0;
+    for (const r of rows) {
+      const existing = await this.vendors.findOne({ where: { vendorNumber: String(r.vendorNumber).trim() } });
+      await this.upsertVendor(user, String(r.vendorNumber).trim(), String(r.name).trim(), true);
+      existing ? updated++ : created++;
+    }
+    await this.audit.log({ user, action: 'استيراد موردين', entity: 'vendor', note: `${created} جديد، ${updated} محدّث` });
+    return { created, updated };
   }
 
-  private admin(user: AuthUser) {
-    if (!roleFlags(user.role).canManageUsers) throw new ForbiddenException('القوائم المرجعية تُدار من مدير النظام.');
+  @Patch('vendors/:id')
+  async updateVendor(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; isActive?: boolean }) {
+    this.admin(user);
+    const v = await this.vendors.findOne({ where: { id } });
+    if (!v) throw new NotFoundException('المورد غير موجود.');
+    const before = { name: v.name, isActive: v.isActive };
+    if (body.name !== undefined && String(body.name).trim()) v.name = String(body.name).trim();
+    if (body.isActive !== undefined) v.isActive = Boolean(body.isActive);
+    await this.vendors.save(v);
+    await this.audit.log({ user, action: 'تعديل مورد', entity: 'vendor', before, after: { name: v.name, isActive: v.isActive } });
+    return v;
   }
 
-  private async assertUnique(entity: any, field: string, value: string, message: string, exceptId?: number) {
-    const repo = this.ds.getRepository(entity);
-    const qb = repo.createQueryBuilder('r').where(`r.${field} = :value`, { value });
-    if (exceptId) qb.andWhere('r.id <> :id', { id: exceptId });
-    if (await qb.getExists()) throw new BadRequestException(message);
+  // ───── Threshold ─────
+  @Get('settings')
+  getSettings() {
+    return this.settings.get();
   }
 
-  private vendorFields(dto: VendorDto) {
-    return {
-      vendorNumber: dto.vendorNumber,
-      legalName: dto.legalName,
-      tradeName: dto.tradeName ?? '',
-      crNumber: dto.crNumber ?? '',
-      contactName: dto.contactName ?? '',
-      phone: dto.phone ?? '',
-      email: dto.email ?? '',
-      isActive: dto.isActive ?? true,
-    };
+  @Put('settings')
+  async putSettings(@CurrentUser() user: AuthUser, @Body() body: { reminderDays?: unknown; escalationDays?: unknown }) {
+    this.admin(user);
+    const days = Array.isArray(body.reminderDays) ? body.reminderDays.map(Number) : [];
+    if (!days.length || days.some((d) => !Number.isInteger(d) || d <= 0 || d > 365)) {
+      throw this.err('reminderDays', 'أيام التذكير أرقام صحيحة موجبة (مثل 90 و60 و30).');
+    }
+    const esc = Number(body.escalationDays);
+    if (!Number.isInteger(esc) || esc <= 0 || esc > 60) throw this.err('escalationDays', 'مدة التصعيد بالأيام (رقم صحيح بين 1 و60).');
+    const before = await this.settings.get();
+    const next = { reminderDays: [...new Set(days)].sort((a, b) => b - a), escalationDays: esc };
+    await this.settings.set(next);
+    await this.audit.log({ user, action: 'تعديل Threshold', entity: 'settings', before, after: next, note: 'يسري على العقود الجديدة فقط' });
+    return next;
   }
 
-  private shelfFields(dto: ShelfRateDto) {
-    return {
-      code: dto.code,
-      name: dto.name,
-      unit: dto.unit ?? 'شهرياً',
-      standardPrice: String(dto.standardPrice),
-      isActive: dto.isActive ?? true,
-    };
+  private async upsertVendor(user: AuthUser, vendorNumber: string, name: string, quiet = false) {
+    if (!vendorNumber) throw this.err('vendorNumber', 'رقم المورد مطلوب.');
+    if (!name) throw this.err('name', 'اسم المورد مطلوب.');
+    let v = await this.vendors.findOne({ where: { vendorNumber } });
+    if (!v) {
+      v = await this.vendors.save(this.vendors.create({ vendorNumber, name, isActive: true }));
+      if (!quiet) await this.audit.log({ user, action: 'إضافة مورد', entity: 'vendor', after: { vendorNumber, name } });
+    } else if (v.name !== name) {
+      v.name = name;
+      await this.vendors.save(v);
+    }
+    return v;
+  }
+
+  private err(field: string, message: string) {
+    return new BadRequestException({ message, errors: { [field]: message } });
   }
 }
 
+@Global()
 @Module({
-  imports: [TypeOrmModule.forFeature(ENTITIES)],
   controllers: [ReferenceController],
+  providers: [SettingsService],
+  exports: [SettingsService],
 })
 export class ReferenceModule {}
