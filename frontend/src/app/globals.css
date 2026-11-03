@@ -1638,12 +1638,12 @@ input[type='file']::file-selector-button {
 }
 
 /* عمود الإجراءات يبقى ظاهراً أثناء التمرير الأفقي للجدول */
-.table.sticky-end th:last-child,
-.table.sticky-end td:last-child {
+.table-wrap.scrolls .table.sticky-end th:last-child,
+.table-wrap.scrolls .table.sticky-end td:last-child {
   position: sticky;
   inset-inline-end: 0;
   z-index: 1;
-  background-color: #f6f3ef;
+  background-color: #fcfbf9;
   box-shadow: 10px 0 14px -10px rgba(40, 46, 56, 0.18);
 }
 
@@ -1659,4 +1659,49 @@ input[type='file']::file-selector-button {
   white-space: nowrap;
   font-size: 13.5px;
   font-weight: 700;
+}
+
+/* ألوان أزرار الإجراءات: تعديل أزرق، إيقاف كهرماني، تفعيل أخضر، حذف أحمر */
+.icon-btn.info {
+  --tone: #1f6fd1;
+  --tone-soft: rgba(31, 111, 209, 0.13);
+}
+
+.icon-btn.warn {
+  --tone: #b86a00;
+  --tone-soft: rgba(224, 140, 20, 0.16);
+}
+
+.icon-btn.ok {
+  --tone: #1d7a4a;
+  --tone-soft: rgba(46, 160, 100, 0.15);
+}
+
+.icon-btn.danger {
+  --tone: var(--danger);
+  --tone-soft: var(--danger-soft);
+}
+
+.icon-btn.info,
+.icon-btn.warn,
+.icon-btn.ok,
+.icon-btn.danger {
+  color: var(--tone);
+  background: var(--tone-soft);
+}
+
+.icon-btn.info:hover,
+.icon-btn.warn:hover,
+.icon-btn.ok:hover,
+.icon-btn.danger:hover {
+  color: #fff;
+  background: var(--tone);
+}
+
+.row-actions {
+  gap: 4px;
+}
+
+.icon-btn + .icon-btn::before {
+  display: none;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useToast } from '@/controllers/toast';
 import { errorText, useApi } from '@/controllers/useApi';
 import { api, ApiError } from '@/models/api';
@@ -103,9 +103,9 @@ export function ReferenceView() {
 }
 
 /** زر أيقونة دائري: الاسم في aria-label وtitle، والحذف بلون الخطر. */
-function IconButton({ icon, label, danger, onClick }: { icon: IconName; label: string; danger?: boolean; onClick: () => void }) {
+function IconButton({ icon, label, tone, onClick }: { icon: IconName; label: string; tone: 'info' | 'warn' | 'ok' | 'danger'; onClick: () => void }) {
   return (
-    <button type="button" className={`icon-btn${danger ? ' danger' : ''}`} onClick={onClick} aria-label={label} title={label}>
+    <button type="button" className={`icon-btn ${tone}`} onClick={onClick} aria-label={label} title={label}>
       <Icon name={icon} />
     </button>
   );
@@ -118,9 +118,9 @@ function RowActions({ name, isActive, onEdit, onRename, onToggle, onDelete }: { 
   return (
     <>
       <div className="row-actions" role="group" aria-label={`إجراءات ${name}`}>
-        <IconButton icon="edit" label="عدّل" onClick={() => (onEdit ? onEdit() : setRenaming(true))} />
-        <IconButton icon={isActive ? 'stop' : 'play'} label={isActive ? 'أوقف' : 'فعّل'} onClick={onToggle} />
-        <IconButton icon="trash" label="احذف" danger onClick={() => setRemoving(true)} />
+        <IconButton icon="edit" label="عدّل" tone="info" onClick={() => (onEdit ? onEdit() : setRenaming(true))} />
+        <IconButton icon={isActive ? 'stop' : 'play'} label={isActive ? 'أوقف' : 'فعّل'} tone={isActive ? 'warn' : 'ok'} onClick={onToggle} />
+        <IconButton icon="trash" label="احذف" tone="danger" onClick={() => setRemoving(true)} />
       </div>
       {renaming && onRename && <RenameModal name={name} onClose={() => setRenaming(false)} onSave={(n) => { setRenaming(false); onRename(n); }} />}
       {removing && (
@@ -178,6 +178,18 @@ function StateBadge({ on }: { on: boolean }) {
 /** جدول بصفحات: 8 صفوف في الصفحة. */
 function PagedTable<T>({ rows, head, render, empty = 'لا توجد بيانات.' }: { rows: T[]; head: string[]; render: (row: T) => ReactNode; empty?: string }) {
   const [page, setPage] = useState(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+  // عمود الإجراءات يُثبَّت فقط عندما يحتاج الجدول إلى تمرير أفقي
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const check = () => setScrolls(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [rows.length, page]);
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const current = Math.min(page, pages - 1);
   const slice = rows.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
@@ -185,7 +197,7 @@ function PagedTable<T>({ rows, head, render, empty = 'لا توجد بيانات
   if (!rows.length) return <Empty>{empty}</Empty>;
   return (
     <>
-      <div className="table-wrap">
+      <div ref={wrapRef} className={`table-wrap${scrolls ? ' scrolls' : ''}`}>
         <table className="table sticky-end">
           <thead><tr>{head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
           <tbody>{slice.map(render)}</tbody>
