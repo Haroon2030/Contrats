@@ -63,13 +63,21 @@ export function ReferenceView() {
         <Panel title="الأقسام">
           <PagedTable
             rows={L.departments}
-            head={['القسم', 'الرمز', 'الحالة', '']}
+            head={['القسم', 'الرمز', 'الحالة', 'الإجراءات']}
             render={(d) => (
               <tr key={d.id}>
                 <td><strong>{d.name}</strong></td>
                 <td className="ltr muted">{d.code}</td>
                 <td><StateBadge on={d.isActive} /></td>
-                <td className="cell-actions"><Button small onClick={() => attempt(() => api.patch(`/reference/departments/${d.id}`, { isActive: !d.isActive }), 'تم.', lists.reload)}>{d.isActive ? '«أوقف»' : '«فعّل»'}</Button></td>
+                <td className="cell-actions">
+                  <RowActions
+                    name={d.name}
+                    isActive={d.isActive}
+                    onRename={(name) => attempt(() => api.patch(`/reference/departments/${d.id}`, { name }), 'حُفظ الاسم.', lists.reload)}
+                    onToggle={() => attempt(() => api.patch(`/reference/departments/${d.id}`, { isActive: !d.isActive }), d.isActive ? 'أُوقف القسم.' : 'فُعّل القسم.', lists.reload)}
+                    onDelete={() => attempt(() => api.delete(`/reference/departments/${d.id}`), 'حُذف القسم.', lists.reload)}
+                  />
+                </td>
               </tr>
             )}
           />
@@ -83,7 +91,8 @@ export function ReferenceView() {
             title={title}
             items={L.values.filter((v) => v.list === key)}
             onAdd={(name) => attempt(() => api.post(`/reference/lists/${key}`, { name }), 'أُضيفت.', lists.reload)}
-            onPatch={(id, body) => attempt(() => api.patch(`/reference/lists/${key}/${id}`, body), 'تم.', lists.reload)}
+            onPatch={(id, body) => attempt(() => api.patch(`/reference/lists/${key}/${id}`, body), body.isActive === undefined ? 'حُفظ الاسم.' : body.isActive ? 'تم التفعيل.' : 'تم الإيقاف.', lists.reload)}
+            onDelete={(id) => attempt(() => api.delete(`/reference/lists/${key}/${id}`), 'حُذفت القيمة.', lists.reload)}
           />
         ) : null,
       )}
@@ -99,6 +108,49 @@ function IconButton({ icon, label, danger, onClick }: { icon: IconName; label: s
     <button type="button" className={`icon-btn${danger ? ' danger' : ''}`} onClick={onClick} aria-label={label} title={label}>
       <Icon name={icon} />
     </button>
+  );
+}
+
+/** مجموعة إجراءات الصف: تعديل، إيقاف/تفعيل، حذف (بعد تأكيد). onEdit لنافذة مخصصة أو onRename لتعديل الاسم فقط. */
+function RowActions({ name, isActive, onEdit, onRename, onToggle, onDelete }: { name: string; isActive: boolean; onEdit?: () => void; onRename?: (name: string) => void; onToggle: () => void; onDelete: () => void }) {
+  const [renaming, setRenaming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  return (
+    <>
+      <div className="row-actions" role="group" aria-label={`إجراءات ${name}`}>
+        <IconButton icon="edit" label="عدّل" onClick={() => (onEdit ? onEdit() : setRenaming(true))} />
+        <IconButton icon={isActive ? 'stop' : 'play'} label={isActive ? 'أوقف' : 'فعّل'} onClick={onToggle} />
+        <IconButton icon="trash" label="احذف" danger onClick={() => setRemoving(true)} />
+      </div>
+      {renaming && onRename && <RenameModal name={name} onClose={() => setRenaming(false)} onSave={(n) => { setRenaming(false); onRename(n); }} />}
+      {removing && (
+        <ConfirmDialog
+          title={`حذف ${name}؟`}
+          message="يُحذف نهائياً ولا يمكن التراجع. إن كان مستخدماً في عقود فلن يُحذف، وأوقفه بدلاً من ذلك."
+          confirmLabel="احذف"
+          onCancel={() => setRemoving(false)}
+          onConfirm={() => { setRemoving(false); onDelete(); }}
+        />
+      )}
+    </>
+  );
+}
+
+function RenameModal({ name, onClose, onSave }: { name: string; onClose: () => void; onSave: (name: string) => void }) {
+  const [value, setValue] = useState(name);
+  useModalKeys(onClose);
+  const ready = value.trim() !== '' && value.trim() !== name;
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="تعديل الاسم">
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>تعديل الاسم</h2>
+        <Field label="الاسم"><input className="input" autoFocus value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ready && onSave(value.trim())} /></Field>
+        <div className="row">
+          <Button variant="primary" disabled={!ready} onClick={() => onSave(value.trim())}>«احفظ»</Button>
+          <Button variant="ghost" onClick={onClose}>«ألغِ»</Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -177,7 +229,7 @@ function ThresholdTab({ settings, attempt }: { settings: ReturnType<typeof useAp
   );
 }
 
-function ListTab({ title, items, onAdd, onPatch }: { title: string; items: Lists['values']; onAdd: (n: string) => void; onPatch: (id: number, b: Json) => void }) {
+function ListTab({ title, items, onAdd, onPatch, onDelete }: { title: string; items: Lists['values']; onAdd: (n: string) => void; onPatch: (id: number, b: Json) => void; onDelete: (id: number) => void }) {
   const [name, setName] = useState('');
   const add = () => {
     if (!name.trim()) return;
@@ -192,13 +244,15 @@ function ListTab({ title, items, onAdd, onPatch }: { title: string; items: Lists
       </div>
       <PagedTable
         rows={items}
-        head={['الاسم', 'الحالة', '']}
+        head={['الاسم', 'الحالة', 'الإجراءات']}
         empty="لا توجد قيم بعد. أضف أول قيمة من الأعلى."
         render={(v) => (
           <tr key={v.id}>
-            <td><input className="input" style={{ maxWidth: 320 }} defaultValue={v.name} onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== v.name && onPatch(v.id, { name: e.target.value.trim() })} /></td>
+            <td><strong>{v.name}</strong></td>
             <td><StateBadge on={v.isActive} /></td>
-            <td className="cell-actions"><Button small onClick={() => onPatch(v.id, { isActive: !v.isActive })}>{v.isActive ? '«أوقف»' : '«فعّل»'}</Button></td>
+            <td className="cell-actions">
+              <RowActions name={v.name} isActive={v.isActive} onRename={(name) => onPatch(v.id, { name })} onToggle={() => onPatch(v.id, { isActive: !v.isActive })} onDelete={() => onDelete(v.id)} />
+            </td>
           </tr>
         )}
       />
@@ -210,7 +264,6 @@ function VendorsTab({ vendors, loading, reload, attempt }: { vendors: Json[]; lo
   const [q, setQ] = useState('');
   const [modal, setModal] = useState<Json | 'new' | null>(null);
   const [importing, setImporting] = useState(false);
-  const [removing, setRemoving] = useState<Json | null>(null);
 
   const rows = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -246,26 +299,19 @@ function VendorsTab({ vendors, loading, reload, attempt }: { vendors: Json[]; lo
               <td className="ltr">{v.email || <span className="muted">—</span>}</td>
               <td><StateBadge on={v.isActive} /></td>
               <td className="cell-actions">
-                <div className="row-actions" role="group" aria-label={`إجراءات ${v.name}`}>
-                  <IconButton icon="edit" label="عدّل" onClick={() => setModal(v)} />
-                  <IconButton icon={v.isActive ? 'stop' : 'play'} label={v.isActive ? 'أوقف' : 'فعّل'} onClick={() => attempt(() => api.patch(`/reference/vendors/${v.id}`, { isActive: !v.isActive }), v.isActive ? 'أُوقف المورد.' : 'فُعّل المورد.', reload)} />
-                  <IconButton icon="trash" label="احذف" danger onClick={() => setRemoving(v)} />
-                </div>
+                <RowActions
+                  name={v.name}
+                  isActive={v.isActive}
+                  onEdit={() => setModal(v)}
+                  onToggle={() => attempt(() => api.patch(`/reference/vendors/${v.id}`, { isActive: !v.isActive }), v.isActive ? 'أُوقف المورد.' : 'فُعّل المورد.', reload)}
+                  onDelete={() => attempt(() => api.delete(`/reference/vendors/${v.id}`), 'حُذف المورد.', reload)}
+                />
               </td>
             </tr>
           )}
         />
       )}
       {modal && <VendorModal vendor={modal === 'new' ? null : modal} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
-      {removing && (
-        <ConfirmDialog
-          title={`حذف ${removing.name}؟`}
-          message="يُحذف المورد نهائياً ولا يمكن التراجع. إن كان له عقود فلن يُحذف، وأوقفه بدلاً من ذلك."
-          confirmLabel="احذف"
-          onCancel={() => setRemoving(null)}
-          onConfirm={() => attempt(() => api.delete(`/reference/vendors/${removing.id}`), 'حُذف المورد.', () => { setRemoving(null); reload(); })}
-        />
-      )}
       {importing && <ImportModal onClose={() => setImporting(false)} onDone={() => { setImporting(false); reload(); }} attempt={attempt} />}
     </Panel>
   );

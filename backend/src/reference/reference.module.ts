@@ -22,7 +22,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../auth/auth.service';
 import { CurrentUser } from '../common/auth.guard';
 import { REF_LIST_LABELS, RefList, SETTING_DEFAULTS } from '../common/domain';
-import { ContractEntity, DepartmentEntity, RefValueEntity, SettingEntity, VendorEntity } from '../database/entities';
+import { ContractEntity, DepartmentEntity, MarketingLineEntity, RefValueEntity, RentLineEntity, SettingEntity, UserEntity, VendorEntity } from '../database/entities';
 
 interface VendorBody {
   vendorNumber?: string;
@@ -71,6 +71,9 @@ export class ReferenceController {
     @InjectRepository(DepartmentEntity) private readonly departments: Repository<DepartmentEntity>,
     @InjectRepository(VendorEntity) private readonly vendors: Repository<VendorEntity>,
     @InjectRepository(ContractEntity) private readonly contracts: Repository<ContractEntity>,
+    @InjectRepository(RentLineEntity) private readonly rentLines: Repository<RentLineEntity>,
+    @InjectRepository(MarketingLineEntity) private readonly marketingLines: Repository<MarketingLineEntity>,
+    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
   ) {}
@@ -146,6 +149,35 @@ export class ReferenceController {
     await this.refs.save(row);
     await this.audit.log({ user, action: row.isActive === before.isActive ? 'تعديل قيمة قائمة' : row.isActive ? 'تفعيل قيمة قائمة' : 'إيقاف قيمة قائمة', entity: 'ref_value', before, after: { name: row.name, isActive: row.isActive } });
     return row;
+  }
+
+  /** حذف قيمة قائمة: مسموح فقط إن لم يستخدمها أي عقد؛ وإلا تُوقَف. */
+  @Delete('lists/:list/:id')
+  async removeValue(@CurrentUser() user: AuthUser, @Param('list') list: string, @Param('id', ParseIntPipe) id: number) {
+    this.admin(user);
+    const row = await this.refs.findOne({ where: { id, list } });
+    if (!row) throw new NotFoundException('القيمة غير موجودة.');
+    const used =
+      list === RefList.BRANCH ? await this.rentLines.count({ where: { branchId: id } })
+      : list === RefList.SHELF_TYPE ? await this.rentLines.count({ where: { shelfTypeId: id } })
+      : list === RefList.EVENT ? await this.marketingLines.count({ where: { eventId: id } })
+      : 0;
+    if (used) throw new BadRequestException({ message: 'لا يمكن حذف قيمة مستخدمة في عقود. أوقفها بدلاً من ذلك.' });
+    await this.refs.remove(row);
+    await this.audit.log({ user, action: 'حذف قيمة قائمة', entity: 'ref_value', before: { list, name: row.name } });
+    return { ok: true };
+  }
+
+  @Delete('departments/:id')
+  async removeDepartment(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    this.admin(user);
+    const row = await this.departments.findOne({ where: { id } });
+    if (!row) throw new NotFoundException('القسم غير موجود.');
+    const used = (await this.contracts.count({ where: { departmentId: id } })) + (await this.users.count({ where: { departmentId: id } }));
+    if (used) throw new BadRequestException({ message: 'لا يمكن حذف قسم مرتبط بعقود أو مستخدمين. أوقفه بدلاً من ذلك.' });
+    await this.departments.remove(row);
+    await this.audit.log({ user, action: 'حذف قسم', entity: 'department', before: { name: row.name, code: row.code } });
+    return { ok: true };
   }
 
   @Patch('departments/:id')
