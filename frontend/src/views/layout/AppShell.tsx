@@ -10,6 +10,24 @@ import type { Notification } from '@/models/types';
 import type { SessionUser } from '@/models/types';
 import { Button, fmtDateTime } from '../ui';
 
+/** شكل القائمة الجانبية: كاملة على الشاشات الكبيرة، شريط أيقونات على التابلت، ودرج منزلق على الجوال. */
+type NavMode = 'full' | 'rail' | 'drawer';
+const DRAWER_QUERY = '(max-width: 768px)';
+const TABLET_QUERY = '(max-width: 1100px)';
+const COLLAPSE_KEY = 'nav-collapsed';
+
+function useMedia(query: string) {
+  const [match, setMatch] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const update = () => setMatch(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [query]);
+  return match;
+}
+
 type IconName = 'dashboard' | 'contracts' | 'new' | 'goals' | 'operations' | 'templates' | 'audit' | 'users' | 'reference';
 
 interface NavItem {
@@ -102,6 +120,41 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const isDrawer = useMedia(DRAWER_QUERY);
+  const isTablet = useMedia(TABLET_QUERY);
+  const [collapsed, setCollapsed] = useState(false);
+  const [open, setOpen] = useState(false);
+  const mode: NavMode = isDrawer ? 'drawer' : isTablet || collapsed ? 'rail' : 'full';
+
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1');
+    } catch {}
+  }, []);
+
+  // الدرج يُغلق عند التنقل أو عند الخروج من وضع الجوال
+  useEffect(() => setOpen(false), [pathname, isDrawer]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
+  const toggleNav = () => {
+    if (mode === 'drawer') return setOpen((o) => !o);
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1');
+      } catch {}
+      return !c;
+    });
+  };
 
   useEffect(() => {
     if (!loading && !user) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
@@ -113,15 +166,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="shell">
+    <div className="shell" data-nav={mode}>
       <div className="scroll-edge" aria-hidden="true" />
-      <aside className="sidebar">
+      {mode === 'drawer' && open && <div className="nav-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />}
+      <aside id="app-nav" className="sidebar" data-open={open} inert={mode === 'drawer' && !open}>
         <div className="brand">
           <div className="brand-mark" aria-hidden="true">ر</div>
-          <div>
+          <div className="brand-text">
             <strong>نظام إدارة العقود</strong>
             <span>أسواق الرشيد</span>
           </div>
+          <button type="button" className="menu-btn drawer-close" onClick={() => setOpen(false)} aria-label="أغلق القائمة">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
         </div>
         <nav aria-label="التنقل الرئيسي">
           {NAV.filter((n) => n.visible(user)).map((n) => (
@@ -130,6 +187,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               href={n.href}
               className={isActive(pathname, n.href) ? 'active' : ''}
               aria-current={isActive(pathname, n.href) ? 'page' : undefined}
+              title={mode === 'rail' ? n.label : undefined}
+              onClick={() => setOpen(false)}
             >
               <NavIcon name={n.icon} />
               <span>{n.label}</span>
@@ -140,6 +199,19 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="main">
         <header className="topbar">
+          {/* على التابلت القائمة شريط أيقونات دائم، فلا حاجة لزر الطيّ */}
+          {(mode === 'drawer' || !isTablet) && (
+            <button
+              type="button"
+              className="menu-btn"
+              onClick={toggleNav}
+              aria-controls="app-nav"
+              aria-expanded={mode === 'drawer' ? open : mode === 'full'}
+              aria-label={mode === 'drawer' ? (open ? 'أغلق القائمة' : 'افتح القائمة') : mode === 'full' ? 'اطوِ القائمة' : 'وسّع القائمة'}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+            </button>
+          )}
           <Search />
           <span className="spacer" />
           <Notifications />

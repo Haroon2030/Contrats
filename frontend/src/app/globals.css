@@ -128,6 +128,7 @@ h3 {
 /* ═════ الهيكل: قائمة جانبية وشريط علوي عائمان فوق المحتوى ═════ */
 .shell {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .main {
@@ -261,7 +262,9 @@ h3 {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 16px 16px 0;
+  width: calc(100% - 32px);
+  max-width: 1648px;
+  margin: 16px auto 0;
   padding: 10px 14px;
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.5);
@@ -272,6 +275,9 @@ h3 {
 }
 
 .content {
+  width: 100%;
+  max-width: 1680px;
+  margin-inline: auto;
   padding: 22px 16px 40px;
   display: flex;
   flex-direction: column;
@@ -493,7 +499,7 @@ h3 {
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 14px;
 }
 
@@ -609,7 +615,7 @@ h3 {
 table.table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px;
+  min-width: 560px;
 }
 
 .table th,
@@ -800,6 +806,7 @@ dl.info {
   border-radius: 28px;
   background: var(--glass-strong);
   max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   overflow-y: auto;
 }
 
@@ -899,6 +906,7 @@ dl.info {
 /* ═════ الدخول ═════ */
 .login-wrap {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -1030,27 +1038,23 @@ dl.info {
 }
 
 /* ═════ شاشات أصغر ═════ */
-@media (max-width: 1100px) {
-  .kpis {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .main {
-    margin-inline-start: 0;
-  }
-
+@media (max-width: 768px) {
   .topbar {
     flex-wrap: wrap;
+    top: 8px;
+    width: calc(100% - 24px);
+    margin-top: 12px;
   }
 
   .topbar .search-box {
     order: -1;
-    flex: 1 1 100%;
+    flex: 1 1 calc(100% - 60px);
+    min-width: 0;
     max-width: none;
   }
+}
 
+@media (max-width: 900px) {
   .page-head {
     align-items: stretch;
   }
@@ -1063,56 +1067,8 @@ dl.info {
     flex: 1 1 auto;
   }
 
-  .sidebar {
-    position: relative;
-    width: auto;
-    margin: 12px 12px 0;
-    border-radius: 24px;
-    padding: 12px;
-    max-height: none;
-  }
-
-  .sidebar .brand {
-    padding-bottom: 10px;
-  }
-
-  .sidebar nav {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scrollbar-width: none;
-  }
-
-  .sidebar nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .sidebar nav a {
-    flex: none;
-    min-height: 40px;
-    padding: 0 14px;
-    white-space: nowrap;
-    border-radius: var(--r-pill);
-  }
-
-  .sidebar .brand span {
-    display: none;
-  }
-
-  .sidebar .brand {
-    padding-bottom: 12px;
-    margin-bottom: 0;
-  }
-
   .stats > :last-child:nth-child(odd) {
     grid-column: 1 / -1;
-  }
-
-  .topbar {
-    top: 8px;
-    margin: 12px 12px 0;
   }
 
   .content {
@@ -1127,6 +1083,107 @@ dl.info {
   .form-layout {
     grid-template-columns: 1fr !important;
   }
+}
+
+/* ═════ القائمة الجانبية: كاملة / شريط أيقونات / درج ═════ */
+.menu-btn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 0.5px rgba(47, 52, 58, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.menu-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.menu-btn:focus-visible {
+  outline: 3px solid rgba(194, 87, 12, 0.45);
+  outline-offset: 2px;
+}
+
+.drawer-close {
+  display: none;
+  margin-inline-start: auto;
+}
+
+.shell[data-nav='drawer'] .drawer-close {
+  display: inline-grid;
+}
+
+.shell[data-nav='rail'] .main {
+  margin-inline-start: 104px;
+}
+
+.shell[data-nav='rail'] .sidebar {
+  width: 72px;
+  padding-inline: 8px;
+}
+
+.shell[data-nav='rail'] .sidebar .brand {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.shell[data-nav='rail'] .sidebar .brand-text {
+  display: none;
+}
+
+.shell[data-nav='rail'] .sidebar nav a {
+  justify-content: center;
+  padding: 0;
+}
+
+/* تبقى التسمية متاحة لقارئات الشاشة */
+.shell[data-nav='rail'] .sidebar nav a span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.shell[data-nav='drawer'] .main {
+  margin-inline-start: 0;
+}
+
+.shell[data-nav='drawer'] .sidebar {
+  top: 8px;
+  bottom: 8px;
+  inset-inline-start: 8px;
+  width: min(86vw, 320px);
+  z-index: 90;
+  transform: translateX(calc(100% + 24px));
+  visibility: hidden;
+  transition: transform 0.3s var(--ease), visibility 0s linear 0.3s;
+}
+
+.shell[data-nav='drawer'] .sidebar[data-open='true'] {
+  transform: none;
+  visibility: visible;
+  transition: transform 0.3s var(--ease), visibility 0s;
+}
+
+.nav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(30, 34, 40, 0.35);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 @media (max-width: 480px) {
@@ -1299,7 +1356,8 @@ dl.info {
   margin-bottom: 18px;
   padding: 5px;
   overflow-x: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(194, 87, 12, 0.45) transparent;
   border-radius: var(--r-pill);
   background: var(--glass);
   -webkit-backdrop-filter: var(--blur);
@@ -1308,7 +1366,22 @@ dl.info {
 }
 
 .tabs::-webkit-scrollbar {
-  display: none;
+  height: 8px;
+}
+
+.tabs::-webkit-scrollbar-track {
+  margin-inline: 16px;
+  border-radius: var(--r-pill);
+  background: rgba(47, 52, 58, 0.06);
+}
+
+.tabs::-webkit-scrollbar-thumb {
+  border-radius: var(--r-pill);
+  background: rgba(194, 87, 12, 0.45);
+}
+
+.tabs::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
 .tab {
@@ -1379,4 +1452,99 @@ dl.info {
 .table td.cell-actions {
   white-space: nowrap;
   text-align: end;
+}
+
+/* ═════ اللمس والشاشات الصغيرة جداً ═════ */
+@media (max-width: 768px), (pointer: coarse) {
+  .btn.small,
+  .tab {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: 16px;
+  }
+
+  .modal {
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .login-card {
+    padding: 26px 20px;
+  }
+
+  .pager {
+    flex-wrap: wrap;
+  }
+}
+
+/* مؤشرات الجوال: عمودان بدل بطاقة لكل سطر */
+@media (max-width: 576px) {
+  .kpis,
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stat {
+    min-height: 112px;
+    padding: 14px;
+  }
+
+  .stat .value {
+    font-size: 30px;
+  }
+}
+
+/* ═════ أهداف اللمس للحقول والروابط النصية ═════ */
+input[type='checkbox'],
+input[type='radio'] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+.chip,
+label:has(> input[type='checkbox']),
+label:has(> input[type='radio']) {
+  min-height: 44px;
+}
+
+label:has(> input[type='checkbox']),
+label:has(> input[type='radio']) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+input[type='file'] {
+  width: 100%;
+  min-height: 44px;
+  padding: 6px;
+  font: inherit;
+}
+
+input[type='file']::file-selector-button {
+  min-height: 32px;
+  margin-inline-end: 12px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 0.5px rgba(47, 52, 58, 0.22);
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent);
+  font-weight: 700;
 }

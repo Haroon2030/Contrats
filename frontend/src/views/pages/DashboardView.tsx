@@ -121,7 +121,7 @@ export function DashboardView() {
         <div className="stack">
           <Panel title="تنتهي قريباً">
             <Bars items={data.expiring.map((e) => ({ name: `خلال ${e.days} يوماً`, value: e.count, text: String(e.count) }))} />
-            <Link href="/contracts?expiringWithin=90">اعرض العقود المنتهية قريباً</Link>
+            <Link className="text-link" href="/contracts?expiringWithin=90">اعرض العقود المنتهية قريباً</Link>
           </Panel>
           <Panel title="حسب النوع">
             <Bars items={data.byType.map((t) => ({ name: t.label, value: t.count, text: String(t.count) }))} />
