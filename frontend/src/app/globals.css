@@ -613,6 +613,8 @@ h3 {
 }
 
 table.table {
+  font-size: 14px;
+  line-height: 1.45;
   width: 100%;
   border-collapse: collapse;
   min-width: 560px;
@@ -620,7 +622,7 @@ table.table {
 
 .table th,
 .table td {
-  padding: 13px 16px;
+  padding: 8px 14px;
   text-align: start;
   border-bottom: 0.5px solid var(--hair);
   vertical-align: middle;
@@ -631,6 +633,7 @@ table.table {
 }
 
 .table th {
+  padding-block: 10px;
   background: rgba(255, 255, 255, 0.5);
   font-size: 12px;
   font-weight: 700;
@@ -1553,18 +1556,14 @@ input[type='file']::file-selector-button {
 .row-actions {
   display: inline-flex;
   align-items: center;
-  padding: 3px;
-  border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.6);
-  box-shadow: inset 0 0 0 0.5px rgba(47, 52, 58, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .icon-btn {
   position: relative;
   display: inline-grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border: 0;
   border-radius: var(--r-pill);
   background: transparent;
@@ -1583,8 +1582,8 @@ input[type='file']::file-selector-button {
 }
 
 .icon-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 17px;
+  height: 17px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -1654,10 +1653,10 @@ input[type='file']::file-selector-button {
   text-align: end;
 }
 
-/* اسم المورد في سطر واحد بحجم أصغر */
+/* اسم المورد في سطر واحد */
 .table td.name-cell {
   white-space: nowrap;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1699,9 +1698,19 @@ input[type='file']::file-selector-button {
 }
 
 .row-actions {
-  gap: 4px;
+  gap: 6px;
 }
 
 .icon-btn + .icon-btn::before {
   display: none;
+}
+
+/* شارات الحالة داخل الجداول أصغر لتقليل ارتفاع الصف */
+.table .badge {
+  padding: 1px 10px;
+  font-size: 12px;
+}
+
+.table td.cell-actions {
+  padding-block: 6px;
 }
