@@ -292,7 +292,7 @@ function VendorsTab({ vendors, loading, reload, attempt }: { vendors: Json[]; lo
           render={(v) => (
             <tr key={v.id}>
               <td className="ltr">{v.vendorNumber}</td>
-              <td><strong>{v.name}</strong></td>
+              <td className="name-cell">{v.name}</td>
               <td className="ltr">{v.commercialRegister || <span className="muted">—</span>}</td>
               <td className="ltr">{v.taxNumber || <span className="muted">—</span>}</td>
               <td className="ltr">{v.mobile || <span className="muted">—</span>}</td>

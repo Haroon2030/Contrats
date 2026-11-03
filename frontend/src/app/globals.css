@@ -1653,3 +1653,10 @@ input[type='file']::file-selector-button {
   display: table-cell;
   text-align: end;
 }
+
+/* اسم المورد في سطر واحد بحجم أصغر */
+.table td.name-cell {
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 700;
+}
