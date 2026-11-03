@@ -6,6 +6,7 @@ import { errorText, useApi } from '@/controllers/useApi';
 import { api, ApiError } from '@/models/api';
 import type { Json } from '@/models/types';
 import { Button, Empty, ErrorBox, Field, Loading, PageHead, Panel, useModalKeys } from '../ui';
+import { Icon, type IconName } from '../ui/icons';
 
 interface Lists {
   labels: Record<string, string>;
@@ -92,6 +93,32 @@ export function ReferenceView() {
   );
 }
 
+/** زر أيقونة دائري: الاسم في aria-label وtitle، والحذف بلون الخطر. */
+function IconButton({ icon, label, danger, onClick }: { icon: IconName; label: string; danger?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={`icon-btn${danger ? ' danger' : ''}`} onClick={onClick} aria-label={label} title={label}>
+      <Icon name={icon} />
+    </button>
+  );
+}
+
+/** تأكيد إجراء لا رجعة فيه: عنوان، شرح، وزران (تراجع / تأكيد). */
+function ConfirmDialog({ title, message, confirmLabel, onCancel, onConfirm }: { title: string; message: string; confirmLabel: string; onCancel: () => void; onConfirm: () => void }) {
+  useModalKeys(onCancel);
+  return (
+    <div className="modal-backdrop" onClick={onCancel} role="alertdialog" aria-modal="true" aria-label={title}>
+      <div className="modal confirm" onClick={(e) => e.stopPropagation()}>
+        <h2>{title}</h2>
+        <p className="muted">{message}</p>
+        <div className="confirm-actions">
+          <Button onClick={onCancel} autoFocus>«تراجع»</Button>
+          <Button variant="danger" onClick={onConfirm}>{`«${confirmLabel}»`}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StateBadge({ on }: { on: boolean }) {
   return <span className={`badge ${on ? 'ok' : 'muted'}`}>{on ? 'نشط' : 'موقوف'}</span>;
 }
@@ -107,7 +134,7 @@ function PagedTable<T>({ rows, head, render, empty = 'لا توجد بيانات
   return (
     <>
       <div className="table-wrap">
-        <table className="table">
+        <table className="table sticky-end">
           <thead><tr>{head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
           <tbody>{slice.map(render)}</tbody>
         </table>
@@ -183,6 +210,7 @@ function VendorsTab({ vendors, loading, reload, attempt }: { vendors: Json[]; lo
   const [q, setQ] = useState('');
   const [modal, setModal] = useState<Json | 'new' | null>(null);
   const [importing, setImporting] = useState(false);
+  const [removing, setRemoving] = useState<Json | null>(null);
 
   const rows = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -206,7 +234,7 @@ function VendorsTab({ vendors, loading, reload, attempt }: { vendors: Json[]; lo
       ) : (
         <PagedTable
           rows={rows}
-          head={['رقم المورد', 'الاسم', 'السجل التجاري', 'الرقم الضريبي', 'الجوال', 'الإيميل', 'الحالة', '']}
+          head={['رقم المورد', 'الاسم', 'السجل التجاري', 'الرقم الضريبي', 'الجوال', 'الإيميل', 'الحالة', 'الإجراءات']}
           empty={q ? 'لا نتائج مطابقة للبحث.' : 'لا يوجد موردون بعد. أضف أول مورد.'}
           render={(v) => (
             <tr key={v.id}>
@@ -218,14 +246,26 @@ function VendorsTab({ vendors, loading, reload, attempt }: { vendors: Json[]; lo
               <td className="ltr">{v.email || <span className="muted">—</span>}</td>
               <td><StateBadge on={v.isActive} /></td>
               <td className="cell-actions">
-                <Button small onClick={() => setModal(v)}>«عدّل»</Button>{' '}
-                <Button small onClick={() => attempt(() => api.patch(`/reference/vendors/${v.id}`, { isActive: !v.isActive }), 'تم.', reload)}>{v.isActive ? '«أوقف»' : '«فعّل»'}</Button>
+                <div className="row-actions" role="group" aria-label={`إجراءات ${v.name}`}>
+                  <IconButton icon="edit" label="عدّل" onClick={() => setModal(v)} />
+                  <IconButton icon={v.isActive ? 'stop' : 'play'} label={v.isActive ? 'أوقف' : 'فعّل'} onClick={() => attempt(() => api.patch(`/reference/vendors/${v.id}`, { isActive: !v.isActive }), v.isActive ? 'أُوقف المورد.' : 'فُعّل المورد.', reload)} />
+                  <IconButton icon="trash" label="احذف" danger onClick={() => setRemoving(v)} />
+                </div>
               </td>
             </tr>
           )}
         />
       )}
       {modal && <VendorModal vendor={modal === 'new' ? null : modal} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
+      {removing && (
+        <ConfirmDialog
+          title={`حذف ${removing.name}؟`}
+          message="يُحذف المورد نهائياً ولا يمكن التراجع. إن كان له عقود فلن يُحذف، وأوقفه بدلاً من ذلك."
+          confirmLabel="احذف"
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => attempt(() => api.delete(`/reference/vendors/${removing.id}`), 'حُذف المورد.', () => { setRemoving(null); reload(); })}
+        />
+      )}
       {importing && <ImportModal onClose={() => setImporting(false)} onDone={() => { setImporting(false); reload(); }} attempt={attempt} />}
     </Panel>
   );

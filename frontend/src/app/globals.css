@@ -1548,3 +1548,101 @@ input[type='file']::file-selector-button {
   color: var(--accent);
   font-weight: 700;
 }
+
+/* ═════ مجموعة إجراءات الصف ═════ */
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 0 0 0.5px rgba(47, 52, 58, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.icon-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease), transform 0.15s var(--ease);
+}
+
+.icon-btn + .icon-btn::before {
+  content: '';
+  position: absolute;
+  inset-block: 10px;
+  inset-inline-end: 100%;
+  width: 0.5px;
+  background: var(--hair);
+}
+
+.icon-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ink);
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
+}
+
+.icon-btn.danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.icon-btn:focus-visible {
+  outline: 3px solid rgba(194, 87, 12, 0.45);
+  outline-offset: 1px;
+  z-index: 1;
+}
+
+@media (max-width: 768px), (pointer: coarse) {
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* تأكيد الحذف: نافذة صغيرة بزرين متساويين */
+.modal.confirm {
+  max-width: 400px;
+  text-align: center;
+  gap: 10px;
+}
+
+.modal.confirm h2 {
+  font-size: 19px;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* عمود الإجراءات يبقى ظاهراً أثناء التمرير الأفقي للجدول */
+.table.sticky-end th:last-child,
+.table.sticky-end td:last-child {
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 1;
+  background-color: rgba(247, 244, 240, 0.94);
+  box-shadow: 10px 0 14px -10px rgba(40, 46, 56, 0.18);
+}

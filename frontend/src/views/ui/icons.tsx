@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export type IconName = 'file' | 'clock' | 'bell' | 'calendar' | 'check' | 'layers';
+export type IconName = 'file' | 'clock' | 'bell' | 'calendar' | 'check' | 'layers' | 'edit' | 'stop' | 'play' | 'trash';
 
 /** أيقونات خطية بسيطة (24×24) تأخذ لون النص من العنصر الحاوي. */
 const PATHS: Record<IconName, ReactNode> = {
@@ -38,6 +38,30 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M12 2L2 7l10 5 10-5-10-5z" />
       <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+    </>
+  ),
+  stop: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <rect x="9" y="9" width="6" height="6" rx="1.2" />
+    </>
+  ),
+  play: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 8.5l5.5 3.5-5.5 3.5z" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
+      <path d="M10 10.5v6M14 10.5v6" />
     </>
   ),
 };

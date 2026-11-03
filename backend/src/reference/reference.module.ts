@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Global,
@@ -21,7 +22,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../auth/auth.service';
 import { CurrentUser } from '../common/auth.guard';
 import { REF_LIST_LABELS, RefList, SETTING_DEFAULTS } from '../common/domain';
-import { DepartmentEntity, RefValueEntity, SettingEntity, VendorEntity } from '../database/entities';
+import { ContractEntity, DepartmentEntity, RefValueEntity, SettingEntity, VendorEntity } from '../database/entities';
 
 interface VendorBody {
   vendorNumber?: string;
@@ -69,6 +70,7 @@ export class ReferenceController {
     @InjectRepository(RefValueEntity) private readonly refs: Repository<RefValueEntity>,
     @InjectRepository(DepartmentEntity) private readonly departments: Repository<DepartmentEntity>,
     @InjectRepository(VendorEntity) private readonly vendors: Repository<VendorEntity>,
+    @InjectRepository(ContractEntity) private readonly contracts: Repository<ContractEntity>,
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
   ) {}
@@ -211,6 +213,20 @@ export class ReferenceController {
     await this.vendors.save(v);
     await this.audit.log({ user, action: 'تعديل مورد', entity: 'vendor', before, after: snap() });
     return v;
+  }
+
+  /** حذف نهائي مسموح فقط لمورد بلا عقود؛ وإلا يُوقَف (الإيقاف بدل الحذف). */
+  @Delete('vendors/:id')
+  async removeVendor(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number) {
+    this.admin(user);
+    const v = await this.vendors.findOne({ where: { id } });
+    if (!v) throw new NotFoundException('المورد غير موجود.');
+    if (await this.contracts.count({ where: { vendorId: id } })) {
+      throw new BadRequestException({ message: 'لا يمكن حذف مورد له عقود. أوقفه بدلاً من ذلك.' });
+    }
+    await this.vendors.remove(v);
+    await this.audit.log({ user, action: 'حذف مورد', entity: 'vendor', before: { vendorNumber: v.vendorNumber, name: v.name } });
+    return { ok: true };
   }
 
   // ───── Threshold ─────
