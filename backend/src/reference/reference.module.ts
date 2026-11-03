@@ -23,6 +23,16 @@ import { CurrentUser } from '../common/auth.guard';
 import { REF_LIST_LABELS, RefList, SETTING_DEFAULTS } from '../common/domain';
 import { DepartmentEntity, RefValueEntity, SettingEntity, VendorEntity } from '../database/entities';
 
+interface VendorBody {
+  vendorNumber?: string;
+  name?: string;
+  commercialRegister?: string;
+  taxNumber?: string;
+  mobile?: string;
+  email?: string;
+}
+type VendorDetails = { commercialRegister: string | null; taxNumber: string | null; mobile: string | null; email: string | null };
+
 export interface Thresholds {
   reminderDays: number[];
   escalationDays: number;
@@ -152,28 +162,29 @@ export class ReferenceController {
   // ───── الموردون (قراءة من النظام الحالي؛ وللمسؤول إدخال/استيراد) ─────
   @Get('vendors')
   async vendorList(@Query('q') q?: string, @Query('includeInactive') includeInactive?: string) {
-    const qb = this.vendors.createQueryBuilder('v').orderBy('v.name', 'ASC').take(200);
+    const qb = this.vendors.createQueryBuilder('v').orderBy('v.name', 'ASC').take(5000);
     if (includeInactive !== '1') qb.andWhere('v.isActive = :a', { a: true });
-    if (q?.trim()) qb.andWhere('(v.name LIKE :q OR v.vendorNumber LIKE :q)', { q: `%${q.trim()}%` });
+    if (q?.trim()) qb.andWhere('(v.name LIKE :q OR v.vendorNumber LIKE :q OR v.commercialRegister LIKE :q OR v.mobile LIKE :q)', { q: `%${q.trim()}%` });
     return qb.getMany();
   }
 
   @Post('vendors')
-  async addVendor(@CurrentUser() user: AuthUser, @Body() body: { vendorNumber?: string; name?: string }) {
+  async addVendor(@CurrentUser() user: AuthUser, @Body() body: VendorBody) {
     this.admin(user);
-    return this.upsertVendor(user, String(body.vendorNumber ?? '').trim(), String(body.name ?? '').trim());
+    const d = this.vendorDetails(body, true);
+    return this.upsertVendor(user, String(body.vendorNumber ?? '').trim(), String(body.name ?? '').trim(), false, d);
   }
 
   /** استيراد جماعي: [{vendorNumber, name}] — يُستخدم لمزامنة الموردين من النظام الحالي. */
   @Post('vendors/import')
-  async importVendors(@CurrentUser() user: AuthUser, @Body() body: { vendors?: { vendorNumber: string; name: string }[] }) {
+  async importVendors(@CurrentUser() user: AuthUser, @Body() body: { vendors?: (VendorBody & { vendorNumber: string; name: string })[] }) {
     this.admin(user);
     const rows = Array.isArray(body.vendors) ? body.vendors : [];
     let created = 0;
     let updated = 0;
     for (const r of rows) {
       const existing = await this.vendors.findOne({ where: { vendorNumber: String(r.vendorNumber).trim() } });
-      await this.upsertVendor(user, String(r.vendorNumber).trim(), String(r.name).trim(), true);
+      await this.upsertVendor(user, String(r.vendorNumber).trim(), String(r.name).trim(), true, this.vendorDetails(r, false));
       existing ? updated++ : created++;
     }
     await this.audit.log({ user, action: 'استيراد موردين', entity: 'vendor', note: `${created} جديد، ${updated} محدّث` });
@@ -181,15 +192,24 @@ export class ReferenceController {
   }
 
   @Patch('vendors/:id')
-  async updateVendor(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; isActive?: boolean }) {
+  async updateVendor(@CurrentUser() user: AuthUser, @Param('id', ParseIntPipe) id: number, @Body() body: VendorBody & { isActive?: boolean }) {
     this.admin(user);
     const v = await this.vendors.findOne({ where: { id } });
     if (!v) throw new NotFoundException('المورد غير موجود.');
-    const before = { name: v.name, isActive: v.isActive };
+    const snap = () => ({ name: v.name, commercialRegister: v.commercialRegister, taxNumber: v.taxNumber, mobile: v.mobile, email: v.email, isActive: v.isActive });
+    const before = snap();
     if (body.name !== undefined && String(body.name).trim()) v.name = String(body.name).trim();
+    const d = this.vendorDetails(body, false);
+    // السجل التجاري والجوال إلزاميان: لا يُسمح بتفريغهما عند التعديل
+    if (body.commercialRegister !== undefined && !d.commercialRegister) throw this.err('commercialRegister', 'السجل التجاري مطلوب.');
+    if (body.mobile !== undefined && !d.mobile) throw this.err('mobile', 'رقم الجوال مطلوب.');
+    if (body.commercialRegister !== undefined) v.commercialRegister = d.commercialRegister;
+    if (body.taxNumber !== undefined) v.taxNumber = d.taxNumber;
+    if (body.mobile !== undefined) v.mobile = d.mobile;
+    if (body.email !== undefined) v.email = d.email;
     if (body.isActive !== undefined) v.isActive = Boolean(body.isActive);
     await this.vendors.save(v);
-    await this.audit.log({ user, action: 'تعديل مورد', entity: 'vendor', before, after: { name: v.name, isActive: v.isActive } });
+    await this.audit.log({ user, action: 'تعديل مورد', entity: 'vendor', before, after: snap() });
     return v;
   }
 
@@ -215,16 +235,39 @@ export class ReferenceController {
     return next;
   }
 
-  private async upsertVendor(user: AuthUser, vendorNumber: string, name: string, quiet = false) {
+  /** يطبّع حقول المورد؛ strict=true يفرض السجل التجاري والجوال (إدخال يدوي). */
+  private vendorDetails(body: VendorBody, strict: boolean): VendorDetails {
+    const clean = (x: unknown) => String(x ?? '').trim() || null;
+    const d: VendorDetails = {
+      commercialRegister: clean(body.commercialRegister),
+      taxNumber: clean(body.taxNumber),
+      mobile: clean(body.mobile),
+      email: clean(body.email),
+    };
+    if (strict) {
+      if (!d.commercialRegister) throw this.err('commercialRegister', 'السجل التجاري مطلوب.');
+      if (!d.mobile) throw this.err('mobile', 'رقم الجوال مطلوب.');
+    }
+    if (d.mobile && !/^[0-9+\s-]{8,20}$/.test(d.mobile)) throw this.err('mobile', 'رقم الجوال غير صحيح.');
+    if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) throw this.err('email', 'البريد الإلكتروني غير صحيح.');
+    return d;
+  }
+
+  private async upsertVendor(user: AuthUser, vendorNumber: string, name: string, quiet = false, details?: VendorDetails) {
     if (!vendorNumber) throw this.err('vendorNumber', 'رقم المورد مطلوب.');
     if (!name) throw this.err('name', 'اسم المورد مطلوب.');
     let v = await this.vendors.findOne({ where: { vendorNumber } });
     if (!v) {
-      v = await this.vendors.save(this.vendors.create({ vendorNumber, name, isActive: true }));
-      if (!quiet) await this.audit.log({ user, action: 'إضافة مورد', entity: 'vendor', after: { vendorNumber, name } });
-    } else if (v.name !== name) {
+      v = await this.vendors.save(this.vendors.create({ vendorNumber, name, isActive: true, ...details }));
+      if (!quiet) await this.audit.log({ user, action: 'إضافة مورد', entity: 'vendor', after: { vendorNumber, name, ...details } });
+    } else {
+      let dirty = v.name !== name;
       v.name = name;
-      await this.vendors.save(v);
+      // الاستيراد يملأ الحقول الفارغة فقط ولا يمسح ما أُدخل يدوياً
+      for (const k of ['commercialRegister', 'taxNumber', 'mobile', 'email'] as const) {
+        if (details?.[k] && v[k] !== details[k]) { v[k] = details[k]; dirty = true; }
+      }
+      if (dirty) await this.vendors.save(v);
     }
     return v;
   }

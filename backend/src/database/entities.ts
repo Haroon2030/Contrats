@@ -50,6 +50,11 @@ export class VendorEntity {
   @PrimaryGeneratedColumn() id: number;
   @Index({ unique: true }) @Column({ name: 'vendor_number', length: 30 }) vendorNumber: string;
   @Column({ length: 200 }) name: string;
+  // إلزامية عند الإضافة اليدوية؛ تبقى قابلة للفراغ للموردين المستوردين من النظام الحالي
+  @Column({ name: 'commercial_register', type: 'varchar', length: 30, nullable: true }) commercialRegister: string | null;
+  @Column({ name: 'tax_number', type: 'varchar', length: 30, nullable: true }) taxNumber: string | null;
+  @Column({ type: 'varchar', length: 20, nullable: true }) mobile: string | null;
+  @Column({ type: 'varchar', length: 150, nullable: true }) email: string | null;
   @Column({ name: 'is_active', type: 'boolean', default: true }) isActive: boolean;
 }
 
