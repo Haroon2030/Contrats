@@ -8,7 +8,7 @@ import { errorText, useApi } from '@/controllers/useApi';
 import { api, ApiError } from '@/models/api';
 import { ACCOUNT_DOCS, TYPE_OPTIONS } from '@/models/labels';
 import type { ContractType, Json, Options } from '@/models/types';
-import { Button, ErrorBox, Field, Loading, PageHead, Panel } from '../ui';
+import { Button, ErrorBox, Field, Loading, PageHead, Panel, DateInput } from '../ui';
 
 const blankForm = (): Json => ({
   vendorId: '',
@@ -68,7 +68,7 @@ export function ContractFormView({ contractId, pending }: { contractId?: number;
   }, [existing.data, loaded]);
 
   useEffect(() => {
-    if (!contractId && user && !user.caps.createAnyDepartment && user.departmentId) {
+    if (!contractId && user && !user.caps.pickDepartment && user.departmentId) {
       setF((s: Json) => ({ ...s, departmentId: user.departmentId }));
     }
   }, [contractId, user]);
@@ -188,7 +188,7 @@ export function ContractFormView({ contractId, pending }: { contractId?: number;
             </select>
           </Field>
           <Field label="القسم *" error={err('departmentId')}>
-            <select className="select" value={f.departmentId} disabled={!user?.caps.createAnyDepartment} onChange={(e) => set({ departmentId: e.target.value })}>
+            <select className="select" value={f.departmentId} disabled={!user?.caps.pickDepartment} onChange={(e) => set({ departmentId: e.target.value })}>
               <option value="">اختر القسم</option>
               {opts.departments.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
@@ -205,11 +205,11 @@ export function ContractFormView({ contractId, pending }: { contractId?: number;
             <input className="input ltr" inputMode="numeric" value={f.repMobile} onChange={(e) => set({ repMobile: e.target.value })} />
           </Field>
           <Field label="تاريخ البداية *" error={err('startDate')}>
-            <input className="input ltr" type="date" value={f.startDate} onChange={(e) => set({ startDate: e.target.value })} />
+            <DateInput value={f.startDate} onChange={(v) => set({ startDate: v })} />
           </Field>
           {!servicesOnly && !rentOnly && (
             <Field label="تاريخ النهاية *" error={err('endDate')} hint="أقصى مدة للعقد سنة واحدة">
-              <input className="input ltr" type="date" value={f.endDate} onChange={(e) => set({ endDate: e.target.value })} />
+              <DateInput value={f.endDate} onChange={(v) => set({ endDate: v })} />
             </Field>
           )}
           {rentOnly && <Field label="تاريخ النهاية" hint="يُحسب من آخر فترة إيجار"><input className="input ltr" disabled value="تلقائي" readOnly /></Field>}
@@ -245,8 +245,8 @@ export function ContractFormView({ contractId, pending }: { contractId?: number;
           <h3 className="section-title" style={{ marginTop: 16 }}>أهداف المشتريات (شرائح الخصم)</h3>
           {goalLines.map((g, i) => (
             <div className="line-card" key={i}>
-              <Field label="من" error={err(`supply.goalLines.${i}.fromDate`)}><input className="input ltr" type="date" value={g.fromDate ?? ''} onChange={(e) => setGoal(i, { fromDate: e.target.value })} /></Field>
-              <Field label="إلى" error={err(`supply.goalLines.${i}.toDate`)}><input className="input ltr" type="date" value={g.toDate ?? ''} onChange={(e) => setGoal(i, { toDate: e.target.value })} /></Field>
+              <Field label="من" error={err(`supply.goalLines.${i}.fromDate`)}><DateInput value={g.fromDate ?? ''} onChange={(v) => setGoal(i, { fromDate: v })} /></Field>
+              <Field label="إلى" error={err(`supply.goalLines.${i}.toDate`)}><DateInput value={g.toDate ?? ''} onChange={(v) => setGoal(i, { toDate: v })} /></Field>
               <Field label="الهدف (ر.س)" error={err(`supply.goalLines.${i}.target`)}><input className="input ltr" type="number" min={0} value={g.target ?? ''} onChange={(e) => setGoal(i, { target: e.target.value })} /></Field>
               <Field label="الخصم %" error={err(`supply.goalLines.${i}.discountPct`)}><input className="input ltr" type="number" min={0} max={100} step="0.01" value={g.discountPct ?? ''} onChange={(e) => setGoal(i, { discountPct: e.target.value })} /></Field>
               <Button small variant="danger" onClick={() => setIn('supply', { goalLines: goalLines.filter((_, j) => j !== i) })}>«احذف»</Button>
@@ -281,8 +281,8 @@ export function ContractFormView({ contractId, pending }: { contractId?: number;
                   <option value="week">أسبوع</option>
                 </select>
               </Field>
-              <Field label="من" error={err(`rentLines.${i}.startDate`)}><input className="input ltr" type="date" value={l.startDate ?? ''} onChange={(e) => setList('rentLines', i, { startDate: e.target.value })} /></Field>
-              <Field label="إلى" error={err(`rentLines.${i}.endDate`)}><input className="input ltr" type="date" value={l.endDate ?? ''} onChange={(e) => setList('rentLines', i, { endDate: e.target.value })} /></Field>
+              <Field label="من" error={err(`rentLines.${i}.startDate`)}><DateInput value={l.startDate ?? ''} onChange={(v) => setList('rentLines', i, { startDate: v })} /></Field>
+              <Field label="إلى" error={err(`rentLines.${i}.endDate`)}><DateInput value={l.endDate ?? ''} onChange={(v) => setList('rentLines', i, { endDate: v })} /></Field>
               <Button small variant="danger" onClick={() => drop('rentLines', i)}>«احذف»</Button>
             </div>
           ))}

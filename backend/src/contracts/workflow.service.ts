@@ -77,14 +77,14 @@ export class WorkflowService {
       });
       await this.audit(user, c, firstSend ? 'إرسال للمراجعة (وتخصيص الرقم)' : 'إعادة إرسال للمراجعة', { after: { number, alert: autoAlert } });
     });
-    await this.notify.notify(c, 'review', 'أُرسل العقد للمراجعة.', { departmentManager: true }, { actorId: user.id });
+    await this.notify.notify(c, 'review', 'أُرسل العقد للمراجعة.', { departmentManager: true, purchasingManager: true }, { actorId: user.id });
     return this.core.detail(id, user);
   }
 
   // ───────────────────────── مراجعة مدير القسم ─────────────────────────
 
   private assertDeptManager(user: AuthUser, c: ContractEntity) {
-    if (!this.core.isDeptManagerOf(user, c)) throw new ForbiddenException('الاعتماد والرفض لمدير قسم هذا العقد فقط.');
+    if (!this.core.canReview(user, c)) throw new ForbiddenException('الاعتماد والرفض لمدير قسم هذا العقد أو لمدير المشتريات.');
     if (c.party !== Party.DEPARTMENT_MANAGER) this.core.fail('العقد ليس لدى مدير القسم الآن.');
   }
 

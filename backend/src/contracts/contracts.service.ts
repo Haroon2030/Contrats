@@ -104,6 +104,11 @@ export class ContractsService {
     return user.role === Role.DEPARTMENT_MANAGER && this.isOwnDepartment(user, c);
   }
 
+  /** من يعتمد العقد أو يرفضه في مرحلة مراجعة القسم: مدير القسم لعقود قسمه، ومدير المشتريات لأي عقد. */
+  canReview(user: AuthUser, c: ContractEntity) {
+    return user.role === Role.PURCHASING_MANAGER || this.isDeptManagerOf(user, c);
+  }
+
   canSeeAccountData(user: AuthUser, c: ContractEntity): boolean {
     if (!c.types.includes(ContractType.OPEN_ACCOUNT)) return true;
     if (!user.caps.seesAccountDocs) return false;
@@ -149,11 +154,11 @@ export class ContractsService {
       if (!user.departmentId) throw new ForbiddenException('حسابك غير مرتبط بقسم.');
       return user.departmentId;
     }
-    if (user.caps.createAnyDepartment) {
+    if (user.caps.pickDepartment) {
       if (!requested) throw new BadRequestException({ message: 'اختر القسم.', errors: { departmentId: 'اختر القسم.' } });
       return requested;
     }
-    throw new ForbiddenException('إنشاء العقود لمسؤول القسم ومدير القسم ومسؤول النظام فقط.');
+    throw new ForbiddenException('إنشاء العقود لمسؤول القسم ومدير القسم ومدير المشتريات ومسؤول النظام فقط.');
   }
 
   private checkErrors(errors: Record<string, string>) {
@@ -161,7 +166,7 @@ export class ContractsService {
   }
 
   async createDraft(user: AuthUser, body: Record<string, any>) {
-    if (!user.caps.canCreate) throw new ForbiddenException('إنشاء العقود لمسؤول القسم ومدير القسم ومسؤول النظام فقط.');
+    if (!user.caps.canCreate) throw new ForbiddenException('إنشاء العقود لمسؤول القسم ومدير القسم ومدير المشتريات ومسؤول النظام فقط.');
     const departmentId = this.resolveDepartment(user, Number(body.departmentId) || null);
     const { errors, clean } = validateContract({ ...body, departmentId }, 'draft', await this.refCtx());
     this.checkErrors(errors);
@@ -399,7 +404,7 @@ export class ContractsService {
     const role = user.role;
     if (c.status === Status.DRAFT && c.sentAt && c.createdById === user.id) return true;
     if (c.status === Status.UNDER_REVIEW) {
-      if (c.party === Party.DEPARTMENT_MANAGER) return this.isDeptManagerOf(user, c);
+      if (c.party === Party.DEPARTMENT_MANAGER) return this.canReview(user, c);
       if (c.party === Party.CONTRACTS_MANAGER) return role === Role.CONTRACTS_MANAGER;
     }
     if (c.status === Status.AWAITING_SIGNATURE) return role === Role.PURCHASING_MANAGER;
@@ -622,7 +627,7 @@ export class ContractsService {
       add({ key: 'send', label: 'أرسل للمراجعة', primary: true });
       if (!c.number && !c.sentAt) add({ key: 'delete', label: 'احذف المسودة', danger: true });
     }
-    if (c.status === Status.UNDER_REVIEW && c.party === Party.DEPARTMENT_MANAGER && deptMgr) {
+    if (c.status === Status.UNDER_REVIEW && c.party === Party.DEPARTMENT_MANAGER && this.canReview(user, c)) {
       add({ key: 'dept_approve', label: c.entryPath === 'ready' ? 'أكّد المطابقة' : 'اعتمد', primary: true, reason: 'optional' });
       add({ key: 'dept_reject', label: c.entryPath === 'ready' ? 'غير مطابق — أعده للمسودة' : 'ارفض', danger: true, reason: 'required' });
     }

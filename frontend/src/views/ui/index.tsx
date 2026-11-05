@@ -214,3 +214,76 @@ export function fmtDateTime(value: string | null | undefined) {
   if (Number.isNaN(d.getTime())) return value;
   return new Intl.DateTimeFormat('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Riyadh' }).format(d);
 }
+
+const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * حقل تاريخ بثلاث قوائم (يوم / شهر / سنة) يعطي قيمة ISO (yyyy-mm-dd) أو نصاً فارغاً.
+ * بديل عن input[type=date] الذي يعرض نصوصه مقلوبة في متصفحات واجهتها عربية.
+ */
+export function DateInput({
+  value,
+  onChange,
+  'aria-label': ariaLabel,
+  yearsBack = 5,
+  yearsAhead = 15,
+}: {
+  value: string | null | undefined;
+  onChange: (value: string) => void;
+  'aria-label'?: string;
+  yearsBack?: number;
+  yearsAhead?: number;
+}) {
+  const parse = (v: string | null | undefined) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v ?? '');
+    return m ? { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) } : { y: 0, m: 0, d: 0 };
+  };
+  const [parts, setParts] = useState(() => parse(value));
+
+  // يتبع القيمة القادمة من الأعلى (تحميل عقد، إعادة ضبط) دون مسح اختيار جزئي
+  useEffect(() => {
+    const next = parse(value);
+    if (value) setParts(next);
+    else setParts((cur) => (cur.y && cur.m && cur.d ? next : cur));
+  }, [value]);
+
+  const thisYear = new Date().getFullYear();
+  const years: number[] = [];
+  for (let y = thisYear - yearsBack; y <= thisYear + yearsAhead; y++) years.push(y);
+  if (parts.y && !years.includes(parts.y)) years.push(parts.y);
+  years.sort((a, b) => a - b);
+
+  const daysIn = parts.y && parts.m ? new Date(parts.y, parts.m, 0).getDate() : 31;
+
+  const update = (patch: Partial<typeof parts>) => {
+    const next = { ...parts, ...patch };
+    const max = next.y && next.m ? new Date(next.y, next.m, 0).getDate() : 31;
+    if (next.d > max) next.d = max;
+    setParts(next);
+    onChange(next.y && next.m && next.d ? `${next.y}-${pad2(next.m)}-${pad2(next.d)}` : '');
+  };
+
+  return (
+    <div className="date-input" role="group" aria-label={ariaLabel ?? 'التاريخ'}>
+      <select className="select" aria-label="اليوم" value={parts.d || ''} onChange={(e) => update({ d: Number(e.target.value) })}>
+        <option value="">يوم</option>
+        {Array.from({ length: daysIn }, (_, i) => i + 1).map((d) => (
+          <option key={d} value={d}>{d}</option>
+        ))}
+      </select>
+      <select className="select" aria-label="الشهر" value={parts.m || ''} onChange={(e) => update({ m: Number(e.target.value) })}>
+        <option value="">شهر</option>
+        {MONTHS.map((name, i) => (
+          <option key={name} value={i + 1}>{`${i + 1} - ${name}`}</option>
+        ))}
+      </select>
+      <select className="select" aria-label="السنة" value={parts.y || ''} onChange={(e) => update({ y: Number(e.target.value) })}>
+        <option value="">سنة</option>
+        {years.map((y) => (
+          <option key={y} value={y}>{y}</option>
+        ))}
+      </select>
+    </div>
+  );
+}

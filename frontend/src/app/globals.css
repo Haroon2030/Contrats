@@ -1714,3 +1714,14 @@ input[type='file']::file-selector-button {
 .table td.cell-actions {
   padding-block: 6px;
 }
+
+/* حقل التاريخ: ثلاث قوائم متجاورة (يوم / شهر / سنة) */
+.date-input {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.8fr) minmax(0, 1.8fr) minmax(76px, 1fr);
+  gap: 8px;
+}
+
+.date-input .select {
+  padding-inline: 10px;
+}

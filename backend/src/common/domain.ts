@@ -181,6 +181,7 @@ export interface Caps {
   canViewAllDepartments: boolean; // يرى كل الأقسام (مع قراءة فقط لمدير القسم)
   operationsOnly: boolean;
   createAnyDepartment: boolean;
+  pickDepartment: boolean; // يختار قسم العقد عند الإنشاء (مسؤول النظام ومدير المشتريات)
   canCreate: boolean;
   canRaiseAlert: boolean;
   canNoteOnAlert: boolean;
@@ -201,7 +202,8 @@ export function capsOf(rawRole: string | null | undefined): Caps {
     canViewAllDepartments: is(Role.SYSTEM_ADMIN, Role.CONTRACTS_MANAGER, Role.CONTRACTS_OFFICER, Role.PURCHASING_MANAGER, Role.DEPARTMENT_MANAGER),
     operationsOnly: is(Role.OPERATIONS),
     createAnyDepartment: is(Role.SYSTEM_ADMIN),
-    canCreate: is(Role.SYSTEM_ADMIN, Role.DEPARTMENT_MANAGER, Role.DEPARTMENT_OFFICIAL),
+    pickDepartment: is(Role.SYSTEM_ADMIN, Role.PURCHASING_MANAGER),
+    canCreate: is(Role.SYSTEM_ADMIN, Role.PURCHASING_MANAGER, Role.DEPARTMENT_MANAGER, Role.DEPARTMENT_OFFICIAL),
     canRaiseAlert: is(Role.CONTRACTS_MANAGER, Role.CONTRACTS_OFFICER, Role.PURCHASING_MANAGER, Role.DEPARTMENT_MANAGER),
     canNoteOnAlert: is(Role.CONTRACTS_MANAGER, Role.CONTRACTS_OFFICER),
     canViewAudit: is(Role.SYSTEM_ADMIN, Role.CONTRACTS_MANAGER, Role.CONTRACTS_OFFICER, Role.PURCHASING_MANAGER, Role.DEPARTMENT_MANAGER),

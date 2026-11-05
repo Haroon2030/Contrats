@@ -16,6 +16,7 @@ export interface Caps {
   canViewAllDepartments: boolean;
   operationsOnly: boolean;
   createAnyDepartment: boolean;
+  pickDepartment: boolean;
   canCreate: boolean;
   canRaiseAlert: boolean;
   canNoteOnAlert: boolean;

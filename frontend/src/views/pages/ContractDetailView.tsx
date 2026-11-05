@@ -8,7 +8,7 @@ import { errorText, useApi } from '@/controllers/useApi';
 import { api, ApiError } from '@/models/api';
 import { CHANGE_LABELS, STAGES } from '@/models/labels';
 import type { ContractAction, Json } from '@/models/types';
-import { Button, Empty, ErrorBox, Field, Loading, PageHead, Panel, ReasonModal, StatusBadge, fmtDate, fmtDateTime, fmtMoney, useModalKeys } from '../ui';
+import { Button, Empty, ErrorBox, Field, Loading, PageHead, Panel, ReasonModal, StatusBadge, fmtDate, fmtDateTime, fmtMoney, useModalKeys, DateInput } from '../ui';
 
 type Tab = 'summary' | 'terms' | 'files' | 'history' | 'audit';
 
@@ -415,7 +415,7 @@ function AddendumModal({ contract, busy, error, onCancel, onSubmit }: { contract
         <h2>إضافة ملحق</h2>
         <div className="form-grid">
           <Field label="تاريخ السريان *" hint={`ضمن مدة العقد ${fmtDate(contract.startDate)} — ${contract.endDate ? fmtDate(contract.endDate) : 'مفتوحة'}`}>
-            <input className="input ltr" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput value={date} onChange={(v) => setDate(v)} />
           </Field>
           <Field label="وصف الملحق *"><input className="input" value={desc} onChange={(e) => setDesc(e.target.value)} /></Field>
           {available.map((f) => (
@@ -436,8 +436,8 @@ function AddendumModal({ contract, busy, error, onCancel, onSubmit }: { contract
             </div>
             {goals?.map((g, i) => (
               <div className="line-card" key={i}>
-                <input className="input ltr" type="date" value={g.fromDate} onChange={(e) => setGoals(goals.map((x, j) => (j === i ? { ...x, fromDate: e.target.value } : x)))} />
-                <input className="input ltr" type="date" value={g.toDate} onChange={(e) => setGoals(goals.map((x, j) => (j === i ? { ...x, toDate: e.target.value } : x)))} />
+                <DateInput value={g.fromDate} onChange={(v) => setGoals(goals.map((x, j) => (j === i ? { ...x, fromDate: v } : x)))} />
+                <DateInput value={g.toDate} onChange={(v) => setGoals(goals.map((x, j) => (j === i ? { ...x, toDate: v } : x)))} />
                 <input className="input ltr" type="number" value={g.target} onChange={(e) => setGoals(goals.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)))} />
                 <input className="input ltr" type="number" value={g.discountPct} onChange={(e) => setGoals(goals.map((x, j) => (j === i ? { ...x, discountPct: e.target.value } : x)))} />
                 <Button small variant="danger" onClick={() => setGoals(goals.filter((_, j) => j !== i))}>«احذف»</Button>

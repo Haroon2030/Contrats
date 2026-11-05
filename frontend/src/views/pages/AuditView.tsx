@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useApi } from '@/controllers/useApi';
-import { Empty, ErrorBox, Loading, PageHead, Panel, fmtDateTime } from '../ui';
+import { Empty, ErrorBox, Loading, PageHead, Panel, fmtDateTime, DateInput } from '../ui';
 
 interface Entry {
   id: number;
@@ -39,8 +39,8 @@ export function AuditView() {
         <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))' }}>
           <input className="input" placeholder="المستخدم" value={f.userName} onChange={(e) => set('userName', e.target.value)} />
           <input className="input" placeholder="الإجراء" value={f.action} onChange={(e) => set('action', e.target.value)} />
-          <input className="input ltr" type="date" value={f.from} onChange={(e) => set('from', e.target.value)} aria-label="من" />
-          <input className="input ltr" type="date" value={f.to} onChange={(e) => set('to', e.target.value)} aria-label="إلى" />
+          <DateInput value={f.from} onChange={(v) => set('from', v)} aria-label="من" />
+          <DateInput value={f.to} onChange={(v) => set('to', v)} aria-label="إلى" />
           <input className="input ltr" placeholder="معرّف العقد" value={f.contractId} onChange={(e) => set('contractId', e.target.value)} />
         </div>
       </Panel>
